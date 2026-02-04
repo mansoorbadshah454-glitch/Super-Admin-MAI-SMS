@@ -1,0 +1,194 @@
+import React, { useState, useEffect } from 'react';
+import { School, Users, Activity, Plus, Search, Filter, MoreVertical } from 'lucide-react';
+import CreateSchoolModal from '../components/CreateSchoolModal';
+import { db } from '../firebase';
+import { collection, query, orderBy, limit, onSnapshot, getDocs, getCountFromServer, collectionGroup } from 'firebase/firestore';
+
+const Dashboard = () => {
+    const [showCreateModal, setShowCreateModal] = useState(false);
+    const [schools, setSchools] = useState([]);
+    const [stats, setStats] = useState([
+        { label: 'Total Schools', value: '0', icon: School, color: '#6366f1' },
+        { label: 'Total Students', value: '0', icon: Activity, color: '#8b5cf6' },
+        { label: 'Paid Schools', value: '0', icon: Users, color: '#10b981' },
+        { label: 'Unpaid Schools', value: '0', icon: Users, color: '#f59e0b' },
+    ]);
+
+    useEffect(() => {
+        // Fetch Schools for Table and Stats
+        const q = query(collection(db, "schools"), orderBy("createdAt", "desc"));
+        const unsubscribe = onSnapshot(q, async (querySnapshot) => {
+            const schoolsArray = [];
+            let paidCount = 0;
+            let unpaidCount = 0;
+
+            querySnapshot.forEach((doc) => {
+                const data = doc.data();
+                schoolsArray.push({ id: doc.id, ...data });
+
+                if (data.paymentStatus === 'paid') paidCount++;
+                else unpaidCount++;
+            });
+
+            setSchools(schoolsArray.slice(0, 5)); // Only show last 5 in dashboard table
+
+            // Fetch total students across all schools
+            let totalStudents = 0;
+            try {
+                // Use collectionGroup to count all documents in 'students' subcollections
+                const studentsQuery = query(collectionGroup(db, 'students'));
+                const snapshot = await getCountFromServer(studentsQuery);
+                totalStudents = snapshot.data().count;
+            } catch (error) {
+                console.error("Error fetching total students:", error);
+            }
+
+            // Update Stats Grid
+            setStats([
+                { label: 'Total Schools', value: querySnapshot.size.toString(), icon: School, color: '#6366f1' },
+                { label: 'Total Students', value: totalStudents.toLocaleString(), icon: Activity, color: '#8b5cf6' },
+                { label: 'Paid Schools', value: paidCount.toString(), icon: Users, color: '#10b981' },
+                { label: 'Unpaid Schools', value: unpaidCount.toString(), icon: Users, color: '#f59e0b' },
+            ]);
+        });
+
+        return () => unsubscribe();
+    }, []);
+
+    const handleSuccess = () => {
+        setShowCreateModal(false);
+    };
+
+    return (
+        <div className="animate-in fade-in duration-700">
+            {showCreateModal && (
+                <CreateSchoolModal
+                    onClose={() => setShowCreateModal(false)}
+                    onSuccess={handleSuccess}
+                />
+            )}
+            <header className="page-header">
+                <div>
+                    <h2 style={{ fontSize: '2rem', marginBottom: '0.25rem' }} className="text-gradient">System Overview</h2>
+                    <p style={{ color: 'var(--text-muted)' }}>Real-time monitoring of all registered schools.</p>
+                </div>
+                <button
+                    className="btn btn-primary"
+                    onClick={() => setShowCreateModal(true)}
+                >
+                    <Plus size={20} />
+                    Register New School
+                </button>
+            </header>
+
+            {/* Stats Grid */}
+            <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
+                gap: '1.5rem',
+                marginBottom: '2rem'
+            }}>
+                {stats.map((stat, index) => (
+                    <div key={index} className="card glass" style={{ display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
+                        <div style={{
+                            padding: '1rem',
+                            borderRadius: '16px',
+                            background: `${stat.color}15`,
+                            color: stat.color,
+                            boxShadow: `inset 0 0 12px ${stat.color}10`
+                        }}>
+                            <stat.icon size={28} />
+                        </div>
+                        <div>
+                            <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', fontWeight: '500' }}>{stat.label}</p>
+                            <h3 style={{ fontSize: '1.75rem', fontWeight: '700', letterSpacing: '-0.02em' }}>{stat.value}</h3>
+                        </div>
+                    </div>
+                ))}
+            </div>
+
+            {/* Recent Schools Section */}
+            <div className="card glass" style={{ padding: '0', overflow: 'hidden' }}>
+                <div style={{ padding: '1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--glass-border)' }}>
+                    <h3 style={{ fontSize: '1.25rem' }}>Recently Registered Schools</h3>
+                    <div style={{ display: 'flex', gap: '0.75rem' }}>
+                        <button className="btn" style={{ background: 'rgba(255,255,255,0.05)', padding: '0.5rem' }}><Filter size={18} /></button>
+                        <button className="btn" style={{ background: 'rgba(255,255,255,0.05)', padding: '0.5rem' }}><Search size={18} /></button>
+                    </div>
+                </div>
+
+                <div style={{ overflowX: 'auto' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                        <thead>
+                            <tr style={{ textAlign: 'left', background: 'rgba(0,0,0,0.1)' }}>
+                                <th style={{ padding: '1.25rem', color: 'var(--text-muted)', fontWeight: '600', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>School Name</th>
+                                <th style={{ padding: '1.25rem', color: 'var(--text-muted)', fontWeight: '600', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>ID</th>
+                                <th style={{ padding: '1.25rem', color: 'var(--text-muted)', fontWeight: '600', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Status</th>
+                                <th style={{ padding: '1.25rem', color: 'var(--text-muted)', fontWeight: '600', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Created</th>
+                                <th style={{ padding: '1.25rem' }}></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {schools.length === 0 ? (
+                                <tr>
+                                    <td colSpan="5" style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-muted)' }}>
+                                        No schools registered yet.
+                                    </td>
+                                </tr>
+                            ) : schools.map((school) => (
+                                <tr key={school.id} style={{ borderBottom: '1px solid var(--glass-border)', transition: 'var(--transition)' }} className="table-row-hover">
+                                    <td style={{ padding: '1.25rem' }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                                            <div style={{
+                                                width: '40px',
+                                                height: '40px',
+                                                borderRadius: '12px',
+                                                background: 'linear-gradient(135deg, #1e293b, #334155)',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'center',
+                                                border: '1px solid rgba(255,255,255,0.05)'
+                                            }}>
+                                                <School size={20} className="text-primary" />
+                                            </div>
+                                            <div>
+                                                <div style={{ fontWeight: '600', color: 'white' }}>{school.name}</div>
+                                                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{school.address}</div>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td style={{ padding: '1.25rem' }}>
+                                        <code style={{ background: 'rgba(99, 102, 241, 0.1)', color: 'var(--primary)', padding: '0.2rem 0.5rem', borderRadius: '4px', fontSize: '0.85rem' }}>
+                                            {school.id}
+                                        </code>
+                                    </td>
+                                    <td style={{ padding: '1.25rem' }}>
+                                        <span style={{
+                                            padding: '0.4rem 0.8rem',
+                                            borderRadius: '20px',
+                                            fontSize: '0.75rem',
+                                            fontWeight: '600',
+                                            background: school.paymentStatus === 'paid' ? 'rgba(16, 185, 129, 0.15)' : 'rgba(245, 158, 11, 0.15)',
+                                            color: school.paymentStatus === 'paid' ? '#34d399' : '#fbbf24',
+                                            border: school.paymentStatus === 'paid' ? '1px solid rgba(16, 185, 129, 0.2)' : '1px solid rgba(245, 158, 11, 0.2)'
+                                        }}>{school.paymentStatus || 'unpaid'}</span>
+                                    </td>
+                                    <td style={{ padding: '1.25rem', color: 'var(--text-muted)', fontSize: '0.875rem' }}>
+                                        {school.createdAt?.toDate().toLocaleDateString()}
+                                    </td>
+                                    <td style={{ padding: '1.25rem' }}>
+                                        <button style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}>
+                                            <MoreVertical size={20} />
+                                        </button>
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+export default Dashboard;
