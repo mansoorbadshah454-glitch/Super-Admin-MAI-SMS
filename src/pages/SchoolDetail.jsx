@@ -6,7 +6,7 @@ import {
     MapPin, Hash, CheckCircle, XCircle, Users, UserPlus, Phone
 } from 'lucide-react';
 import { db } from '../firebase';
-import { doc, onSnapshot, updateDoc, getDoc } from 'firebase/firestore';
+import { doc, onSnapshot, updateDoc, getDoc, collection, getCountFromServer, query, where, Timestamp } from 'firebase/firestore';
 
 const SchoolDetail = () => {
     const { id } = useParams();
@@ -18,31 +18,47 @@ const SchoolDetail = () => {
     const [updating, setUpdating] = useState(false);
 
     useEffect(() => {
+        setLoading(true); // Reset loading on ID change
         const unsubscribe = onSnapshot(doc(db, "schools", id), async (docSnap) => {
-            if (docSnap.exists()) {
-                const schoolData = { id: docSnap.id, ...docSnap.data() };
-                setSchool(schoolData);
+            try {
+                if (docSnap.exists()) {
+                    const schoolData = { id: docSnap.id, ...docSnap.data() };
+                    setSchool(schoolData);
+                    console.log("School Data Loaded:", schoolData);
 
-                // Fetch principal info
-                if (schoolData.principalId) {
-                    const principalSnap = await getDoc(doc(db, "global_users", schoolData.principalId));
-                    let pData = principalSnap.exists() ? principalSnap.data() : null;
+                    // Fetch principal info (Fail gracefully)
+                    if (schoolData.principalId) {
+                        try {
+                            const principalSnap = await getDoc(doc(db, "global_users", schoolData.principalId));
+                            let pData = principalSnap.exists() ? principalSnap.data() : null;
 
-                    // Always try to fetch from school registry to get the Name, 
-                    // as global_users might only have email/role
-                    const fallbackSnap = await getDoc(doc(db, `schools/${id}/users`, schoolData.principalId));
-                    if (fallbackSnap.exists()) {
-                        pData = { ...pData, ...fallbackSnap.data() };
+                            // Fallback to school-specific user doc
+                            const fallbackSnap = await getDoc(doc(db, `schools/${id}/users`, schoolData.principalId));
+                            if (fallbackSnap.exists()) {
+                                pData = { ...pData, ...fallbackSnap.data() };
+                            }
+                            setPrincipal(pData);
+                        } catch (pError) {
+                            console.error("Principal Fetch Error (Non-fatal):", pError);
+                        }
                     }
-                    setPrincipal(pData);
-                }
 
-                // Fetch stats
-                fetchSchoolStats(id);
-            } else {
-                console.error("School not found");
-                navigate('/schools');
+                    // Fetch stats
+                    fetchSchoolStats(id);
+                } else {
+                    console.error("School not found");
+                    // alert("School not found!"); // Optional
+                    navigate('/schools');
+                }
+            } catch (err) {
+                console.error("Error processing school data:", err);
+                alert("Error processing data: " + err.message);
+            } finally {
+                setLoading(false);
             }
+        }, (error) => {
+            console.error("School Query Error:", error);
+            alert(`Error loading school: ${error.message}`);
             setLoading(false);
         });
 
@@ -51,21 +67,32 @@ const SchoolDetail = () => {
 
     const fetchSchoolStats = async (schoolId) => {
         try {
-            const { getCountFromServer, query, where, Timestamp, collection } = await import('firebase/firestore');
+            // 1. Students
             const studentsRef = collection(db, `schools/${schoolId}/students`);
-
             const totalSnapshot = await getCountFromServer(studentsRef);
             const total = totalSnapshot.data().count;
 
+            // 2. Teachers
+            const teachersRef = collection(db, `schools/${schoolId}/teachers`);
+            const teachersSnapshot = await getCountFromServer(teachersRef);
+            const teachers = teachersSnapshot.data().count;
+
+            // 3. Parents
+            const parentsRef = collection(db, `schools/${schoolId}/parents`);
+            const parentsSnapshot = await getCountFromServer(parentsRef);
+            const parents = parentsSnapshot.data().count;
+
+            // 4. Recent Admissions
             const thirtyDaysAgo = new Date();
             thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
             const recentQuery = query(studentsRef, where("createdAt", ">=", Timestamp.fromDate(thirtyDaysAgo)));
             const recentSnapshot = await getCountFromServer(recentQuery);
             const recent = recentSnapshot.data().count;
 
-            setStats({ total, recent });
+            setStats({ total, teachers, parents, recent });
         } catch (error) {
             console.error("Error fetching stats:", error);
+            setStats(prev => ({ ...prev, total: 0, teachers: 0, parents: 0, recent: 0 }));
         }
     };
 
@@ -150,7 +177,8 @@ const SchoolDetail = () => {
                         </div>
 
                         {/* Student Stats in Detail Page */}
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', marginTop: '2.5rem', paddingTop: '2rem', borderTop: '1px solid var(--glass-border)' }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1.5rem', marginTop: '2.5rem', paddingTop: '2rem', borderTop: '1px solid var(--glass-border)' }}>
+                            {/* Students */}
                             <div style={{ background: 'rgba(99, 102, 241, 0.05)', padding: '1.5rem', borderRadius: '20px', border: '1px solid rgba(99, 102, 241, 0.1)' }}>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', color: 'var(--primary)', marginBottom: '0.5rem' }}>
                                     <Users size={18} />
@@ -158,6 +186,26 @@ const SchoolDetail = () => {
                                 </div>
                                 <div style={{ fontSize: '2rem', fontWeight: '800' }}>{stats.total.toLocaleString()}</div>
                             </div>
+
+                            {/* Teachers */}
+                            <div style={{ background: 'rgba(236, 72, 153, 0.05)', padding: '1.5rem', borderRadius: '20px', border: '1px solid rgba(236, 72, 153, 0.1)' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', color: '#ec4899', marginBottom: '0.5rem' }}>
+                                    <User size={18} />
+                                    <span style={{ fontSize: '0.8rem', fontWeight: '700', textTransform: 'uppercase' }}>Total Teachers</span>
+                                </div>
+                                <div style={{ fontSize: '2rem', fontWeight: '800' }}>{stats.teachers?.toLocaleString() || '0'}</div>
+                            </div>
+
+                            {/* Parents */}
+                            <div style={{ background: 'rgba(245, 158, 11, 0.05)', padding: '1.5rem', borderRadius: '20px', border: '1px solid rgba(245, 158, 11, 0.1)' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', color: '#f59e0b', marginBottom: '0.5rem' }}>
+                                    <Users size={18} />
+                                    <span style={{ fontSize: '0.8rem', fontWeight: '700', textTransform: 'uppercase' }}>Total Parents</span>
+                                </div>
+                                <div style={{ fontSize: '2rem', fontWeight: '800' }}>{stats.parents?.toLocaleString() || '0'}</div>
+                            </div>
+
+                            {/* Recent Admissions */}
                             <div style={{ background: 'rgba(16, 185, 129, 0.05)', padding: '1.5rem', borderRadius: '20px', border: '1px solid rgba(16, 185, 129, 0.1)' }}>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', color: '#10b981', marginBottom: '0.5rem' }}>
                                     <UserPlus size={18} />
@@ -181,7 +229,7 @@ const SchoolDetail = () => {
                             Principal Administrative Info
                         </h3>
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2rem' }}>
-                            <InfoItem icon={User} label="Principal Name" value={principal?.name || 'Loading...'} />
+                            <InfoItem icon={User} label="Principal Name" value={principal?.name || 'Not Found'} />
                             <InfoItem icon={Mail} label="Contact Email" value={principal?.email || 'N/A'} />
                             <InfoItem icon={Phone} label="Principal Phone" value={principal?.contact || 'Not Provided'} />
                             <InfoItem icon={Hash} label="Principal UID" value={school.principalId || 'N/A'} />
