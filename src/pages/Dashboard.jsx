@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { School, Users, Activity, Plus, Search, Filter, MoreVertical } from 'lucide-react';
+import { School, Users, Activity, Plus, Search, Filter, MoreVertical, GraduationCap } from 'lucide-react';
 import CreateSchoolModal from '../components/CreateSchoolModal';
 import { db } from '../firebase';
 import { collection, query, orderBy, limit, onSnapshot, getDocs, getCountFromServer, collectionGroup } from 'firebase/firestore';
@@ -10,6 +10,8 @@ const Dashboard = () => {
     const [stats, setStats] = useState([
         { label: 'Total Schools', value: '0', icon: School, color: '#6366f1' },
         { label: 'Total Students', value: '0', icon: Activity, color: '#8b5cf6' },
+        { label: 'Total Teachers', value: '0', icon: GraduationCap, color: '#ec4899' },
+        { label: 'Total Parents', value: '0', icon: Users, color: '#14b8a6' },
         { label: 'Paid Schools', value: '0', icon: Users, color: '#10b981' },
         { label: 'Unpaid Schools', value: '0', icon: Users, color: '#f59e0b' },
     ]);
@@ -32,21 +34,36 @@ const Dashboard = () => {
 
             setSchools(schoolsArray.slice(0, 5)); // Only show last 5 in dashboard table
 
-            // Fetch total students across all schools
+            // Fetch total students, teachers, and parents across all schools
             let totalStudents = 0;
+            let totalTeachers = 0;
+            let totalParents = 0;
+
             try {
-                // Use collectionGroup to count all documents in 'students' subcollections
+                // Use collectionGroup to count all documents in subcollections
                 const studentsQuery = query(collectionGroup(db, 'students'));
-                const snapshot = await getCountFromServer(studentsQuery);
-                totalStudents = snapshot.data().count;
+                const teachersQuery = query(collectionGroup(db, 'teachers'));
+                const parentsQuery = query(collectionGroup(db, 'parents'));
+
+                const [studentsSnap, teachersSnap, parentsSnap] = await Promise.all([
+                    getCountFromServer(studentsQuery),
+                    getCountFromServer(teachersQuery),
+                    getCountFromServer(parentsQuery)
+                ]);
+
+                totalStudents = studentsSnap.data().count;
+                totalTeachers = teachersSnap.data().count;
+                totalParents = parentsSnap.data().count;
             } catch (error) {
-                console.error("Error fetching total students:", error);
+                console.error("Error fetching total counts:", error);
             }
 
             // Update Stats Grid
             setStats([
                 { label: 'Total Schools', value: querySnapshot.size.toString(), icon: School, color: '#6366f1' },
                 { label: 'Total Students', value: totalStudents.toLocaleString(), icon: Activity, color: '#8b5cf6' },
+                { label: 'Total Teachers', value: totalTeachers.toLocaleString(), icon: GraduationCap, color: '#ec4899' },
+                { label: 'Total Parents', value: totalParents.toLocaleString(), icon: Users, color: '#14b8a6' },
                 { label: 'Paid Schools', value: paidCount.toString(), icon: Users, color: '#10b981' },
                 { label: 'Unpaid Schools', value: unpaidCount.toString(), icon: Users, color: '#f59e0b' },
             ]);
