@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { X, Save, Shield, School, Mail, Lock } from 'lucide-react';
-import { db, auth } from '../firebase';
+import { db, auth, functions } from '../firebase';
 import { collection, doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { httpsCallable } from 'firebase/functions';
 import { createUserWithEmailAndPassword } from 'firebase/auth';
 
 const CreateSchoolModal = ({ onClose, onSuccess }) => {
@@ -29,46 +30,20 @@ const CreateSchoolModal = ({ onClose, onSuccess }) => {
         setError(null);
 
         try {
-            console.log("Starting account creation...", formData.principalEmail);
-            const userCredential = await createUserWithEmailAndPassword(auth, formData.principalEmail, formData.principalPassword);
-            const user = userCredential.user;
+            console.log("Starting account creation via Cloud Function...", formData.principalEmail);
 
-            // Generate a School ID like SCHOOL_001
-            const schoolCode = `SCHOOL_${Math.floor(Math.random() * 900 + 100)}`;
-
-            console.log("Saving school metadata...");
-            const schoolRef = doc(db, "schools", schoolCode);
-            await setDoc(schoolRef, {
-                id: schoolCode,
-                name: formData.schoolName,
+            const createSchool = httpsCallable(functions, 'createSchool');
+            const result = await createSchool({
+                schoolName: formData.schoolName,
                 address: formData.address,
-                contact: formData.schoolContact, // Added contact
-                createdAt: serverTimestamp(),
-                status: 'active',
-                paymentStatus: 'unpaid', // Default to unpaid
-                principalId: user.uid
+                contact: formData.schoolContact,
+                principalName: formData.principalName,
+                principalEmail: formData.principalEmail,
+                principalPassword: formData.principalPassword,
+                principalContact: formData.principalContact
             });
 
-            console.log("Saving principal info to school subcollection...");
-            await setDoc(doc(db, `schools/${schoolCode}/users`, user.uid), {
-                uid: user.uid,
-                name: formData.principalName,
-                email: formData.principalEmail,
-                contact: formData.principalContact, // Added contact
-                role: 'principal',
-                schoolId: schoolCode,
-                createdAt: serverTimestamp()
-            });
-
-            console.log("Updating global user registry...");
-            await setDoc(doc(db, "global_users", user.uid), {
-                uid: user.uid,
-                name: formData.principalName, // Added name for global registry
-                email: formData.principalEmail,
-                contact: formData.principalContact, // Added contact
-                schoolId: schoolCode,
-                role: 'principal'
-            });
+            console.log("School Created:", result.data);
 
             alert(`Success! ${formData.schoolName} created with ID: ${schoolCode}`);
             onSuccess();

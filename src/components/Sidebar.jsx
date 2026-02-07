@@ -1,6 +1,8 @@
 import React from 'react';
 import { LayoutDashboard, School, Settings, LogOut, Shield, Users as UsersIcon } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
+import { signOut } from 'firebase/auth';
+import { auth } from '../firebase';
 
 const Sidebar = () => {
     const location = useLocation();
@@ -11,6 +13,16 @@ const Sidebar = () => {
         { icon: UsersIcon, label: 'Users', path: '/users' },
         { icon: Settings, label: 'Settings', path: '/settings' },
     ];
+
+    const handleLogout = async () => {
+        try {
+            await signOut(auth);
+            window.location.reload(); // Refresh to trigger auth state change/redirect
+        } catch (error) {
+            console.error("Logout Error:", error);
+            alert("Logout failed. See console.");
+        }
+    };
 
     return (
         <div className="sidebar glass">
@@ -56,7 +68,11 @@ const Sidebar = () => {
                         <p className="user-email">admin@school.com</p>
                     </div>
                 </div>
-                <button className="logout-btn">
+                <button
+                    className="logout-btn"
+                    onClick={handleLogout}
+                    title="Logout"
+                >
                     <LogOut size={20} />
                 </button>
             </div>

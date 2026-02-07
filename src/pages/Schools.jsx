@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { School, Search, Filter, Plus, MoreHorizontal, ExternalLink, Trash2, Edit2, Users, UserPlus, Power, CreditCard, Megaphone } from 'lucide-react';
-import { db } from '../firebase';
+import { db, auth } from '../firebase';
 import { collection, onSnapshot, query, orderBy, getCountFromServer, where, Timestamp, doc, updateDoc } from 'firebase/firestore';
 import CreateSchoolModal from '../components/CreateSchoolModal';
 import EditSchoolModal from '../components/EditSchoolModal';

@@ -50,6 +50,12 @@ const Dashboard = () => {
                 { label: 'Paid Schools', value: paidCount.toString(), icon: Users, color: '#10b981' },
                 { label: 'Unpaid Schools', value: unpaidCount.toString(), icon: Users, color: '#f59e0b' },
             ]);
+        }, (error) => {
+            console.error("Dashboard Fetch Error:", error);
+            if (error.code === 'permission-denied') {
+                const uid = auth.currentUser ? auth.currentUser.uid : 'UNKNOWN';
+                alert(`ACCESS DENIED: Admin Document Missing.\n\nYour UID is:\n${uid}\n\nPlease create a document in 'users' collection with this ID and role: 'admin'.`);
+            }
         });
 
         return () => unsubscribe();

@@ -59,19 +59,16 @@ const AddAdminModal = ({ onClose, onSuccess }) => {
         setError(null);
 
         try {
-            // 1. Create User in Firebase Auth
-            const userCredential = await createUserWithEmailAndPassword(auth, formData.email, formData.password);
-            const user = userCredential.user;
+            // Use Cloud Function to avoid "Logged Out" issue
+            const { functions } = await import('../firebase'); // Dynamic import just in case
+            const { httpsCallable } = await import('firebase/functions');
 
-            // 2. Save in global_users
-            await setDoc(doc(db, "global_users", user.uid), {
-                uid: user.uid,
+            const createSuperAdmin = httpsCallable(functions, 'createSuperAdmin');
+            await createSuperAdmin({
                 name: formData.name,
                 email: formData.email,
-                role: 'super-admin', // Role is super-admin for this panel
-                permissions: formData.permissions,
-                createdAt: serverTimestamp(),
-                status: 'active'
+                password: formData.password,
+                permissions: formData.permissions
             });
 
             onSuccess();
