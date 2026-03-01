@@ -98,7 +98,7 @@ const AddAdminModal = ({ onClose, onSuccess }) => {
                 maxWidth: '500px',
                 padding: '2.5rem',
                 position: 'relative',
-                background: 'rgba(30, 41, 59, 0.98)',
+                background: 'var(--bg-card)',
                 border: '1px solid var(--glass-border)'
             }}>
                 <button onClick={onClose} style={{ position: 'absolute', right: '1.5rem', top: '1.5rem', background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}>
@@ -181,7 +181,7 @@ const AddAdminModal = ({ onClose, onSuccess }) => {
                                     style={{
                                         padding: '0.75rem',
                                         borderRadius: '12px',
-                                        background: formData.permissions[perm.key] ? 'rgba(99, 102, 241, 0.1)' : 'rgba(255,255,255,0.02)',
+                                        background: formData.permissions[perm.key] ? 'rgba(99, 102, 241, 0.1)' : 'var(--card-inner-bg)',
                                         border: `1px solid ${formData.permissions[perm.key] ? 'var(--primary)' : 'var(--glass-border)'}`,
                                         cursor: 'pointer',
                                         display: 'flex',
@@ -202,7 +202,7 @@ const AddAdminModal = ({ onClose, onSuccess }) => {
                                     }}>
                                         {formData.permissions[perm.key] && <Check size={14} />}
                                     </div>
-                                    <span style={{ fontSize: '0.8rem', color: formData.permissions[perm.key] ? 'white' : 'var(--text-muted)' }}>
+                                    <span style={{ fontSize: '0.8rem', color: formData.permissions[perm.key] ? 'var(--text-main)' : 'var(--text-muted)' }}>
                                         {perm.label}
                                     </span>
                                 </div>

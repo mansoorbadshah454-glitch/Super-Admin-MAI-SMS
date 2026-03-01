@@ -143,7 +143,7 @@ const SchoolDetail = () => {
                     <button
                         onClick={() => navigate('/schools')}
                         className="btn"
-                        style={{ padding: '0.5rem', background: 'rgba(255,255,255,0.05)' }}
+                        style={{ padding: '0.5rem', background: 'var(--card-inner-bg)' }}
                     >
                         <ChevronLeft size={24} />
                     </button>
@@ -245,7 +245,7 @@ const SchoolDetail = () => {
 
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
                             {/* Payment Toggle */}
-                            <div style={{ padding: '1.25rem', borderRadius: '16px', background: 'rgba(255,255,255,0.03)', border: '1px solid var(--glass-border)' }}>
+                            <div style={{ padding: '1.25rem', borderRadius: '16px', background: 'var(--card-inner-bg)', border: '1px solid var(--glass-border)' }}>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
                                     <div>
                                         <p style={{ fontSize: '0.875rem', fontWeight: '600' }}>Billing Status</p>
@@ -342,7 +342,7 @@ const InfoItem = ({ icon: Icon, label, value, color }) => (
             marginTop: '0.25rem',
             padding: '0.6rem',
             borderRadius: '10px',
-            background: 'rgba(255,255,255,0.03)',
+            background: 'var(--card-inner-bg)',
             color: color || 'var(--text-muted)'
         }}>
             <Icon size={18} />
@@ -351,7 +351,7 @@ const InfoItem = ({ icon: Icon, label, value, color }) => (
             <p style={{ fontSize: '0.75rem', fontWeight: '600', color: 'var(--text-muted)', marginBottom: '0.25rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                 {label}
             </p>
-            <p style={{ fontSize: '1rem', fontWeight: '700', color: color || 'white' }}>
+            <p style={{ fontSize: '1rem', fontWeight: '700', color: color || 'var(--text-main)' }}>
                 {value}
             </p>
         </div>

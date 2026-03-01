@@ -10,30 +10,67 @@
   --accent: #8b5cf6;
   /* Violet 500 */
 
+  /* Surface & Background */
   --bg-dark: #0f172a;
   --bg-card: #1e293b;
   --bg-light: #f8fafc;
 
+  /* Text */
   --text-main: #f8fafc;
   --text-muted: #94a3b8;
   --text-dark: #1e293b;
+  --text-inverted: #0f172a;
 
+  /* Glassmorphism Elements */
   --glass-bg: rgba(30, 41, 59, 0.7);
-  --glass-border: rgba(255, 255, 255, 0.1);
+  --glass-border: rgba(255, 255, 255, 0.08);
+  /* Faint white for dark mode */
+
+  /* Card Inner Modules */
+  --card-inner-bg: rgba(255, 255, 255, 0.03);
+  --card-inner-border: rgba(255, 255, 255, 0.05);
+
+  /* Shadows */
   --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.3), 0 4px 6px -2px rgba(0, 0, 0, 0.2);
+
+  /* Utilities */
+  --icon-color: #ffffff;
+  --icon-muted: #94a3b8;
+  --input-bg: rgba(15, 23, 42, 0.6);
 
   --radius: 16px;
   --transition: all 0.3s ease;
 }
 
 body.light-theme {
+  /* Surface & Background */
   --bg-dark: #f8fafc;
+  /* This is the main body bg */
   --bg-card: #ffffff;
+
+  /* Text */
   --text-main: #0f172a;
   --text-muted: #64748b;
-  --glass-bg: rgba(255, 255, 255, 0.8);
-  --glass-border: rgba(0, 0, 0, 0.05);
-  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+  --text-inverted: #ffffff;
+
+  /* Glassmorphism Elements */
+  --glass-bg: rgba(255, 255, 255, 0.85);
+  --glass-border: rgba(0, 0, 0, 0.06);
+  /* Faint dark line for light mode */
+
+  /* Card Inner Modules */
+  --card-inner-bg: rgba(241, 245, 249, 0.6);
+  /* Slate 50/100ish */
+  --card-inner-border: rgba(0, 0, 0, 0.03);
+
+  /* Shadows */
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.06), 0 4px 6px -2px rgba(0, 0, 0, 0.03);
+
+  /* Utilities */
+  --icon-color: #334155;
+  /* Slate 700 */
+  --icon-muted: #64748b;
+  --input-bg: #ffffff;
 }
 
 * {
@@ -191,7 +228,7 @@ h3 {
 .logo-text {
   font-size: 1.25rem;
   font-weight: 700;
-  color: white;
+  color: var(--text-main);
   line-height: 1.2;
 }
 
@@ -226,8 +263,8 @@ h3 {
 }
 
 .nav-item:hover {
-  background: rgba(255, 255, 255, 0.05);
-  color: white;
+  background: var(--card-inner-bg);
+  color: var(--text-main);
 }
 
 .nav-item.active {
@@ -275,7 +312,7 @@ h3 {
 .user-name {
   font-size: 0.875rem;
   font-weight: 600;
-  color: white;
+  color: var(--text-main);
 }
 
 .user-email {

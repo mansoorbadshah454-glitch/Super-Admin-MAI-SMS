@@ -33,7 +33,7 @@ const Login = () => {
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            background: '#0f172a',
+            background: 'var(--bg-dark)',
             position: 'relative',
             overflow: 'hidden'
         }}>
@@ -57,8 +57,8 @@ const Login = () => {
                 padding: '3rem',
                 position: 'relative',
                 zIndex: 10,
-                border: '1px solid rgba(255,255,255,0.08)',
-                boxShadow: '0 25px 50px -12px rgba(0,0,0,0.5)'
+                border: '1px solid var(--glass-border)',
+                boxShadow: 'var(--shadow-lg)'
             }}>
                 {/* Logo Section */}
                 <div style={{ textAlign: 'center', marginBottom: '3rem' }}>
@@ -74,7 +74,7 @@ const Login = () => {
                     </div>
                     <h1 style={{
                         fontSize: '2rem', fontWeight: '800',
-                        color: 'white', letterSpacing: '-0.02em',
+                        color: 'var(--text-main)', letterSpacing: '-0.02em',
                         marginBottom: '0.5rem'
                     }}>
                         MAI SMS
@@ -101,10 +101,10 @@ const Login = () => {
                                 style={{
                                     width: '100%',
                                     padding: '1rem 1rem 1rem 3rem',
-                                    background: 'rgba(15, 23, 42, 0.6)',
-                                    border: '1px solid rgba(255,255,255,0.1)',
+                                    background: 'var(--input-bg)',
+                                    border: '1px solid var(--glass-border)',
                                     borderRadius: '12px',
-                                    color: 'white',
+                                    color: 'var(--text-main)',
                                     fontSize: '1rem',
                                     outline: 'none',
                                     transition: 'border-color 0.2s'
@@ -126,10 +126,10 @@ const Login = () => {
                                 style={{
                                     width: '100%',
                                     padding: '1rem 1rem 1rem 3rem',
-                                    background: 'rgba(15, 23, 42, 0.6)',
-                                    border: '1px solid rgba(255,255,255,0.1)',
+                                    background: 'var(--input-bg)',
+                                    border: '1px solid var(--glass-border)',
                                     borderRadius: '12px',
-                                    color: 'white',
+                                    color: 'var(--text-main)',
                                     fontSize: '1rem',
                                     outline: 'none',
                                     transition: 'border-color 0.2s'
@@ -199,7 +199,7 @@ const Login = () => {
             <style>{`
                 .login-input:focus {
                     border-color: #6366f1 !important;
-                    background: rgba(15, 23, 42, 0.8) !important;
+                    background: var(--bg-dark) !important;
                 }
             `}</style>
         </div>

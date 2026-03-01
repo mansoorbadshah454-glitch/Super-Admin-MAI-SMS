@@ -177,7 +177,7 @@ const Schools = () => {
                             onChange={(e) => setSearchTerm(e.target.value)}
                         />
                     </div>
-                    <button className="btn" style={{ background: 'rgba(255,255,255,0.05)' }}>
+                    <button className="btn" style={{ background: 'var(--card-inner-bg)' }}>
                         <Filter size={18} />
                         Filters
                     </button>
@@ -282,7 +282,7 @@ const Schools = () => {
                         <div style={{ display: 'flex', gap: '1rem', marginBottom: '1.5rem' }}>
                             <div style={{
                                 flex: 1,
-                                background: 'rgba(255, 255, 255, 0.03)',
+                                background: 'var(--card-inner-bg)',
                                 padding: '1rem 0.75rem',
                                 borderRadius: '16px',
                                 border: '1px solid var(--glass-border)',
@@ -295,13 +295,13 @@ const Schools = () => {
                                     <Users size={14} />
                                     <span style={{ fontSize: '0.65rem', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Total Students</span>
                                 </div>
-                                <div style={{ fontSize: '1.5rem', fontWeight: '800', color: 'white' }}>
+                                <div style={{ fontSize: '1.5rem', fontWeight: '800', color: 'var(--text-main)' }}>
                                     {stats[school.id]?.total ?? '...'}
                                 </div>
                             </div>
                             <div style={{
                                 flex: 1,
-                                background: 'rgba(255, 255, 255, 0.03)',
+                                background: 'var(--card-inner-bg)',
                                 padding: '1rem 0.75rem',
                                 borderRadius: '16px',
                                 border: '1px solid var(--glass-border)',
@@ -362,8 +362,8 @@ const Schools = () => {
                                 marginTop: '0.75rem',
                                 padding: '0.75rem',
                                 borderRadius: '12px',
-                                background: 'rgba(255, 255, 255, 0.03)',
-                                border: '1px dashed rgba(255, 255, 255, 0.1)',
+                                background: 'var(--card-inner-bg)',
+                                border: '1px dashed var(--glass-border)',
                                 display: 'flex',
                                 justifyContent: 'space-between',
                                 alignItems: 'center'
