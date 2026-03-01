@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { School, Users, Activity, Plus, Search, Filter, MoreVertical, GraduationCap } from 'lucide-react';
 import CreateSchoolModal from '../components/CreateSchoolModal';
 import { db } from '../firebase';
-import { collection, query, orderBy, limit, onSnapshot, getDocs, getCountFromServer, collectionGroup } from 'firebase/firestore';
+import { collection, query, orderBy, limit, onSnapshot, getDocs, getCountFromServer, collectionGroup, doc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { calculateTrialDays } from '../utils/dateUtils';
 
 const Dashboard = () => {
     const [showCreateModal, setShowCreateModal] = useState(false);
@@ -26,10 +27,40 @@ const Dashboard = () => {
 
             querySnapshot.forEach((doc) => {
                 const data = doc.data();
-                schoolsArray.push({ id: doc.id, ...data });
+
+                // Calculate Trial Info based on trialStartDate
+                const trialInfo = calculateTrialDays(data.trialStartDate);
+
+                schoolsArray.push({
+                    id: doc.id,
+                    ...data,
+                    trialInfo
+                });
 
                 if (data.paymentStatus === 'paid') paidCount++;
                 else unpaidCount++;
+            });
+
+            // Sort logic requested by user:
+            // 1. Expired trials (0 days left) above all
+            // 2. Active Trials sorted by less days left (ascending)
+            // 3. Not Started trials at the bottom
+            schoolsArray.sort((a, b) => {
+                // If one is "Not Started", it goes to the bottom
+                if (a.trialInfo.notStarted && !b.trialInfo.notStarted) return 1;
+                if (!a.trialInfo.notStarted && b.trialInfo.notStarted) return -1;
+
+                // If one is expired and other is not, expired comes first
+                if (a.trialInfo.isExpired && !b.trialInfo.isExpired) return -1;
+                if (!a.trialInfo.isExpired && b.trialInfo.isExpired) return 1;
+
+                // If both are active, sort ascending by days left (fewer days first)
+                if (!a.trialInfo.isExpired && !b.trialInfo.isExpired && !a.trialInfo.notStarted && !b.trialInfo.notStarted) {
+                    return a.trialInfo.daysLeft - b.trialInfo.daysLeft;
+                }
+
+                // If both are expired, retain original sorting (newest first)
+                return 0;
             });
 
             setSchools(schoolsArray.slice(0, 5)); // Only show last 5 in dashboard table
@@ -80,6 +111,17 @@ const Dashboard = () => {
 
     const handleSuccess = () => {
         setShowCreateModal(false);
+    };
+
+    const handleStartTrial = async (schoolId) => {
+        try {
+            await updateDoc(doc(db, "schools", schoolId), {
+                trialStartDate: serverTimestamp(),
+                updatedAt: new Date()
+            });
+        } catch (error) {
+            alert("Failed to start trial: " + error.message);
+        }
     };
 
     return (
@@ -147,7 +189,7 @@ const Dashboard = () => {
                                 <th style={{ padding: '1.25rem', color: 'var(--text-muted)', fontWeight: '600', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>School Name</th>
                                 <th style={{ padding: '1.25rem', color: 'var(--text-muted)', fontWeight: '600', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>ID</th>
                                 <th style={{ padding: '1.25rem', color: 'var(--text-muted)', fontWeight: '600', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Status</th>
-                                <th style={{ padding: '1.25rem', color: 'var(--text-muted)', fontWeight: '600', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Created</th>
+                                <th style={{ padding: '1.25rem', color: 'var(--text-muted)', fontWeight: '600', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Trial Status</th>
                                 <th style={{ padding: '1.25rem' }}></th>
                             </tr>
                         </thead>
@@ -196,8 +238,39 @@ const Dashboard = () => {
                                             border: school.paymentStatus === 'paid' ? '1px solid rgba(16, 185, 129, 0.2)' : '1px solid rgba(245, 158, 11, 0.2)'
                                         }}>{school.paymentStatus || 'unpaid'}</span>
                                     </td>
-                                    <td style={{ padding: '1.25rem', color: 'var(--text-muted)', fontSize: '0.875rem' }}>
-                                        {school.createdAt?.toDate().toLocaleDateString()}
+                                    <td style={{ padding: '1.25rem' }}>
+                                        {school.trialInfo?.notStarted ? (
+                                            <button
+                                                onClick={() => handleStartTrial(school.id)}
+                                                className="btn"
+                                                style={{
+                                                    padding: '0.4rem 0.8rem',
+                                                    borderRadius: '8px',
+                                                    fontSize: '0.75rem',
+                                                    fontWeight: '600',
+                                                    background: 'rgba(255, 255, 255, 0.05)',
+                                                    color: 'var(--text-main)',
+                                                    border: '1px dashed rgba(255, 255, 255, 0.2)',
+                                                    cursor: 'pointer'
+                                                }}>
+                                                Start Trial
+                                            </button>
+                                        ) : (
+                                            <span style={{
+                                                padding: '0.4rem 0.8rem',
+                                                borderRadius: '20px',
+                                                fontSize: '0.75rem',
+                                                fontWeight: '600',
+                                                background: school.trialInfo?.isExpired ? 'rgba(239, 68, 68, 0.15)' : 'rgba(99, 102, 241, 0.15)',
+                                                color: school.trialInfo?.isExpired ? '#f87171' : 'var(--primary)',
+                                                border: school.trialInfo?.isExpired ? '1px solid rgba(239, 68, 68, 0.2)' : '1px solid rgba(99, 102, 241, 0.2)',
+                                                display: 'inline-flex',
+                                                alignItems: 'center',
+                                                gap: '0.4rem'
+                                            }}>
+                                                {school.trialInfo?.isExpired ? 'Trial Ended' : `${school.trialInfo?.daysLeft} Days Left`}
+                                            </span>
+                                        )}
                                     </td>
                                     <td style={{ padding: '1.25rem' }}>
                                         <button style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}>

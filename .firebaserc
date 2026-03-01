@@ -1,0 +1,14 @@
+{
+  "projects": {
+    "default": "mai-sms-a8dad"
+  },
+  "targets": {
+    "mai-sms-a8dad": {
+      "hosting": {
+        "super-admin": [
+          "mai-sms-super-admin"
+        ]
+      }
+    }
+  }
+}

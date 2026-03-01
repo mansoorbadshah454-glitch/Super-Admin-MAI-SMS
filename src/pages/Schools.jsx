@@ -2,11 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { School, Search, Filter, Plus, MoreHorizontal, ExternalLink, Trash2, Edit2, Users, UserPlus, Power, CreditCard, Megaphone } from 'lucide-react';
 import { db, auth } from '../firebase';
-import { collection, onSnapshot, query, orderBy, getCountFromServer, where, Timestamp, doc, updateDoc } from 'firebase/firestore';
+import { collection, onSnapshot, query, orderBy, getCountFromServer, where, Timestamp, doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import CreateSchoolModal from '../components/CreateSchoolModal';
 import EditSchoolModal from '../components/EditSchoolModal';
 import DeleteSchoolModal from '../components/DeleteSchoolModal';
 import BroadcastModal from '../components/BroadcastModal';
+import { calculateTrialDays } from '../utils/dateUtils';
 
 const Schools = () => {
     const [schools, setSchools] = useState([]);
@@ -22,7 +23,11 @@ const Schools = () => {
         const q = query(collection(db, "schools"), orderBy("createdAt", "desc"));
         const unsubscribe = onSnapshot(q, (snapshot) => {
             const list = [];
-            snapshot.forEach((doc) => list.push({ id: doc.id, ...doc.data() }));
+            snapshot.forEach((doc) => {
+                const data = doc.data();
+                const trialInfo = calculateTrialDays(data.trialStartDate);
+                list.push({ id: doc.id, ...data, trialInfo });
+            });
             setSchools(list);
 
             // Fetch stats for each school
@@ -79,6 +84,17 @@ const Schools = () => {
             });
         } catch (error) {
             alert("Failed to update system status: " + error.message);
+        }
+    };
+
+    const handleStartTrial = async (schoolId) => {
+        try {
+            await updateDoc(doc(db, "schools", schoolId), {
+                trialStartDate: serverTimestamp(),
+                updatedAt: new Date()
+            });
+        } catch (error) {
+            alert("Failed to start trial: " + error.message);
         }
     };
 
@@ -205,12 +221,59 @@ const Schools = () => {
                                 </div>
                             </div>
 
-                            <h3
-                                className="clickable-title"
-                                style={{ fontSize: '1.25rem', marginBottom: '0.25rem' }}
-                            >
-                                {school.name}
-                            </h3>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.25rem' }}>
+                                <h3
+                                    className="clickable-title"
+                                    style={{ fontSize: '1.25rem', margin: 0, marginTop: '0.25rem' }}
+                                >
+                                    {school.name}
+                                </h3>
+
+                                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.5rem' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                        <span style={{
+                                            padding: '0.2rem 0.5rem',
+                                            borderRadius: '8px',
+                                            fontSize: '0.65rem',
+                                            fontWeight: '700',
+                                            textTransform: 'uppercase',
+                                            background: school.status === 'active' ? 'rgba(52, 211, 153, 0.1)' : 'rgba(248, 113, 113, 0.1)',
+                                            color: school.status === 'active' ? '#34d399' : '#f87171'
+                                        }}>
+                                            {school.status || 'inactive'}
+                                        </span>
+                                        <button
+                                            onClick={(e) => { e.stopPropagation(); handleToggleSystemStatus(school.id, school.status); }}
+                                            className="btn"
+                                            style={{
+                                                padding: '0.4rem 0.8rem',
+                                                fontSize: '0.7rem',
+                                                display: 'inline-flex',
+                                                alignItems: 'center',
+                                                gap: '0.4rem',
+                                                background: school.status === 'suspended' ? 'rgba(16, 185, 129, 0.05)' : 'rgba(239, 68, 68, 0.05)',
+                                                color: school.status === 'suspended' ? '#34d399' : '#f87171',
+                                                borderColor: school.status === 'suspended' ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)',
+                                                borderRadius: '8px'
+                                            }}
+                                        >
+                                            <Power size={14} />
+                                            {school.status === 'suspended' ? 'Start' : 'Stop'}
+                                        </button>
+                                    </div>
+                                    <span style={{
+                                        padding: '0.2rem 0.5rem',
+                                        borderRadius: '8px',
+                                        fontSize: '0.65rem',
+                                        fontWeight: '700',
+                                        textTransform: 'uppercase',
+                                        background: school.paymentStatus === 'paid' ? 'rgba(16, 185, 129, 0.1)' : 'rgba(245, 158, 11, 0.1)',
+                                        color: school.paymentStatus === 'paid' ? '#34d399' : '#fbbf24'
+                                    }}>
+                                        {school.paymentStatus || 'unpaid'}
+                                    </span>
+                                </div>
+                            </div>
                             <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', marginBottom: '1.25rem', height: '2.5rem', overflow: 'hidden' }}>
                                 {school.address}
                             </p>
@@ -287,53 +350,60 @@ const Schools = () => {
                                 <CreditCard size={14} />
                                 {school.paymentStatus === 'paid' ? 'Unpay' : 'Pay'}
                             </button>
-
-                            <button
-                                onClick={(e) => { e.stopPropagation(); handleToggleSystemStatus(school.id, school.status); }}
-                                className="btn"
-                                style={{
-                                    flex: 1,
-                                    padding: '0.5rem',
-                                    fontSize: '0.7rem',
-                                    justifyContent: 'center',
-                                    gap: '0.4rem',
-                                    background: school.status === 'suspended' ? 'rgba(16, 185, 129, 0.05)' : 'rgba(239, 68, 68, 0.05)',
-                                    color: school.status === 'suspended' ? '#34d399' : '#f87171',
-                                    borderColor: school.status === 'suspended' ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)'
-                                }}
-                            >
-                                <Power size={14} />
-                                {school.status === 'suspended' ? 'Start' : 'Stop'}
-                            </button>
                         </div>
 
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '1rem' }}>
+                        <div style={{ marginTop: '1rem' }}>
                             <code style={{ fontSize: '0.75rem', color: 'var(--primary)', fontWeight: '600' }}>{school.id}</code>
-                            <div style={{ display: 'flex', gap: '0.5rem' }}>
-                                <span style={{
-                                    padding: '0.2rem 0.5rem',
-                                    borderRadius: '8px',
-                                    fontSize: '0.65rem',
-                                    fontWeight: '700',
-                                    textTransform: 'uppercase',
-                                    background: school.paymentStatus === 'paid' ? 'rgba(16, 185, 129, 0.1)' : 'rgba(245, 158, 11, 0.1)',
-                                    color: school.paymentStatus === 'paid' ? '#34d399' : '#fbbf24'
-                                }}>
-                                    {school.paymentStatus || 'unpaid'}
-                                </span>
-                                <span style={{
-                                    padding: '0.2rem 0.5rem',
-                                    borderRadius: '8px',
-                                    fontSize: '0.65rem',
-                                    fontWeight: '700',
-                                    textTransform: 'uppercase',
-                                    background: school.status === 'active' ? 'rgba(52, 211, 153, 0.1)' : 'rgba(248, 113, 113, 0.1)',
-                                    color: school.status === 'active' ? '#34d399' : '#f87171'
-                                }}>
-                                    {school.status || 'inactive'}
-                                </span>
-                            </div>
                         </div>
+
+                        {/* Trial Status Badge Section */}
+                        {school.trialInfo?.notStarted ? (
+                            <div style={{
+                                marginTop: '0.75rem',
+                                padding: '0.75rem',
+                                borderRadius: '12px',
+                                background: 'rgba(255, 255, 255, 0.03)',
+                                border: '1px dashed rgba(255, 255, 255, 0.1)',
+                                display: 'flex',
+                                justifyContent: 'space-between',
+                                alignItems: 'center'
+                            }}>
+                                <div>
+                                    <div style={{ fontSize: '0.65rem', fontWeight: '700', textTransform: 'uppercase', color: 'var(--text-muted)' }}>14-Day Trial</div>
+                                    <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Not Started</div>
+                                </div>
+                                <button
+                                    onClick={(e) => { e.stopPropagation(); handleStartTrial(school.id); }}
+                                    className="btn btn-primary"
+                                    style={{ padding: '0.5rem 1rem', fontSize: '0.75rem' }}
+                                >
+                                    Start Trial
+                                </button>
+                            </div>
+                        ) : (
+                            <div style={{
+                                marginTop: '0.75rem',
+                                padding: '0.75rem',
+                                borderRadius: '12px',
+                                background: school.trialInfo?.isExpired ? 'rgba(239, 68, 68, 0.05)' : 'rgba(99, 102, 241, 0.05)',
+                                border: school.trialInfo?.isExpired ? '1px solid rgba(239, 68, 68, 0.1)' : '1px solid rgba(99, 102, 241, 0.1)',
+                                display: 'flex',
+                                justifyContent: 'space-between',
+                                alignItems: 'center'
+                            }}>
+                                <div>
+                                    <div style={{ fontSize: '0.65rem', fontWeight: '700', textTransform: 'uppercase', color: 'var(--text-muted)' }}>14-Day Trial</div>
+                                    <div style={{ fontSize: '0.8rem', color: 'var(--text-main)' }}>Started: {school.trialInfo?.startDateFormatted}</div>
+                                </div>
+                                <div style={{
+                                    fontWeight: '700',
+                                    fontSize: '0.85rem',
+                                    color: school.trialInfo?.isExpired ? '#f87171' : 'var(--primary)'
+                                }}>
+                                    {school.trialInfo?.isExpired ? 'Trial Expired' : `${school.trialInfo?.daysLeft} Days Left`}
+                                </div>
+                            </div>
+                        )}
                     </div>
                 ))}
             </div>
