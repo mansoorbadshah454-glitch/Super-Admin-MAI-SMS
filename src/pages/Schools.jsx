@@ -4,7 +4,7 @@ import { School, Search, Filter, Plus, MoreHorizontal, ExternalLink, Trash2, Edi
 import { db, auth } from '../firebase';
 import { collection, onSnapshot, query, orderBy, getCountFromServer, where, Timestamp, doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import CreateSchoolModal from '../components/CreateSchoolModal';
-import EditSchoolModal from '../components/EditSchoolModal';
+import InlineEditSchool from '../components/InlineEditSchool';
 import DeleteSchoolModal from '../components/DeleteSchoolModal';
 import BroadcastModal from '../components/BroadcastModal';
 import { calculateTrialDays } from '../utils/dateUtils';
@@ -98,10 +98,29 @@ const Schools = () => {
         }
     };
 
-    const filteredSchools = schools.filter(s =>
-        s.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        s.id.toLowerCase().includes(searchTerm.toLowerCase())
-    );
+    const sortedForIds = [...schools].sort((a, b) => {
+        const dateA = a.createdAt?.seconds || 0;
+        const dateB = b.createdAt?.seconds || 0;
+        return dateA - dateB;
+    });
+
+    let mockCounter = 1;
+    const schoolDisplayMap = {};
+    
+    sortedForIds.forEach(school => {
+        if (school.id === 'SCHOOL_6257' || school.id.startsWith('SCHOOL_')) {
+             schoolDisplayMap[school.id] = school.id;
+        } else {
+             schoolDisplayMap[school.id] = `School_${String(mockCounter).padStart(3, '0')}`;
+             mockCounter++;
+        }
+    });
+
+    const filteredSchools = schools.filter(s => {
+        const dId = schoolDisplayMap[s.id] || s.id;
+        return s.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+               dId.toLowerCase().includes(searchTerm.toLowerCase());
+    });
 
     const pulseKeyframes = `
         @keyframes pulse {
@@ -130,13 +149,6 @@ const Schools = () => {
             {showBroadcastModal && (
                 <BroadcastModal
                     onClose={() => setShowBroadcastModal(false)}
-                />
-            )}
-            {selectedSchool && (
-                <EditSchoolModal
-                    school={selectedSchool}
-                    onClose={() => setSelectedSchool(null)}
-                    onSuccess={() => setSelectedSchool(null)}
                 />
             )}
 
@@ -189,47 +201,59 @@ const Schools = () => {
                 gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))',
                 gap: '1.5rem'
             }}>
-                {filteredSchools.map((school) => (
-                    <div key={school.id} className="card glass animate-in zoom-in duration-500">
-                        <div
-                            onClick={() => navigate(`/schools/${school.id}`)}
-                            style={{ cursor: 'pointer' }}
-                        >
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1.5rem' }}>
-                                <div style={{
-                                    width: '56px',
-                                    height: '56px',
-                                    borderRadius: '16px',
-                                    background: 'linear-gradient(135deg, var(--primary), var(--accent))',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    boxShadow: '0 8px 16px rgba(99, 102, 241, 0.2)'
-                                }}>
-                                    <School size={28} color="white" />
-                                </div>
-                                <div style={{ display: 'flex', gap: '0.5rem' }} onClick={(e) => e.stopPropagation()}>
-                                    <button className="logout-btn" onClick={() => setSelectedSchool(school)} style={{ padding: '0.5rem', color: 'var(--primary)' }} title="Edit School">
-                                        <Edit2 size={18} />
-                                    </button>
-                                    <button className="logout-btn" onClick={() => setSchoolToDelete(school)} style={{ padding: '0.5rem', color: '#f87171' }} title="Delete School">
-                                        <Trash2 size={18} />
-                                    </button>
-                                    <button className="logout-btn" style={{ padding: '0.5rem', color: 'var(--primary)' }} title="School Website">
-                                        <ExternalLink size={18} />
-                                    </button>
-                                </div>
-                            </div>
+                {filteredSchools.map((school) => {
+                    const displayId = schoolDisplayMap[school.id] || school.id;
+                    const isEditing = selectedSchool && selectedSchool.id === school.id;
 
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.25rem' }}>
-                                <h3
-                                    className="clickable-title"
-                                    style={{ fontSize: '1.25rem', margin: 0, marginTop: '0.25rem' }}
+                    return (
+                        <div key={school.id} className="card animate-in zoom-in duration-500" style={{ padding: 0, overflow: 'hidden', background: '#e0f2fe', border: '1px solid #bae6fd', borderRadius: '24px' }}>
+                            {isEditing ? (
+                                <InlineEditSchool 
+                                    school={school} 
+                                    displayId={displayId}
+                                    onClose={() => setSelectedSchool(null)} 
+                                    onSuccess={() => setSelectedSchool(null)} 
+                                />
+                            ) : (
+                                <div
+                                    onClick={() => navigate(`/schools/${school.id}`)}
+                                    style={{ cursor: 'pointer', height: '100%', display: 'flex', flexDirection: 'column' }}
                                 >
-                                    {school.name}
-                                </h3>
-
-                                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.5rem' }}>
+                            {/* --- HEADER --- */}
+                            <div style={{ background: '#bfdbfe', padding: '1.5rem', borderBottom: '1px solid #93c5fd' }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1rem' }}>
+                                    <div style={{
+                                        width: '56px',
+                                        height: '56px',
+                                        borderRadius: '16px',
+                                        background: 'linear-gradient(135deg, var(--primary), var(--accent))',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        boxShadow: '0 8px 16px rgba(99, 102, 241, 0.2)'
+                                    }}>
+                                        <School size={28} color="white" />
+                                    </div>
+                                    <div style={{ display: 'flex', gap: '0.5rem' }} onClick={(e) => e.stopPropagation()}>
+                                        <button className="logout-btn" onClick={() => setSelectedSchool(school)} style={{ padding: '0.5rem', color: '#1e40af', background: 'rgba(255,255,255,0.5)', borderRadius: '12px' }} title="Edit School">
+                                            <Edit2 size={18} />
+                                        </button>
+                                        <button className="logout-btn" onClick={() => setSchoolToDelete(school)} style={{ padding: '0.5rem', color: '#dc2626', background: 'rgba(255,255,255,0.5)', borderRadius: '12px' }} title="Delete School">
+                                            <Trash2 size={18} />
+                                        </button>
+                                        <button className="logout-btn" style={{ padding: '0.5rem', color: '#1e40af', background: 'rgba(255,255,255,0.5)', borderRadius: '12px' }} title="School Website">
+                                            <ExternalLink size={18} />
+                                        </button>
+                                    </div>
+                                </div>
+                                
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                    <h3
+                                        className="clickable-title"
+                                        style={{ fontSize: '1.25rem', margin: 0, color: '#1e3a8a', fontWeight: 'bold' }}
+                                    >
+                                        {school.name}
+                                    </h3>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                                         <span style={{
                                             padding: '0.2rem 0.5rem',
@@ -237,8 +261,8 @@ const Schools = () => {
                                             fontSize: '0.65rem',
                                             fontWeight: '700',
                                             textTransform: 'uppercase',
-                                            background: school.status === 'active' ? 'rgba(52, 211, 153, 0.1)' : 'rgba(248, 113, 113, 0.1)',
-                                            color: school.status === 'active' ? '#34d399' : '#f87171'
+                                            background: school.status === 'active' ? 'rgba(52, 211, 153, 0.2)' : 'rgba(248, 113, 113, 0.2)',
+                                            color: school.status === 'active' ? '#059669' : '#dc2626'
                                         }}>
                                             {school.status || 'inactive'}
                                         </span>
@@ -251,9 +275,9 @@ const Schools = () => {
                                                 display: 'inline-flex',
                                                 alignItems: 'center',
                                                 gap: '0.4rem',
-                                                background: school.status === 'suspended' ? 'rgba(16, 185, 129, 0.05)' : 'rgba(239, 68, 68, 0.05)',
-                                                color: school.status === 'suspended' ? '#34d399' : '#f87171',
-                                                borderColor: school.status === 'suspended' ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)',
+                                                background: school.status === 'suspended' ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)',
+                                                color: school.status === 'suspended' ? '#059669' : '#dc2626',
+                                                borderColor: school.status === 'suspended' ? 'rgba(16, 185, 129, 0.2)' : 'rgba(239, 68, 68, 0.2)',
                                                 borderRadius: '8px'
                                             }}
                                         >
@@ -261,151 +285,157 @@ const Schools = () => {
                                             {school.status === 'suspended' ? 'Start' : 'Stop'}
                                         </button>
                                     </div>
+                                </div>
+                            </div>
+
+                            {/* --- BODY --- */}
+                            <div style={{ padding: '1.5rem' }}>
+                                <p style={{ color: '#334155', fontSize: '0.875rem', marginBottom: '1.25rem', height: '2.5rem', overflow: 'hidden' }}>
+                                    {school.address}
+                                </p>
+
+                                <div style={{ display: 'flex', gap: '1rem', marginBottom: '1.5rem' }}>
+                                    <div style={{
+                                        flex: 1,
+                                        background: 'rgba(255,255,255,0.6)',
+                                        padding: '1rem 0.75rem',
+                                        borderRadius: '16px',
+                                        border: '1px solid #bae6fd',
+                                        display: 'flex',
+                                        flexDirection: 'column',
+                                        alignItems: 'center',
+                                        gap: '0.5rem'
+                                    }}>
+                                        <div style={{ color: '#1e40af', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                                            <Users size={14} />
+                                            <span style={{ fontSize: '0.65rem', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Total Students</span>
+                                        </div>
+                                        <div style={{ fontSize: '1.5rem', fontWeight: '800', color: '#1e3a8a' }}>
+                                            {stats[school.id]?.total ?? '...'}
+                                        </div>
+                                    </div>
+                                    <div style={{
+                                        flex: 1,
+                                        background: 'rgba(255,255,255,0.6)',
+                                        padding: '1rem 0.75rem',
+                                        borderRadius: '16px',
+                                        border: '1px solid #bae6fd',
+                                        display: 'flex',
+                                        flexDirection: 'column',
+                                        alignItems: 'center',
+                                        gap: '0.5rem'
+                                    }}>
+                                        <div style={{ color: '#059669', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                                            <UserPlus size={14} />
+                                            <span style={{ fontSize: '0.65rem', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Recent Admissions</span>
+                                        </div>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                            <div style={{ fontSize: '1.5rem', fontWeight: '800', color: '#059669' }}>
+                                                {stats[school.id]?.recent ?? '...'}
+                                            </div>
+                                            {stats[school.id]?.recent > 0 && (
+                                                <div style={{
+                                                    width: '8px',
+                                                    height: '8px',
+                                                    borderRadius: '50%',
+                                                    background: '#10b981',
+                                                    boxShadow: '0 0 10px #10b981',
+                                                    animation: 'pulse 2s infinite'
+                                                }} />
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', paddingTop: '1rem', borderTop: '1px solid #bae6fd' }}>
                                     <span style={{
-                                        padding: '0.2rem 0.5rem',
+                                        padding: '0.4rem 0.8rem',
                                         borderRadius: '8px',
-                                        fontSize: '0.65rem',
+                                        fontSize: '0.75rem',
                                         fontWeight: '700',
                                         textTransform: 'uppercase',
-                                        background: school.paymentStatus === 'paid' ? 'rgba(16, 185, 129, 0.1)' : 'rgba(245, 158, 11, 0.1)',
-                                        color: school.paymentStatus === 'paid' ? '#34d399' : '#fbbf24'
+                                        background: school.paymentStatus === 'paid' ? 'rgba(16, 185, 129, 0.2)' : 'rgba(245, 158, 11, 0.2)',
+                                        color: school.paymentStatus === 'paid' ? '#059669' : '#d97706'
                                     }}>
                                         {school.paymentStatus || 'unpaid'}
                                     </span>
+                                    <button
+                                        onClick={(e) => { e.stopPropagation(); handleTogglePayment(school.id, school.paymentStatus); }}
+                                        className="btn"
+                                        style={{
+                                            flex: 1,
+                                            padding: '0.5rem',
+                                            fontSize: '0.75rem',
+                                            justifyContent: 'center',
+                                            gap: '0.4rem',
+                                            background: school.paymentStatus === 'paid' ? 'rgba(245, 158, 11, 0.1)' : 'rgba(16, 185, 129, 0.1)',
+                                            color: school.paymentStatus === 'paid' ? '#d97706' : '#059669',
+                                            borderColor: school.paymentStatus === 'paid' ? 'rgba(245, 158, 11, 0.2)' : 'rgba(16, 185, 129, 0.2)'
+                                        }}
+                                    >
+                                        <CreditCard size={14} />
+                                        {school.paymentStatus === 'paid' ? 'Unpay' : 'Pay'}
+                                    </button>
                                 </div>
-                            </div>
-                            <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', marginBottom: '1.25rem', height: '2.5rem', overflow: 'hidden' }}>
-                                {school.address}
-                            </p>
-                        </div>
 
-                        <div style={{ display: 'flex', gap: '1rem', marginBottom: '1.5rem' }}>
-                            <div style={{
-                                flex: 1,
-                                background: 'var(--card-inner-bg)',
-                                padding: '1rem 0.75rem',
-                                borderRadius: '16px',
-                                border: '1px solid var(--glass-border)',
-                                display: 'flex',
-                                flexDirection: 'column',
-                                alignItems: 'center',
-                                gap: '0.5rem'
-                            }}>
-                                <div style={{ color: 'var(--primary)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                                    <Users size={14} />
-                                    <span style={{ fontSize: '0.65rem', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Total Students</span>
+                                <div style={{ marginTop: '1rem', flexGrow: 1 }}>
+                                    <code style={{ fontSize: '0.75rem', color: '#1e40af', fontWeight: '600' }}>{displayId}</code>
                                 </div>
-                                <div style={{ fontSize: '1.5rem', fontWeight: '800', color: 'var(--text-main)' }}>
-                                    {stats[school.id]?.total ?? '...'}
-                                </div>
-                            </div>
-                            <div style={{
-                                flex: 1,
-                                background: 'var(--card-inner-bg)',
-                                padding: '1rem 0.75rem',
-                                borderRadius: '16px',
-                                border: '1px solid var(--glass-border)',
-                                display: 'flex',
-                                flexDirection: 'column',
-                                alignItems: 'center',
-                                gap: '0.5rem'
-                            }}>
-                                <div style={{ color: '#10b981', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                                    <UserPlus size={14} />
-                                    <span style={{ fontSize: '0.65rem', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Recent Admissions</span>
-                                </div>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                    <div style={{ fontSize: '1.5rem', fontWeight: '800', color: '#34d399' }}>
-                                        {stats[school.id]?.recent ?? '...'}
+
+                                {/* Trial Status Badge Section */}
+                                {school.trialInfo?.notStarted ? (
+                                    <div style={{
+                                        marginTop: '0.75rem',
+                                        padding: '0.75rem',
+                                        borderRadius: '12px',
+                                        background: 'rgba(255,255,255,0.6)',
+                                        border: '1px dashed #bae6fd',
+                                        display: 'flex',
+                                        justifyContent: 'space-between',
+                                        alignItems: 'center'
+                                    }}>
+                                        <div>
+                                            <div style={{ fontSize: '0.65rem', fontWeight: '700', textTransform: 'uppercase', color: '#64748b' }}>14-Day Trial</div>
+                                            <div style={{ fontSize: '0.8rem', color: '#64748b' }}>Not Started</div>
+                                        </div>
+                                        <button
+                                            onClick={(e) => { e.stopPropagation(); handleStartTrial(school.id); }}
+                                            className="btn btn-primary"
+                                            style={{ padding: '0.5rem 1rem', fontSize: '0.75rem' }}
+                                        >
+                                            Start Trial
+                                        </button>
                                     </div>
-                                    {stats[school.id]?.recent > 0 && (
+                                ) : (
+                                    <div style={{
+                                        marginTop: '0.75rem',
+                                        padding: '0.75rem',
+                                        borderRadius: '12px',
+                                        background: school.trialInfo?.isExpired ? 'rgba(239, 68, 68, 0.1)' : 'rgba(99, 102, 241, 0.1)',
+                                        border: school.trialInfo?.isExpired ? '1px solid rgba(239, 68, 68, 0.2)' : '1px solid rgba(99, 102, 241, 0.2)',
+                                        display: 'flex',
+                                        justifyContent: 'space-between',
+                                        alignItems: 'center'
+                                    }}>
+                                        <div>
+                                            <div style={{ fontSize: '0.65rem', fontWeight: '700', textTransform: 'uppercase', color: '#475569' }}>14-Day Trial</div>
+                                            <div style={{ fontSize: '0.8rem', color: '#1e293b' }}>Started: {school.trialInfo?.startDateFormatted}</div>
+                                        </div>
                                         <div style={{
-                                            width: '8px',
-                                            height: '8px',
-                                            borderRadius: '50%',
-                                            background: '#10b981',
-                                            boxShadow: '0 0 10px #10b981',
-                                            animation: 'pulse 2s infinite'
-                                        }} />
-                                    )}
-                                </div>
+                                            fontWeight: '700',
+                                            fontSize: '0.85rem',
+                                            color: school.trialInfo?.isExpired ? '#dc2626' : '#4f46e5'
+                                        }}>
+                                            {school.trialInfo?.isExpired ? 'Trial Expired' : `${school.trialInfo?.daysLeft} Days Left`}
+                                        </div>
+                                    </div>
+                                )}
                             </div>
-                        </div>
-
-                        <div style={{ display: 'flex', gap: '0.75rem', paddingTop: '1rem', borderTop: '1px solid var(--glass-border)' }}>
-                            <button
-                                onClick={(e) => { e.stopPropagation(); handleTogglePayment(school.id, school.paymentStatus); }}
-                                className="btn"
-                                style={{
-                                    flex: 1,
-                                    padding: '0.5rem',
-                                    fontSize: '0.7rem',
-                                    justifyContent: 'center',
-                                    gap: '0.4rem',
-                                    background: school.paymentStatus === 'paid' ? 'rgba(245, 158, 11, 0.05)' : 'rgba(16, 185, 129, 0.05)',
-                                    color: school.paymentStatus === 'paid' ? '#fbbf24' : '#34d399',
-                                    borderColor: school.paymentStatus === 'paid' ? 'rgba(245, 158, 11, 0.1)' : 'rgba(16, 185, 129, 0.1)'
-                                }}
-                            >
-                                <CreditCard size={14} />
-                                {school.paymentStatus === 'paid' ? 'Unpay' : 'Pay'}
-                            </button>
-                        </div>
-
-                        <div style={{ marginTop: '1rem' }}>
-                            <code style={{ fontSize: '0.75rem', color: 'var(--primary)', fontWeight: '600' }}>{school.id}</code>
-                        </div>
-
-                        {/* Trial Status Badge Section */}
-                        {school.trialInfo?.notStarted ? (
-                            <div style={{
-                                marginTop: '0.75rem',
-                                padding: '0.75rem',
-                                borderRadius: '12px',
-                                background: 'var(--card-inner-bg)',
-                                border: '1px dashed var(--glass-border)',
-                                display: 'flex',
-                                justifyContent: 'space-between',
-                                alignItems: 'center'
-                            }}>
-                                <div>
-                                    <div style={{ fontSize: '0.65rem', fontWeight: '700', textTransform: 'uppercase', color: 'var(--text-muted)' }}>14-Day Trial</div>
-                                    <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Not Started</div>
                                 </div>
-                                <button
-                                    onClick={(e) => { e.stopPropagation(); handleStartTrial(school.id); }}
-                                    className="btn btn-primary"
-                                    style={{ padding: '0.5rem 1rem', fontSize: '0.75rem' }}
-                                >
-                                    Start Trial
-                                </button>
-                            </div>
-                        ) : (
-                            <div style={{
-                                marginTop: '0.75rem',
-                                padding: '0.75rem',
-                                borderRadius: '12px',
-                                background: school.trialInfo?.isExpired ? 'rgba(239, 68, 68, 0.05)' : 'rgba(99, 102, 241, 0.05)',
-                                border: school.trialInfo?.isExpired ? '1px solid rgba(239, 68, 68, 0.1)' : '1px solid rgba(99, 102, 241, 0.1)',
-                                display: 'flex',
-                                justifyContent: 'space-between',
-                                alignItems: 'center'
-                            }}>
-                                <div>
-                                    <div style={{ fontSize: '0.65rem', fontWeight: '700', textTransform: 'uppercase', color: 'var(--text-muted)' }}>14-Day Trial</div>
-                                    <div style={{ fontSize: '0.8rem', color: 'var(--text-main)' }}>Started: {school.trialInfo?.startDateFormatted}</div>
-                                </div>
-                                <div style={{
-                                    fontWeight: '700',
-                                    fontSize: '0.85rem',
-                                    color: school.trialInfo?.isExpired ? '#f87171' : 'var(--primary)'
-                                }}>
-                                    {school.trialInfo?.isExpired ? 'Trial Expired' : `${school.trialInfo?.daysLeft} Days Left`}
-                                </div>
-                            </div>
-                        )}
-                    </div>
-                ))}
+                            )}
+                        </div>
+                    );
+                })}
             </div>
 
             {

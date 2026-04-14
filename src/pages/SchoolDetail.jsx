@@ -232,6 +232,9 @@ const SchoolDetail = () => {
                             <InfoItem icon={User} label="Principal Name" value={principal?.name || 'Not Found'} />
                             <InfoItem icon={Mail} label="Contact Email" value={principal?.email || 'N/A'} />
                             <InfoItem icon={Phone} label="Principal Phone" value={principal?.contact || 'Not Provided'} />
+                            <InfoItem icon={Phone} label="Vice Principal Contact" value={school.vicePrincipalContact || 'Not Provided'} />
+                            <InfoItem icon={Phone} label="Landline" value={school.landline || 'Not Provided'} />
+                            <InfoItem icon={Phone} label="School Contact" value={school.contact || 'Not Provided'} />
                             <InfoItem icon={Hash} label="Principal UID" value={school.principalId || 'N/A'} />
                             <InfoItem icon={Calendar} label="Last Updated" value={school.updatedAt?.toDate().toLocaleDateString() || 'Never'} />
                         </div>
