@@ -1,14 +1,16 @@
 import React, { useState, useEffect } from 'react';
-import { X, Save, Shield, Loader2, Key, RefreshCw, Copy, Check, ArrowRight, ArrowLeft } from 'lucide-react';
-import { db } from '../firebase';
+import { X, Save, Shield, Loader2, Key, RefreshCw, Copy, Check, ArrowRight, ArrowLeft, Eye, EyeOff } from 'lucide-react';
+import { db, functions } from '../firebase';
 import { doc, updateDoc, getDoc, setDoc } from 'firebase/firestore';
-import { getFunctions, httpsCallable } from 'firebase/functions';
+import { httpsCallable } from 'firebase/functions';
 
 const InlineEditSchool = ({ school, onClose, onSuccess, displayId }) => {
     const [page, setPage] = useState(1);
     const [loading, setLoading] = useState(false);
     const [passwordLoading, setPasswordLoading] = useState(false);
     const [message, setMessage] = useState({ type: '', text: '' });
+    const [showPassword, setShowPassword] = useState(false);
+    const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
     const [formData, setFormData] = useState({
         schoolName: school.name || '',
@@ -75,8 +77,12 @@ const InlineEditSchool = ({ school, onClose, onSuccess, displayId }) => {
                 updatedAt: new Date()
             };
 
-            if (formData.newPassword && school.principalId) {
-                const functions = getFunctions();
+            if (formData.newPassword) {
+                if (!school.principalId) {
+                    setMessage({ type: 'error', text: 'Cannot update password: No Principal Account is linked to this school.' });
+                    setLoading(false);
+                    return;
+                }
                 const updateSchoolUserPassword = httpsCallable(functions, 'updateSchoolUserPassword');
                 await updateSchoolUserPassword({
                     targetUid: school.principalId,
@@ -237,20 +243,38 @@ const InlineEditSchool = ({ school, onClose, onSuccess, displayId }) => {
                                 <Key size={14} /> Update Password
                             </label>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                                <input
-                                    type="password"
-                                    placeholder="New Password (optional)"
-                                    style={{ width: '100%', padding: '0.5rem', borderRadius: '8px', border: '1px solid #93c5fd', background: 'white', color: '#1e293b', fontSize: '0.875rem' }}
-                                    value={formData.newPassword}
-                                    onChange={(e) => setFormData({ ...formData, newPassword: e.target.value })}
-                                />
-                                <input
-                                    type="password"
-                                    placeholder="Re-confirm Password"
-                                    style={{ width: '100%', padding: '0.5rem', borderRadius: '8px', border: '1px solid #93c5fd', background: 'white', color: '#1e293b', fontSize: '0.875rem' }}
-                                    value={formData.confirmPassword}
-                                    onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
-                                />
+                                <div style={{ position: 'relative' }}>
+                                    <input
+                                        type={showPassword ? "text" : "password"}
+                                        placeholder="New Password (optional)"
+                                        style={{ width: '100%', padding: '0.5rem', paddingRight: '2.5rem', borderRadius: '8px', border: '1px solid #93c5fd', background: 'white', color: '#1e293b', fontSize: '0.875rem' }}
+                                        value={formData.newPassword}
+                                        onChange={(e) => setFormData({ ...formData, newPassword: e.target.value })}
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowPassword(!showPassword)}
+                                        style={{ position: 'absolute', right: '0.5rem', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center' }}
+                                    >
+                                        {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                                    </button>
+                                </div>
+                                <div style={{ position: 'relative' }}>
+                                    <input
+                                        type={showConfirmPassword ? "text" : "password"}
+                                        placeholder="Re-confirm Password"
+                                        style={{ width: '100%', padding: '0.5rem', paddingRight: '2.5rem', borderRadius: '8px', border: '1px solid #93c5fd', background: 'white', color: '#1e293b', fontSize: '0.875rem' }}
+                                        value={formData.confirmPassword}
+                                        onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                                        style={{ position: 'absolute', right: '0.5rem', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center' }}
+                                    >
+                                        {showConfirmPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                                    </button>
+                                </div>
                             </div>
                         </div>
 

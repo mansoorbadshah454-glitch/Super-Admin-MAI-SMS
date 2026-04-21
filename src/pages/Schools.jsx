@@ -104,22 +104,12 @@ const Schools = () => {
         return dateA - dateB;
     });
 
-    let mockCounter = 1;
-    const schoolDisplayMap = {};
-    
-    sortedForIds.forEach(school => {
-        if (school.id === 'SCHOOL_6257' || school.id.startsWith('SCHOOL_')) {
-             schoolDisplayMap[school.id] = school.id;
-        } else {
-             schoolDisplayMap[school.id] = `School_${String(mockCounter).padStart(3, '0')}`;
-             mockCounter++;
-        }
-    });
+    const filteredSchools = sortedForIds.filter(s => {
+        const isLegit = s.id === 'SCHOOL_6257' || s.id.startsWith('SCHOOL_');
+        if (!isLegit) return false;
 
-    const filteredSchools = schools.filter(s => {
-        const dId = schoolDisplayMap[s.id] || s.id;
         return s.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-               dId.toLowerCase().includes(searchTerm.toLowerCase());
+               s.id.toLowerCase().includes(searchTerm.toLowerCase());
     });
 
     const pulseKeyframes = `
@@ -202,7 +192,7 @@ const Schools = () => {
                 gap: '1.5rem'
             }}>
                 {filteredSchools.map((school) => {
-                    const displayId = schoolDisplayMap[school.id] || school.id;
+                    const displayId = school.id;
                     const isEditing = selectedSchool && selectedSchool.id === school.id;
 
                     return (

@@ -36,6 +36,10 @@ const Dashboard = () => {
             querySnapshot.forEach((doc) => {
                 const data = doc.data();
 
+                // Filter out non-legacy/legit dummy schools
+                const isLegit = doc.id === 'SCHOOL_6257' || doc.id.startsWith('SCHOOL_');
+                if (!isLegit) return;
+
                 // Calculate Trial Info based on trialStartDate
                 const trialInfo = calculateTrialDays(data.trialStartDate);
 
@@ -237,18 +241,7 @@ const Dashboard = () => {
                     <p style={{ color: 'var(--text-muted)' }}>Real-time monitoring of all registered schools.</p>
                 </div>
                 <div style={{ display: 'flex', gap: '1rem' }}>
-                    <button
-                        className="btn"
-                        style={{ background: 'rgba(244, 63, 94, 0.1)', color: '#fb7185', border: '1px solid rgba(244, 63, 94, 0.2)' }}
-                        onClick={async () => {
-                            const conf = window.confirm("Seed 50 dummy schools? This will delete old dummy ones.");
-                            if (!conf) return;
-                            await seedDummySchools();
-                            alert("Seeded 50 dummy schools! Data will refresh momentarily.");
-                        }}
-                    >
-                        Seed Schools (Temp)
-                    </button>
+
                     <button
                         className="btn btn-primary"
                         onClick={() => setShowCreateModal(true)}
