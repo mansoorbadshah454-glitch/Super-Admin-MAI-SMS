@@ -3,7 +3,7 @@ import { School, Users, Activity, Plus, Search, Filter, MoreVertical, Graduation
 import { useNavigate } from 'react-router-dom';
 import CreateSchoolModal from '../components/CreateSchoolModal';
 import { db } from '../firebase';
-import { collection, query, orderBy, limit, onSnapshot, getDocs, getCountFromServer, collectionGroup, doc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, query, orderBy, limit, onSnapshot, getDocs, getCountFromServer, collectionGroup, doc, updateDoc, serverTimestamp, setDoc } from 'firebase/firestore';
 import { calculateTrialDays } from '../utils/dateUtils';
 import { useTheme } from '../contexts/ThemeContext';
 import { seedDummySchools } from '../utils/seedSchools';
@@ -77,39 +77,14 @@ const Dashboard = () => {
 
             setAllSchools(schoolsArray); // Store all fetched schools
 
-            // Fetch total students, teachers, and parents across all schools
-            let totalStudents = 0;
-            let totalTeachers = 0;
-            let totalParents = 0;
-
-            try {
-                // Use collectionGroup to count all documents in subcollections
-                const studentsQuery = query(collectionGroup(db, 'students'));
-                const teachersQuery = query(collectionGroup(db, 'teachers'));
-                const parentsQuery = query(collectionGroup(db, 'parents'));
-
-                const [studentsSnap, teachersSnap, parentsSnap] = await Promise.all([
-                    getCountFromServer(studentsQuery),
-                    getCountFromServer(teachersQuery),
-                    getCountFromServer(parentsQuery)
-                ]);
-
-                totalStudents = studentsSnap.data().count;
-                totalTeachers = teachersSnap.data().count;
-                totalParents = parentsSnap.data().count;
-            } catch (error) {
-                console.error("Error fetching total counts:", error);
-            }
-
-            // Update Stats Grid
-            setStats([
-                { label: 'Total Schools', value: querySnapshot.size.toString(), icon: School, color: '#6366f1' },
-                { label: 'Total Students', value: totalStudents.toLocaleString(), icon: Activity, color: '#8b5cf6' },
-                { label: 'Total Teachers', value: totalTeachers.toLocaleString(), icon: GraduationCap, color: '#ec4899' },
-                { label: 'Total Parents', value: totalParents.toLocaleString(), icon: Users, color: '#14b8a6' },
-                { label: 'Paid Schools', value: paidCount.toString(), icon: Users, color: '#10b981' },
-                { label: 'Unpaid Schools', value: unpaidCount.toString(), icon: Users, color: '#f59e0b' },
-            ]);
+            // Update Stats Grid using functional update to preserve other metrics
+            setStats(prev => {
+                const newStats = [...prev];
+                newStats[0] = { ...newStats[0], value: schoolsArray.length.toString() };
+                newStats[4] = { ...newStats[4], value: paidCount.toString() };
+                newStats[5] = { ...newStats[5], value: unpaidCount.toString() };
+                return newStats;
+            });
         }, (error) => {
             console.error("Dashboard Fetch Error:", error);
             if (error.code === 'permission-denied') {
@@ -125,8 +100,52 @@ const Dashboard = () => {
             }
         };
         window.addEventListener('mousedown', handleClickOutside);
+
+        // Listen for atomic global metrics
+        const unsubscribeMetrics = onSnapshot(doc(db, "system", "metrics"), (docSnap) => {
+            if (docSnap.exists()) {
+                const data = docSnap.data();
+                setStats(prev => {
+                    const newStats = [...prev];
+                    newStats[1] = { ...newStats[1], value: (data.totalStudents || 0).toLocaleString() };
+                    newStats[2] = { ...newStats[2], value: (data.totalTeachers || 0).toLocaleString() };
+                    newStats[3] = { ...newStats[3], value: (data.totalParents || 0).toLocaleString() };
+                    return newStats;
+                });
+            } else {
+                // Auto-Backfill if doc doesn't exist
+                (async () => {
+                    try {
+                        const schoolsSnap = await getDocs(query(collection(db, "schools")));
+                        const legitSchools = schoolsSnap.docs.filter(d => d.id === 'SCHOOL_6257' || d.id.startsWith('SCHOOL_'));
+                        
+                        const stPromises = legitSchools.map(s => getCountFromServer(collection(db, `schools/${s.id}/students`)));
+                        const tePromises = legitSchools.map(s => getCountFromServer(collection(db, `schools/${s.id}/teachers`)));
+                        const paPromises = legitSchools.map(s => getCountFromServer(collection(db, `schools/${s.id}/parents`)));
+
+                        const [stSnaps, teSnaps, paSnaps] = await Promise.all([
+                            Promise.all(stPromises), Promise.all(tePromises), Promise.all(paPromises)
+                        ]);
+                        
+                        const tStudents = stSnaps.reduce((acc, snap) => acc + snap.data().count, 0);
+                        const tTeachers = teSnaps.reduce((acc, snap) => acc + snap.data().count, 0);
+                        const tParents = paSnaps.reduce((acc, snap) => acc + snap.data().count, 0);
+
+                        await setDoc(doc(db, "system", "metrics"), {
+                            totalStudents: tStudents,
+                            totalTeachers: tTeachers,
+                            totalParents: tParents
+                        }, { merge: true });
+                    } catch (err) {
+                        console.error("Auto-backfill failed:", err);
+                    }
+                })();
+            }
+        });
+
         return () => {
             unsubscribe();
+            unsubscribeMetrics();
             window.removeEventListener('mousedown', handleClickOutside);
         };
     }, []);

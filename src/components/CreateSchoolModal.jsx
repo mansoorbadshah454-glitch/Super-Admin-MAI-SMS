@@ -45,6 +45,7 @@ const CreateSchoolModal = ({ onClose, onSuccess }) => {
 
             console.log("School Created:", result.data);
 
+            const schoolCode = result.data?.schoolId || result.data?.id || "Unknown";
             alert(`Success! ${formData.schoolName} created with ID: ${schoolCode}`);
             onSuccess();
             onClose();

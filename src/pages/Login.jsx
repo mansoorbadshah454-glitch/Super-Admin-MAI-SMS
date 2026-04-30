@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Shield, Mail, Lock, Loader2, ArrowRight } from 'lucide-react';
-import { signInWithEmailAndPassword } from 'firebase/auth';
+import { signInWithEmailAndPassword, sendPasswordResetEmail } from 'firebase/auth';
 import { auth } from '../firebase';
 import { useNavigate } from 'react-router-dom';
 
@@ -9,12 +9,14 @@ const Login = () => {
     const [password, setPassword] = useState('');
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
+    const [resetMessage, setResetMessage] = useState('');
     const navigate = useNavigate();
 
     const handleLogin = async (e) => {
         e.preventDefault();
         setLoading(true);
         setError('');
+        setResetMessage('');
 
         try {
             await signInWithEmailAndPassword(auth, email, password);
@@ -22,6 +24,26 @@ const Login = () => {
         } catch (err) {
             console.error("Login failed", err);
             setError("Invalid email or password. Please try again.");
+            setLoading(false);
+        }
+    };
+
+    const handleForgotPassword = async () => {
+        if (!email) {
+            setError("Please enter your email address to reset password.");
+            return;
+        }
+        setLoading(true);
+        setError('');
+        setResetMessage('');
+
+        try {
+            await sendPasswordResetEmail(auth, email);
+            setResetMessage("Password reset email sent! Check your inbox.");
+        } catch (err) {
+            console.error("Password reset failed", err);
+            setError(err.message || "Failed to send reset email. Please try again.");
+        } finally {
             setLoading(false);
         }
     };
@@ -138,6 +160,25 @@ const Login = () => {
                                 required
                             />
                         </div>
+                        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '0.75rem' }}>
+                            <button
+                                type="button"
+                                onClick={handleForgotPassword}
+                                disabled={loading}
+                                style={{
+                                    background: 'none',
+                                    border: 'none',
+                                    color: '#6366f1',
+                                    fontSize: '0.875rem',
+                                    fontWeight: '500',
+                                    cursor: loading ? 'not-allowed' : 'pointer',
+                                    padding: 0,
+                                    textDecoration: 'underline'
+                                }}
+                            >
+                                Forgot Password?
+                            </button>
+                        </div>
                     </div>
 
                     {error && (
@@ -149,6 +190,18 @@ const Login = () => {
                             marginBottom: '1.5rem', textAlign: 'center'
                         }}>
                             {error}
+                        </div>
+                    )}
+
+                    {resetMessage && (
+                        <div style={{
+                            padding: '0.75rem', borderRadius: '8px',
+                            background: 'rgba(52, 211, 153, 0.1)',
+                            border: '1px solid rgba(52, 211, 153, 0.2)',
+                            color: '#34d399', fontSize: '0.9rem',
+                            marginBottom: '1.5rem', textAlign: 'center'
+                        }}>
+                            {resetMessage}
                         </div>
                     )}
 

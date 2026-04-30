@@ -19,25 +19,6 @@ const Schools = () => {
     const [showBroadcastModal, setShowBroadcastModal] = useState(false);
     const navigate = useNavigate();
 
-    useEffect(() => {
-        const q = query(collection(db, "schools"), orderBy("createdAt", "desc"));
-        const unsubscribe = onSnapshot(q, (snapshot) => {
-            const list = [];
-            snapshot.forEach((doc) => {
-                const data = doc.data();
-                const trialInfo = calculateTrialDays(data.trialStartDate);
-                list.push({ id: doc.id, ...data, trialInfo });
-            });
-            setSchools(list);
-
-            // Fetch stats for each school
-            list.forEach(school => {
-                fetchSchoolStats(school.id);
-            });
-        });
-        return () => unsubscribe();
-    }, []);
-
     const fetchSchoolStats = async (schoolId) => {
         try {
             const studentsRef = collection(db, `schools/${schoolId}/students`);
@@ -62,6 +43,25 @@ const Schools = () => {
             console.error(`Error fetching stats for school ${schoolId}:`, error);
         }
     };
+
+    useEffect(() => {
+        const q = query(collection(db, "schools"), orderBy("createdAt", "desc"));
+        const unsubscribe = onSnapshot(q, (snapshot) => {
+            const list = [];
+            snapshot.forEach((doc) => {
+                const data = doc.data();
+                const trialInfo = calculateTrialDays(data.trialStartDate);
+                list.push({ id: doc.id, ...data, trialInfo });
+            });
+            setSchools(list);
+
+            // Fetch stats for each school
+            list.forEach(school => {
+                fetchSchoolStats(school.id);
+            });
+        });
+        return () => unsubscribe();
+    }, []);
 
     const handleTogglePayment = async (schoolId, currentStatus) => {
         try {
