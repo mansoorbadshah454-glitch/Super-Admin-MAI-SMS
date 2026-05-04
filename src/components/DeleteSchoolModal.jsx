@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { X, Trash2, ShieldAlert, Loader2, Lock, AlertTriangle } from 'lucide-react';
-import { db, auth } from '../firebase';
+import { db, auth, functions } from '../firebase';
 import { doc, deleteDoc, collection, getDocs, writeBatch, query } from 'firebase/firestore';
 import { EmailAuthProvider, reauthenticateWithCredential } from 'firebase/auth';
+import { httpsCallable } from 'firebase/functions';
 
 const DeleteSchoolModal = ({ school, onClose, onSuccess }) => {
     const [step, setStep] = useState(1); // 1: Initial Warning, 2: Password, 3: ID Confirmation
@@ -39,40 +40,8 @@ const DeleteSchoolModal = ({ school, onClose, onSuccess }) => {
         setError(null);
 
         try {
-            // Function to delete all documents in a collection and their global entries if needed
-            const deleteCollection = async (collectionPath, isUserCollection = false) => {
-                const colRef = collection(db, collectionPath);
-                const colSnap = await getDocs(colRef);
-                const batches = [];
-                let currentBatch = writeBatch(db);
-                let count = 0;
-
-                for (const docSnap of colSnap.docs) {
-                    if (isUserCollection) {
-                        currentBatch.delete(doc(db, "global_users", docSnap.id));
-                    }
-                    currentBatch.delete(docSnap.ref);
-                    count++;
-
-                    if (count === 450) { // Batch limit is 500, being safe
-                        batches.push(currentBatch.commit());
-                        currentBatch = writeBatch(db);
-                        count = 0;
-                    }
-                }
-                if (count > 0) batches.push(currentBatch.commit());
-                await Promise.all(batches);
-            };
-
-            // Recursively delete all relevant subcollections (one level deep)
-            await deleteCollection(`schools/${school.id}/users`, true);
-            await deleteCollection(`schools/${school.id}/students`);
-            await deleteCollection(`schools/${school.id}/teachers`);
-            await deleteCollection(`schools/${school.id}/classes`);
-            await deleteCollection(`schools/${school.id}/parents`);
-
-            // Delete the school document itself
-            await deleteDoc(doc(db, "schools", school.id));
+            const deleteSchoolFn = httpsCallable(functions, 'deleteSchool');
+            await deleteSchoolFn({ schoolId: school.id });
 
             alert(`Deleted! All data for ${school.name} has been removed.`);
             onSuccess();
@@ -124,9 +93,9 @@ const DeleteSchoolModal = ({ school, onClose, onSuccess }) => {
                     }}>
                         <ShieldAlert size={32} />
                     </div>
-                    <h2 style={{ fontSize: '1.5rem', fontWeight: '800', color: 'white' }}>Dangerous Action</h2>
-                    <p style={{ color: '#94a3b8', fontSize: '0.9rem', marginTop: '0.5rem' }}>
-                        Deleting <strong style={{ color: 'white' }}>{school.name}</strong>
+                    <h2 style={{ fontSize: '1.5rem', fontWeight: '800', color: 'var(--text-main)' }}>Dangerous Action</h2>
+                    <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginTop: '0.5rem' }}>
+                        Deleting <strong style={{ color: 'var(--text-main)' }}>{school.name}</strong>
                     </p>
                 </div>
 
@@ -173,9 +142,9 @@ const DeleteSchoolModal = ({ school, onClose, onSuccess }) => {
                 {step === 2 && (
                     <form onSubmit={handleReauthenticate} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
                         <div className="input-group">
-                            <label className="label" style={{ color: 'white' }}>Verify Super Admin Password</label>
+                            <label className="input-label">Verify Super Admin Password</label>
                             <div style={{ position: 'relative' }}>
-                                <Lock size={18} style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', color: '#64748b' }} />
+                                <Lock size={18} style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
                                 <input
                                     type="password"
                                     className="input-field"
@@ -191,8 +160,8 @@ const DeleteSchoolModal = ({ school, onClose, onSuccess }) => {
                         <button
                             type="submit"
                             disabled={loading}
-                            className="btn"
-                            style={{ background: 'white', color: 'black', width: '100%', justifyContent: 'center' }}
+                            className="btn btn-primary"
+                            style={{ width: '100%', justifyContent: 'center' }}
                         >
                             {loading ? <Loader2 className="animate-spin" size={20} /> : "Verify Identity"}
                         </button>
@@ -202,8 +171,8 @@ const DeleteSchoolModal = ({ school, onClose, onSuccess }) => {
                 {step === 3 && (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
                         <div className="input-group">
-                            <label className="label" style={{ color: 'white' }}>
-                                Type <span style={{ color: '#f87171' }}>DELETE {school.id}</span> to confirm
+                            <label className="input-label">
+                                Type <span style={{ color: '#ef4444' }}>DELETE {school.id}</span> to confirm
                             </label>
                             <input
                                 type="text"
@@ -220,8 +189,8 @@ const DeleteSchoolModal = ({ school, onClose, onSuccess }) => {
                             disabled={loading || confirmId !== `DELETE ${school.id}`}
                             className="btn"
                             style={{
-                                background: confirmId === `DELETE ${school.id}` ? '#dc2626' : 'rgba(255,255,255,0.05)',
-                                color: 'white',
+                                background: confirmId === `DELETE ${school.id}` ? '#dc2626' : 'var(--card-inner-bg)',
+                                color: confirmId === `DELETE ${school.id}` ? 'white' : 'var(--text-muted)',
                                 width: '100%',
                                 justifyContent: 'center',
                                 opacity: loading ? 0.7 : 1
