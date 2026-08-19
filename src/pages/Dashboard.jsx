@@ -27,7 +27,7 @@ const Dashboard = () => {
 
     useEffect(() => {
         // Fetch Schools for Table and Stats
-        const q = query(collection(db, "schools"), orderBy("createdAt", "desc"));
+        const q = collection(db, "schools");
         const unsubscribe = onSnapshot(q, async (querySnapshot) => {
             const schoolsArray = [];
             let paidCount = 0;
@@ -35,10 +35,6 @@ const Dashboard = () => {
 
             querySnapshot.forEach((doc) => {
                 const data = doc.data();
-
-                // Filter out non-legacy/legit dummy schools
-                const isLegit = doc.id === 'SCHOOL_6257' || doc.id.startsWith('SCHOOL_');
-                if (!isLegit) return;
 
                 // Calculate Trial Info based on trialStartDate
                 const trialInfo = calculateTrialDays(data.trialStartDate);

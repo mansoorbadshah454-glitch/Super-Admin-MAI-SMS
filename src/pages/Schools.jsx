@@ -45,7 +45,7 @@ const Schools = () => {
     };
 
     useEffect(() => {
-        const q = query(collection(db, "schools"), orderBy("createdAt", "desc"));
+        const q = collection(db, "schools");
         const unsubscribe = onSnapshot(q, (snapshot) => {
             const list = [];
             snapshot.forEach((doc) => {
@@ -53,12 +53,19 @@ const Schools = () => {
                 const trialInfo = calculateTrialDays(data.trialStartDate);
                 list.push({ id: doc.id, ...data, trialInfo });
             });
+            list.sort((a, b) => {
+                const timeA = a.createdAt?.toDate ? a.createdAt.toDate().getTime() : (a.createdAt ? new Date(a.createdAt).getTime() : 0);
+                const timeB = b.createdAt?.toDate ? b.createdAt.toDate().getTime() : (b.createdAt ? new Date(b.createdAt).getTime() : 0);
+                return timeB - timeA;
+            });
             setSchools(list);
 
             // Fetch stats for each school
             list.forEach(school => {
                 fetchSchoolStats(school.id);
             });
+        }, (error) => {
+            console.error("Super Admin Schools query error:", error);
         });
         return () => unsubscribe();
     }, []);

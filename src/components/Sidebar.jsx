@@ -1,5 +1,5 @@
 import React from 'react';
-import { LayoutDashboard, School, Settings, LogOut, Shield, Users as UsersIcon, Sun, Moon } from 'lucide-react';
+import { LayoutDashboard, School, Settings, LogOut, Shield, Users as UsersIcon, Sun, Moon, BookOpen } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import { signOut } from 'firebase/auth';
 import { auth } from '../firebase';
@@ -13,6 +13,7 @@ const Sidebar = () => {
         { icon: LayoutDashboard, label: 'Dashboard', path: '/' },
         { icon: School, label: 'Schools', path: '/schools' },
         { icon: UsersIcon, label: 'Users', path: '/users' },
+        { icon: BookOpen, label: 'Question Bank', path: '/question-bank' },
         { icon: Settings, label: 'Settings', path: '/settings' },
     ];
 

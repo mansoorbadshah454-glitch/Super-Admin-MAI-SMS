@@ -13,11 +13,12 @@ const CreateSchoolModal = ({ onClose, onSuccess }) => {
     const [formData, setFormData] = useState({
         schoolName: '',
         address: '',
-        schoolContact: '', // Added school contact
+        schoolContact: '',
+        curriculum: 'punjab_board',
         principalName: '',
         principalEmail: '',
         principalPassword: '',
-        principalContact: '' // Added principal contact
+        principalContact: ''
     });
 
     const handleChange = (e) => {
@@ -37,6 +38,7 @@ const CreateSchoolModal = ({ onClose, onSuccess }) => {
                 schoolName: formData.schoolName,
                 address: formData.address,
                 contact: formData.schoolContact,
+                curriculum: formData.curriculum,
                 principalName: formData.principalName,
                 principalEmail: formData.principalEmail,
                 principalPassword: formData.principalPassword,
@@ -120,6 +122,26 @@ const CreateSchoolModal = ({ onClose, onSuccess }) => {
                                     value={formData.schoolContact}
                                     onChange={handleChange}
                                 />
+                            </div>
+                            <div className="input-group">
+                                <label className="input-label">Curriculum / Syllabus Board</label>
+                                <select
+                                    name="curriculum"
+                                    className="input-field"
+                                    value={formData.curriculum}
+                                    onChange={handleChange}
+                                >
+                                    <option value="punjab_board">Punjab Textbook Board (PCTB)</option>
+                                    <option value="kpk_board">KPK Textbook Board (Peshawar - KPTB)</option>
+                                    <option value="federal_board">Federal Board (FBISE / NBF Islamabad)</option>
+                                    <option value="sindh_board">Sindh Textbook Board (STBB Jamshoro)</option>
+                                    <option value="balochistan_board">Balochistan Textbook Board (BTB Quetta)</option>
+                                    <option value="ajk_board">AJK Textbook Board (Muzaffarabad)</option>
+                                    <option value="oxford_series">Oxford University Press (OUP Series)</option>
+                                    <option value="afaq_series">AFAQ Publications (Sun / Iqbal Series)</option>
+                                    <option value="cambridge_curriculum">Cambridge International (O-Levels / IGCSE)</option>
+                                    <option value="general_custom">General / Custom School Syllabus</option>
+                                </select>
                             </div>
                             <div className="flex justify-end pt-4">
                                 <button type="button" onClick={() => setStep(2)} className="btn btn-primary">
