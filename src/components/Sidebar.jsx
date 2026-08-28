@@ -61,42 +61,34 @@ const Sidebar = () => {
             {/* Footer */}
             <div className="sidebar-footer">
                 <div className="user-info">
-                    <div style={{
-                        width: '38px',
-                        height: '38px',
-                        borderRadius: '10px',
-                        background: 'linear-gradient(135deg, var(--primary), #8b5cf6)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        fontWeight: '800',
-                        color: 'white',
-                        fontSize: '1rem',
-                        flexShrink: 0
-                    }}>
+                    <div className="user-avatar-badge">
                         {(adminProfile?.name || 'A')[0].toUpperCase()}
                     </div>
                     <div className="user-details">
-                        <p className="user-name">{adminProfile?.name || 'Administrator'}</p>
-                        <p className="user-email">{adminProfile?.email || auth.currentUser?.email || 'admin@school.com'}</p>
+                        <p className="user-name" title={adminProfile?.name || 'Administrator'}>
+                            {adminProfile?.name || 'Administrator'}
+                        </p>
+                        <p className="user-email" title={adminProfile?.email || auth.currentUser?.email || 'admin@school.com'}>
+                            {adminProfile?.email || auth.currentUser?.email || 'admin@school.com'}
+                        </p>
                     </div>
                 </div>
-                <div style={{ display: 'flex', gap: '0.25rem' }}>
+                <div className="sidebar-footer-actions">
                     <button
-                        className="logout-btn"
+                        className="footer-action-btn"
                         onClick={toggleTheme}
                         title={`Switch to ${theme === 'dark' ? 'Light' : 'Dark'} Mode`}
-                        style={{ padding: '0.4rem' }}
                     >
-                        {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
+                        {theme === 'dark' ? <Sun size={15} /> : <Moon size={15} />}
+                        <span>{theme === 'dark' ? 'Light' : 'Dark'}</span>
                     </button>
                     <button
-                        className="logout-btn"
+                        className="footer-action-btn logout-btn"
                         onClick={handleLogout}
                         title="Logout"
-                        style={{ padding: '0.4rem' }}
                     >
-                        <LogOut size={20} />
+                        <LogOut size={15} />
+                        <span>Logout</span>
                     </button>
                 </div>
             </div>
