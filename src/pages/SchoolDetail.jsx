@@ -3,17 +3,20 @@ import { useParams, useNavigate } from 'react-router-dom';
 import {
     ChevronLeft, School, User, Mail, Shield,
     CreditCard, Power, Loader2, Save, Calendar,
-    MapPin, Hash, CheckCircle, XCircle, Users, UserPlus, Phone
+    MapPin, Hash, CheckCircle, XCircle, Users, Phone,
+    Landmark, Building2
 } from 'lucide-react';
 import { db } from '../firebase';
-import { doc, onSnapshot, updateDoc, getDoc, collection, getCountFromServer, query, where, Timestamp } from 'firebase/firestore';
+import { doc, onSnapshot, updateDoc, getDoc, collection, getCountFromServer } from 'firebase/firestore';
+import { useAdminAuth } from '../contexts/AdminAuthContext';
 
 const SchoolDetail = () => {
     const { id } = useParams();
     const navigate = useNavigate();
+    const { hasPermission, isMasterAdmin } = useAdminAuth();
     const [school, setSchool] = useState(null);
     const [principal, setPrincipal] = useState(null);
-    const [stats, setStats] = useState({ total: '...', recent: '...' });
+    const [stats, setStats] = useState({ total: '...', teachers: '...', parents: '...' });
     const [loading, setLoading] = useState(true);
     const [updating, setUpdating] = useState(false);
 
@@ -82,21 +85,18 @@ const SchoolDetail = () => {
             const parentsSnapshot = await getCountFromServer(parentsRef);
             const parents = parentsSnapshot.data().count;
 
-            // 4. Recent Admissions
-            const thirtyDaysAgo = new Date();
-            thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-            const recentQuery = query(studentsRef, where("createdAt", ">=", Timestamp.fromDate(thirtyDaysAgo)));
-            const recentSnapshot = await getCountFromServer(recentQuery);
-            const recent = recentSnapshot.data().count;
-
-            setStats({ total, teachers, parents, recent });
+            setStats({ total, teachers, parents });
         } catch (error) {
             console.error("Error fetching stats:", error);
-            setStats(prev => ({ ...prev, total: 0, teachers: 0, parents: 0, recent: 0 }));
+            setStats(prev => ({ ...prev, total: 0, teachers: 0, parents: 0 }));
         }
     };
 
     const handleTogglePayment = async () => {
+        if (!isMasterAdmin && !hasPermission('manageBilling')) {
+            alert("Permission Denied: You do not have permission to manage billing.");
+            return;
+        }
         setUpdating(true);
         try {
             const newStatus = school.paymentStatus === 'paid' ? 'unpaid' : 'paid';
@@ -112,6 +112,10 @@ const SchoolDetail = () => {
     };
 
     const handleToggleSystemStatus = async () => {
+        if (!isMasterAdmin && !hasPermission('systemControl')) {
+            alert("Permission Denied: You do not have permission to start/stop school systems.");
+            return;
+        }
         setUpdating(true);
         try {
             const newStatus = school.status === 'active' ? 'suspended' : 'active';
@@ -165,9 +169,12 @@ const SchoolDetail = () => {
                         </h3>
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2rem' }}>
                             <InfoItem icon={Hash} label="School ID" value={school.id} />
-                            <InfoItem icon={MapPin} label="Location" value={school.address} />
+                            <InfoItem icon={Landmark} label="State / Province" value={school.state || 'Not Specified'} />
+                            <InfoItem icon={Building2} label="District" value={school.district || 'Not Specified'} />
+                            <InfoItem icon={MapPin} label="City" value={school.city || 'Not Specified'} />
+                            <InfoItem icon={MapPin} label="Physical Address" value={school.address || 'Not Provided'} />
                             <InfoItem icon={Phone} label="School Contact" value={school.contact || 'Not Provided'} />
-                            <InfoItem icon={Calendar} label="Registered On" value={school.createdAt?.toDate().toLocaleDateString() || 'N/A'} />
+                            <InfoItem icon={Calendar} label="Registered On" value={school.createdAt?.toDate ? school.createdAt.toDate().toLocaleDateString() : 'N/A'} />
                             <InfoItem
                                 icon={isSuspended ? XCircle : CheckCircle}
                                 label="Current Access"
@@ -177,14 +184,14 @@ const SchoolDetail = () => {
                         </div>
 
                         {/* Student Stats in Detail Page */}
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1.5rem', marginTop: '2.5rem', paddingTop: '2rem', borderTop: '1px solid var(--glass-border)' }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1.5rem', marginTop: '2.5rem', paddingTop: '2rem', borderTop: '1px solid var(--glass-border)' }}>
                             {/* Students */}
                             <div style={{ background: 'rgba(99, 102, 241, 0.05)', padding: '1.5rem', borderRadius: '20px', border: '1px solid rgba(99, 102, 241, 0.1)' }}>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', color: 'var(--primary)', marginBottom: '0.5rem' }}>
                                     <Users size={18} />
                                     <span style={{ fontSize: '0.8rem', fontWeight: '700', textTransform: 'uppercase' }}>Total Students</span>
                                 </div>
-                                <div style={{ fontSize: '2rem', fontWeight: '800' }}>{stats.total.toLocaleString()}</div>
+                                <div style={{ fontSize: '2rem', fontWeight: '800' }}>{typeof stats.total === 'number' ? stats.total.toLocaleString() : (stats.total || '...')}</div>
                             </div>
 
                             {/* Teachers */}
@@ -193,7 +200,7 @@ const SchoolDetail = () => {
                                     <User size={18} />
                                     <span style={{ fontSize: '0.8rem', fontWeight: '700', textTransform: 'uppercase' }}>Total Teachers</span>
                                 </div>
-                                <div style={{ fontSize: '2rem', fontWeight: '800' }}>{stats.teachers?.toLocaleString() || '0'}</div>
+                                <div style={{ fontSize: '2rem', fontWeight: '800' }}>{typeof stats.teachers === 'number' ? stats.teachers.toLocaleString() : (stats.teachers || '0')}</div>
                             </div>
 
                             {/* Parents */}
@@ -202,22 +209,7 @@ const SchoolDetail = () => {
                                     <Users size={18} />
                                     <span style={{ fontSize: '0.8rem', fontWeight: '700', textTransform: 'uppercase' }}>Total Parents</span>
                                 </div>
-                                <div style={{ fontSize: '2rem', fontWeight: '800' }}>{stats.parents?.toLocaleString() || '0'}</div>
-                            </div>
-
-                            {/* Recent Admissions */}
-                            <div style={{ background: 'rgba(16, 185, 129, 0.05)', padding: '1.5rem', borderRadius: '20px', border: '1px solid rgba(16, 185, 129, 0.1)' }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', color: '#10b981', marginBottom: '0.5rem' }}>
-                                    <UserPlus size={18} />
-                                    <span style={{ fontSize: '0.8rem', fontWeight: '700', textTransform: 'uppercase' }}>Recent Admissions</span>
-                                </div>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                                    <div style={{ fontSize: '2rem', fontWeight: '800', color: '#34d399' }}>{stats.recent.toLocaleString()}</div>
-                                    {stats.recent > 0 && typeof stats.recent === 'number' && (
-                                        <div style={{ padding: '0.2rem 0.5rem', background: '#34d399', color: '#064e3b', borderRadius: '8px', fontSize: '0.7rem', fontWeight: '800', animation: 'pulse 2s infinite' }}>NEW</div>
-                                    )}
-                                </div>
-                                <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '0.5rem' }}>In the last 30 days</p>
+                                <div style={{ fontSize: '2rem', fontWeight: '800' }}>{typeof stats.parents === 'number' ? stats.parents.toLocaleString() : (stats.parents || '0')}</div>
                             </div>
                         </div>
                     </div>

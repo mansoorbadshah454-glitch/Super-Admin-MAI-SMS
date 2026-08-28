@@ -14,6 +14,9 @@ const InlineEditSchool = ({ school, onClose, onSuccess, displayId }) => {
 
     const [formData, setFormData] = useState({
         schoolName: school.name || '',
+        state: school.state || 'Punjab',
+        district: school.district || '',
+        city: school.city || '',
         address: school.address || '',
         principalEmail: '',
         schoolContact: school.contact || '',
@@ -70,6 +73,9 @@ const InlineEditSchool = ({ school, onClose, onSuccess, displayId }) => {
             const schoolRef = doc(db, "schools", school.id);
             const updateData = {
                 name: formData.schoolName,
+                state: formData.state,
+                district: formData.district,
+                city: formData.city,
                 address: formData.address,
                 contact: formData.schoolContact,
                 vicePrincipalContact: formData.vicePrincipalContact || '',
@@ -166,6 +172,46 @@ const InlineEditSchool = ({ school, onClose, onSuccess, displayId }) => {
                                 value={formData.schoolName}
                                 onChange={(e) => setFormData({ ...formData, schoolName: e.target.value })}
                             />
+                        </div>
+
+                        <div>
+                            <label style={{ fontSize: '0.7rem', color: '#1e40af', fontWeight: 'bold', marginBottom: '0.25rem', display: 'block' }}>State / Province</label>
+                            <select
+                                style={{ width: '100%', padding: '0.5rem', borderRadius: '8px', border: '1px solid #93c5fd', background: 'white', color: '#1e293b', fontSize: '0.875rem' }}
+                                value={formData.state}
+                                onChange={(e) => setFormData({ ...formData, state: e.target.value })}
+                            >
+                                <option value="Punjab">Punjab</option>
+                                <option value="Sindh">Sindh</option>
+                                <option value="Khyber Pakhtunkhwa">Khyber Pakhtunkhwa (KPK)</option>
+                                <option value="Balochistan">Balochistan</option>
+                                <option value="Islamabad (ICT)">Islamabad (ICT / Federal)</option>
+                                <option value="Azad Jammu & Kashmir">Azad Jammu & Kashmir (AJK)</option>
+                                <option value="Gilgit-Baltistan">Gilgit-Baltistan</option>
+                            </select>
+                        </div>
+
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                            <div>
+                                <label style={{ fontSize: '0.7rem', color: '#1e40af', fontWeight: 'bold', marginBottom: '0.25rem', display: 'block' }}>District</label>
+                                <input
+                                    type="text"
+                                    placeholder="e.g. Rawalpindi, Lahore..."
+                                    style={{ width: '100%', padding: '0.5rem', borderRadius: '8px', border: '1px solid #93c5fd', background: 'white', color: '#1e293b', fontSize: '0.875rem' }}
+                                    value={formData.district}
+                                    onChange={(e) => setFormData({ ...formData, district: e.target.value })}
+                                />
+                            </div>
+                            <div>
+                                <label style={{ fontSize: '0.7rem', color: '#1e40af', fontWeight: 'bold', marginBottom: '0.25rem', display: 'block' }}>City</label>
+                                <input
+                                    type="text"
+                                    placeholder="e.g. Taxila, Gujar Khan..."
+                                    style={{ width: '100%', padding: '0.5rem', borderRadius: '8px', border: '1px solid #93c5fd', background: 'white', color: '#1e293b', fontSize: '0.875rem' }}
+                                    value={formData.city}
+                                    onChange={(e) => setFormData({ ...formData, city: e.target.value })}
+                                />
+                            </div>
                         </div>
 
                         <div>

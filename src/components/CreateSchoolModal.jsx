@@ -12,9 +12,11 @@ const CreateSchoolModal = ({ onClose, onSuccess }) => {
 
     const [formData, setFormData] = useState({
         schoolName: '',
+        state: 'Punjab',
+        district: '',
+        city: '',
         address: '',
         schoolContact: '',
-        curriculum: 'punjab_board',
         principalName: '',
         principalEmail: '',
         principalPassword: '',
@@ -23,6 +25,15 @@ const CreateSchoolModal = ({ onClose, onSuccess }) => {
 
     const handleChange = (e) => {
         setFormData({ ...formData, [e.target.name]: e.target.value });
+    };
+
+    const handleNextStep = () => {
+        if (!formData.schoolName || !formData.state || !formData.district || !formData.city || !formData.address || !formData.schoolContact) {
+            setError("Please fill in all required fields (School Name, State, District, City, Address, and Contact).");
+            return;
+        }
+        setError(null);
+        setStep(2);
     };
 
     const handleSubmit = async (e) => {
@@ -36,9 +47,11 @@ const CreateSchoolModal = ({ onClose, onSuccess }) => {
             const createSchool = httpsCallable(functions, 'createSchool');
             const result = await createSchool({
                 schoolName: formData.schoolName,
+                state: formData.state,
+                district: formData.district,
+                city: formData.city,
                 address: formData.address,
                 contact: formData.schoolContact,
-                curriculum: formData.curriculum,
                 principalName: formData.principalName,
                 principalEmail: formData.principalEmail,
                 principalPassword: formData.principalPassword,
@@ -61,7 +74,7 @@ const CreateSchoolModal = ({ onClose, onSuccess }) => {
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }}>
-            <div className="card glass w-full max-w-lg relative animate-in fade-in zoom-in duration-300">
+            <div className="card glass w-full max-w-lg relative animate-in fade-in zoom-in duration-300" style={{ maxHeight: '90vh', overflowY: 'auto' }}>
                 <button onClick={onClose} className="absolute right-4 top-4 text-slate-400 hover:text-white">
                     <X size={24} />
                 </button>
@@ -88,7 +101,7 @@ const CreateSchoolModal = ({ onClose, onSuccess }) => {
                     {step === 1 ? (
                         <div className="space-y-4">
                             <div className="input-group">
-                                <label className="input-label">School Name</label>
+                                <label className="input-label">School Name *</label>
                                 <input
                                     type="text"
                                     name="schoolName"
@@ -99,20 +112,68 @@ const CreateSchoolModal = ({ onClose, onSuccess }) => {
                                     onChange={handleChange}
                                 />
                             </div>
+
                             <div className="input-group">
-                                <label className="input-label">Address</label>
+                                <label className="input-label">State / Province *</label>
+                                <select
+                                    name="state"
+                                    required
+                                    className="input-field"
+                                    value={formData.state}
+                                    onChange={handleChange}
+                                >
+                                    <option value="Punjab">Punjab</option>
+                                    <option value="Sindh">Sindh</option>
+                                    <option value="Khyber Pakhtunkhwa">Khyber Pakhtunkhwa (KPK)</option>
+                                    <option value="Balochistan">Balochistan</option>
+                                    <option value="Islamabad (ICT)">Islamabad (ICT / Federal)</option>
+                                    <option value="Azad Jammu & Kashmir">Azad Jammu & Kashmir (AJK)</option>
+                                    <option value="Gilgit-Baltistan">Gilgit-Baltistan</option>
+                                </select>
+                            </div>
+
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                                <div className="input-group">
+                                    <label className="input-label">District *</label>
+                                    <input
+                                        type="text"
+                                        name="district"
+                                        required
+                                        className="input-field"
+                                        placeholder="e.g. Rawalpindi, Lahore..."
+                                        value={formData.district}
+                                        onChange={handleChange}
+                                    />
+                                </div>
+                                <div className="input-group">
+                                    <label className="input-label">City *</label>
+                                    <input
+                                        type="text"
+                                        name="city"
+                                        required
+                                        className="input-field"
+                                        placeholder="e.g. Taxila, Gujar Khan..."
+                                        value={formData.city}
+                                        onChange={handleChange}
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="input-group">
+                                <label className="input-label">Full Physical Address *</label>
                                 <textarea
                                     name="address"
                                     required
                                     className="input-field"
-                                    rows="3"
-                                    placeholder="Full physical address..."
+                                    rows="2"
+                                    placeholder="Street address, building, postal code..."
                                     value={formData.address}
                                     onChange={handleChange}
                                 />
                             </div>
+
                             <div className="input-group">
-                                <label className="input-label">School Contact Number</label>
+                                <label className="input-label">School Contact Number *</label>
                                 <input
                                     type="text"
                                     name="schoolContact"
@@ -123,28 +184,9 @@ const CreateSchoolModal = ({ onClose, onSuccess }) => {
                                     onChange={handleChange}
                                 />
                             </div>
-                            <div className="input-group">
-                                <label className="input-label">Curriculum / Syllabus Board</label>
-                                <select
-                                    name="curriculum"
-                                    className="input-field"
-                                    value={formData.curriculum}
-                                    onChange={handleChange}
-                                >
-                                    <option value="punjab_board">Punjab Textbook Board (PCTB)</option>
-                                    <option value="kpk_board">KPK Textbook Board (Peshawar - KPTB)</option>
-                                    <option value="federal_board">Federal Board (FBISE / NBF Islamabad)</option>
-                                    <option value="sindh_board">Sindh Textbook Board (STBB Jamshoro)</option>
-                                    <option value="balochistan_board">Balochistan Textbook Board (BTB Quetta)</option>
-                                    <option value="ajk_board">AJK Textbook Board (Muzaffarabad)</option>
-                                    <option value="oxford_series">Oxford University Press (OUP Series)</option>
-                                    <option value="afaq_series">AFAQ Publications (Sun / Iqbal Series)</option>
-                                    <option value="cambridge_curriculum">Cambridge International (O-Levels / IGCSE)</option>
-                                    <option value="general_custom">General / Custom School Syllabus</option>
-                                </select>
-                            </div>
+
                             <div className="flex justify-end pt-4">
-                                <button type="button" onClick={() => setStep(2)} className="btn btn-primary">
+                                <button type="button" onClick={handleNextStep} className="btn btn-primary">
                                     Next Step
                                 </button>
                             </div>

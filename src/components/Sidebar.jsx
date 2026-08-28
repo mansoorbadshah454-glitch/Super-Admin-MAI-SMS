@@ -1,19 +1,19 @@
-import React from 'react';
-import { LayoutDashboard, School, Settings, LogOut, Shield, Users as UsersIcon, Sun, Moon, BookOpen } from 'lucide-react';
+import { LayoutDashboard, School, Settings, LogOut, Shield, ShieldCheck, Sun, Moon } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import { signOut } from 'firebase/auth';
 import { auth } from '../firebase';
 import { useTheme } from '../contexts/ThemeContext';
+import { useAdminAuth } from '../contexts/AdminAuthContext';
 
 const Sidebar = () => {
     const location = useLocation();
     const { theme, toggleTheme } = useTheme();
+    const { adminProfile } = useAdminAuth();
 
     const menuItems = [
         { icon: LayoutDashboard, label: 'Dashboard', path: '/' },
         { icon: School, label: 'Schools', path: '/schools' },
-        { icon: UsersIcon, label: 'Users', path: '/users' },
-        { icon: BookOpen, label: 'Question Bank', path: '/question-bank' },
+        { icon: ShieldCheck, label: 'Admins', path: '/admins' },
         { icon: Settings, label: 'Settings', path: '/settings' },
     ];
 
@@ -61,14 +61,24 @@ const Sidebar = () => {
             {/* Footer */}
             <div className="sidebar-footer">
                 <div className="user-info">
-                    <img
-                        src="https://api.dicebear.com/7.x/avataaars/svg?seed=Admin"
-                        alt="Admin"
-                        className="user-avatar"
-                    />
+                    <div style={{
+                        width: '38px',
+                        height: '38px',
+                        borderRadius: '10px',
+                        background: 'linear-gradient(135deg, var(--primary), #8b5cf6)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontWeight: '800',
+                        color: 'white',
+                        fontSize: '1rem',
+                        flexShrink: 0
+                    }}>
+                        {(adminProfile?.name || 'A')[0].toUpperCase()}
+                    </div>
                     <div className="user-details">
-                        <p className="user-name">Administrator</p>
-                        <p className="user-email">admin@school.com</p>
+                        <p className="user-name">{adminProfile?.name || 'Administrator'}</p>
+                        <p className="user-email">{adminProfile?.email || auth.currentUser?.email || 'admin@school.com'}</p>
                     </div>
                 </div>
                 <div style={{ display: 'flex', gap: '0.25rem' }}>

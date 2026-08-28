@@ -27,6 +27,7 @@ import {
     serverTimestamp
 } from 'firebase/firestore';
 import { createUserWithEmailAndPassword } from 'firebase/auth';
+import { useAlert } from '../contexts/AlertContext';
 
 const AddAdminModal = ({ onClose, onSuccess }) => {
     const [loading, setLoading] = useState(false);
@@ -230,17 +231,23 @@ const AddAdminModal = ({ onClose, onSuccess }) => {
 };
 
 const Users = () => {
+    const { showAlert, showConfirm } = useAlert();
     const [users, setUsers] = useState([]);
     const [loading, setLoading] = useState(true);
     const [showAddModal, setShowAddModal] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
 
     useEffect(() => {
-        const q = query(collection(db, "global_users"), where("role", "==", "super-admin"));
+        const q = collection(db, "global_users");
         const unsubscribe = onSnapshot(q, (snapshot) => {
             const list = [];
-            snapshot.forEach((doc) => list.push({ id: doc.id, ...doc.data() }));
+            snapshot.forEach((doc) => {
+                list.push({ id: doc.id, ...doc.data() });
+            });
             setUsers(list);
+            setLoading(false);
+        }, (error) => {
+            console.error("Super Admin Users query error:", error);
             setLoading(false);
         });
         return () => unsubscribe();
@@ -251,14 +258,30 @@ const Users = () => {
         u.email?.toLowerCase().includes(searchTerm.toLowerCase())
     );
 
-    const handleDeleteUser = async (uid, name) => {
-        if (!window.confirm(`Are you sure you want to remove ${name} from administrators?`)) return;
-        try {
-            await deleteDoc(doc(db, "global_users", uid));
-            // Note: In a real app, you'd also want to delete from Firebase Auth, but that requires Firebase Admin SDK or a cloud function.
-        } catch (error) {
-            alert("Error deleting user: " + error.message);
-        }
+    const handleDeleteUser = (uid, name) => {
+        showConfirm({
+            title: 'Remove Administrator',
+            message: `Are you sure you want to remove ${name || 'this administrator'} from administrators?`,
+            type: 'warning',
+            confirmText: 'Remove',
+            cancelText: 'Cancel',
+            onConfirm: async () => {
+                try {
+                    await deleteDoc(doc(db, "global_users", uid));
+                    showAlert({
+                        title: 'Success',
+                        message: `${name || 'Administrator'} has been successfully removed.`,
+                        type: 'success'
+                    });
+                } catch (error) {
+                    showAlert({
+                        title: 'Error',
+                        message: "Error deleting user: " + error.message,
+                        type: 'error'
+                    });
+                }
+            }
+        });
     };
 
     return (

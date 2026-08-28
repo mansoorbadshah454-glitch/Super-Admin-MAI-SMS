@@ -1,7 +1,7 @@
 export const calculateTrialDays = (trialStartDate) => {
     if (!trialStartDate) return {
         notStarted: true,
-        daysLeft: 14,
+        daysLeft: 7,
         isExpired: false,
         startDateFormatted: '--',
         endDateFormatted: '--'
@@ -10,9 +10,9 @@ export const calculateTrialDays = (trialStartDate) => {
     // Handle Firestore Timestamp or Date object
     const start = trialStartDate.toDate ? trialStartDate.toDate() : new Date(trialStartDate);
 
-    // Add 14 days to the start date
+    // Add 7 days to the start date
     const end = new Date(start);
-    end.setDate(end.getDate() + 14);
+    end.setDate(end.getDate() + 7);
 
     const now = new Date();
     const diffTime = end.getTime() - now.getTime();

@@ -1,34 +1,13 @@
 import React, { useState } from 'react';
-import { X, Trash2, ShieldAlert, Loader2, Lock, AlertTriangle } from 'lucide-react';
-import { db, auth, functions } from '../firebase';
-import { doc, deleteDoc, collection, getDocs, writeBatch, query } from 'firebase/firestore';
-import { EmailAuthProvider, reauthenticateWithCredential } from 'firebase/auth';
+import { X, Trash2, ShieldAlert, Loader2, AlertTriangle } from 'lucide-react';
+import { functions } from '../firebase';
 import { httpsCallable } from 'firebase/functions';
 
 const DeleteSchoolModal = ({ school, onClose, onSuccess }) => {
-    const [step, setStep] = useState(1); // 1: Initial Warning, 2: Password, 3: ID Confirmation
-    const [password, setPassword] = useState('');
+    const [step, setStep] = useState(1); // 1: Initial Warning, 2: ID Confirmation
     const [confirmId, setConfirmId] = useState('');
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
-
-    const handleReauthenticate = async (e) => {
-        e.preventDefault();
-        setLoading(true);
-        setError(null);
-
-        try {
-            const user = auth.currentUser;
-            const credential = EmailAuthProvider.credential(user.email, password);
-            await reauthenticateWithCredential(user, credential);
-            setStep(3);
-        } catch (err) {
-            console.error("Re-auth failed:", err);
-            setError("Invalid password. Please try again.");
-        } finally {
-            setLoading(false);
-        }
-    };
 
     const handleDelete = async () => {
         if (confirmId !== `DELETE ${school.id}`) {
@@ -43,7 +22,7 @@ const DeleteSchoolModal = ({ school, onClose, onSuccess }) => {
             const deleteSchoolFn = httpsCallable(functions, 'deleteSchool');
             await deleteSchoolFn({ schoolId: school.id });
 
-            alert(`Deleted! All data for ${school.name} has been removed.`);
+            alert(`Deleted! All data for ${school.name || school.schoolName || school.id} has been removed.`);
             onSuccess();
         } catch (err) {
             console.error("Deletion error:", err);
@@ -95,7 +74,7 @@ const DeleteSchoolModal = ({ school, onClose, onSuccess }) => {
                     </div>
                     <h2 style={{ fontSize: '1.5rem', fontWeight: '800', color: 'var(--text-main)' }}>Dangerous Action</h2>
                     <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginTop: '0.5rem' }}>
-                        Deleting <strong style={{ color: 'var(--text-main)' }}>{school.name}</strong>
+                        Deleting <strong style={{ color: 'var(--text-main)' }}>{school.name || school.schoolName || school.id}</strong>
                     </p>
                 </div>
 
@@ -140,39 +119,10 @@ const DeleteSchoolModal = ({ school, onClose, onSuccess }) => {
                 )}
 
                 {step === 2 && (
-                    <form onSubmit={handleReauthenticate} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-                        <div className="input-group">
-                            <label className="input-label">Verify Super Admin Password</label>
-                            <div style={{ position: 'relative' }}>
-                                <Lock size={18} style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
-                                <input
-                                    type="password"
-                                    className="input-field"
-                                    style={{ paddingLeft: '3rem' }}
-                                    placeholder="Enter your password"
-                                    value={password}
-                                    onChange={(e) => setPassword(e.target.value)}
-                                    required
-                                    autoFocus
-                                />
-                            </div>
-                        </div>
-                        <button
-                            type="submit"
-                            disabled={loading}
-                            className="btn btn-primary"
-                            style={{ width: '100%', justifyContent: 'center' }}
-                        >
-                            {loading ? <Loader2 className="animate-spin" size={20} /> : "Verify Identity"}
-                        </button>
-                    </form>
-                )}
-
-                {step === 3 && (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
                         <div className="input-group">
-                            <label className="input-label">
-                                Type <span style={{ color: '#ef4444' }}>DELETE {school.id}</span> to confirm
+                            <label className="input-label" style={{ fontSize: '0.85rem', marginBottom: '0.5rem', display: 'block' }}>
+                                Type <span style={{ color: '#ef4444', fontWeight: 'bold' }}>DELETE {school.id}</span> to confirm:
                             </label>
                             <input
                                 type="text"
@@ -193,7 +143,9 @@ const DeleteSchoolModal = ({ school, onClose, onSuccess }) => {
                                 color: confirmId === `DELETE ${school.id}` ? 'white' : 'var(--text-muted)',
                                 width: '100%',
                                 justifyContent: 'center',
-                                opacity: loading ? 0.7 : 1
+                                opacity: loading ? 0.7 : 1,
+                                fontWeight: '700',
+                                padding: '0.9rem'
                             }}
                         >
                             {loading ? <Loader2 className="animate-spin" size={20} /> : "PERMANENTLY DELETE SCHOOL"}

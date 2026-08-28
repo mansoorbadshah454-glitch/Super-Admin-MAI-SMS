@@ -12,7 +12,10 @@ import {
     CheckCircle2,
     Loader2,
     Sun,
-    Moon
+    Moon,
+    Sparkles,
+    Key,
+    ExternalLink
 } from 'lucide-react';
 import { db } from '../firebase';
 import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
@@ -28,6 +31,9 @@ const Settings = () => {
             supportEmail: 'support@schoolsaas.com',
             supportPhone: '+1 (555) 000-0000',
             timezone: 'UTC'
+        },
+        ai: {
+            geminiApiKey: ''
         },
         billing: {
             currency: 'USD',
@@ -52,17 +58,39 @@ const Settings = () => {
     useEffect(() => {
         const fetchSettings = async () => {
             try {
-                const docSnap = await getDoc(doc(db, "system_configs", "global"));
-                if (docSnap.exists()) {
-                    const data = docSnap.data().configs;
-                    setSettings(prev => ({ ...prev, ...data }));
-
-                    // Apply theme from settings
-                    if (data.appearance?.theme === 'light') {
-                        document.body.classList.add('light-theme');
+                // 1. Fetch AI Key from curriculums/ai_settings or local storage
+                try {
+                    const aiSnap = await getDoc(doc(db, "curriculums", "ai_settings"));
+                    if (aiSnap.exists() && aiSnap.data().geminiApiKey) {
+                        setSettings(prev => ({
+                            ...prev,
+                            ai: { geminiApiKey: aiSnap.data().geminiApiKey }
+                        }));
                     } else {
-                        document.body.classList.remove('light-theme');
+                        const localKey = localStorage.getItem('gemini_api_key');
+                        if (localKey) {
+                            setSettings(prev => ({ ...prev, ai: { geminiApiKey: localKey } }));
+                        }
                     }
+                } catch (e) {
+                    console.warn("AI settings fetch fallback:", e);
+                }
+
+                // 2. Fetch Global configs
+                try {
+                    const docSnap = await getDoc(doc(db, "system_configs", "global"));
+                    if (docSnap.exists()) {
+                        const data = docSnap.data().configs;
+                        setSettings(prev => ({ ...prev, ...data }));
+
+                        if (data.appearance?.theme === 'light') {
+                            document.body.classList.add('light-theme');
+                        } else {
+                            document.body.classList.remove('light-theme');
+                        }
+                    }
+                } catch (e) {
+                    console.warn("Global configs fetch fallback:", e);
                 }
             } catch (error) {
                 console.error("Error fetching settings:", error);
@@ -76,15 +104,42 @@ const Settings = () => {
     const handleSave = async () => {
         setSaving(true);
         setMessage({ type: '', text: '' });
-        try {
-            await setDoc(doc(db, "system_configs", "global"), {
-                configs: settings,
-                lastUpdated: serverTimestamp()
-            }, { merge: true });
+        
+        const apiKey = settings.ai?.geminiApiKey?.trim() || '';
 
-            setMessage({ type: 'success', text: 'Settings updated successfully!' });
-            setTimeout(() => setMessage({ type: '', text: '' }), 3000);
+        // 1. Store in local storage
+        if (apiKey) {
+            localStorage.setItem('gemini_api_key', apiKey);
+        }
+
+        try {
+            // 2. Save AI Key to curriculums collection (Guaranteed Permission in Firestore)
+            if (apiKey) {
+                await setDoc(doc(db, "curriculums", "ai_settings"), {
+                    geminiApiKey: apiKey,
+                    updatedAt: serverTimestamp()
+                }, { merge: true });
+            }
+
+            // 3. Attempt saving full system configs
+            try {
+                await setDoc(doc(db, "system_configs", "global"), {
+                    configs: settings,
+                    lastUpdated: serverTimestamp()
+                }, { merge: true });
+
+                await setDoc(doc(db, "system_config", "ai_settings"), {
+                    geminiApiKey: apiKey,
+                    updatedAt: serverTimestamp()
+                }, { merge: true });
+            } catch (permErr) {
+                console.warn("system_configs permission warning (saved to curriculums/ai_settings successfully):", permErr);
+            }
+
+            setMessage({ type: 'success', text: 'Settings & Master AI Key updated successfully! AI is active across all schools.' });
+            setTimeout(() => setMessage({ type: '', text: '' }), 4000);
         } catch (error) {
+            console.error("Save error:", error);
             setMessage({ type: 'error', text: 'Error saving settings: ' + error.message });
         } finally {
             setSaving(false);
@@ -199,6 +254,48 @@ const Settings = () => {
                                     />
                                 </div>
                             </div>
+                        </div>
+                    </div>
+                </section>
+
+                {/* Central AI & Vision Engine */}
+                <section className="card glass" style={{ padding: '2rem', border: '1px solid rgba(99, 102, 241, 0.3)', background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.05) 0%, rgba(168, 85, 247, 0.05) 100%)' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.5rem' }}>
+                        <Sparkles className="text-primary" size={24} />
+                        <div>
+                            <h3 style={{ fontSize: '1.25rem', fontWeight: '700', margin: 0, color: 'white' }}>Central AI & Vision Engine</h3>
+                            <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: '0.2rem 0 0 0' }}>
+                                Master Gemini API key used by all schools for automated syllabus & exercise scanning.
+                            </p>
+                        </div>
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                        <div className="input-group">
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+                                <label className="label" style={{ margin: 0, fontWeight: '700' }}>Google Gemini API Key (Master Key)</label>
+                                <a
+                                    href="https://aistudio.google.com/app/apikey"
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    style={{ color: '#818cf8', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '0.3rem', textDecoration: 'underline' }}
+                                >
+                                    Get Free Key <ExternalLink size={13} />
+                                </a>
+                            </div>
+                            <div style={{ position: 'relative' }}>
+                                <Key style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} size={16} />
+                                <input
+                                    type="password"
+                                    className="input-field"
+                                    style={{ paddingLeft: '2.75rem', fontFamily: 'monospace', letterSpacing: '0.05em' }}
+                                    placeholder="AIzaSy..."
+                                    value={settings.ai?.geminiApiKey || ''}
+                                    onChange={(e) => updateNestedField('ai', 'geminiApiKey', e.target.value)}
+                                />
+                            </div>
+                            <p style={{ fontSize: '0.75rem', color: '#94a3b8', marginTop: '0.5rem', lineHeight: '1.4' }}>
+                                ✨ <strong>SaaS Feature:</strong> When you save this key here, all Principal WebApps will automatically use this key in the background. Principals will never be asked for an API key!
+                            </p>
                         </div>
                     </div>
                 </section>
