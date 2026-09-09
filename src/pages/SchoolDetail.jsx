@@ -4,10 +4,10 @@ import {
     ChevronLeft, School, User, Mail, Shield,
     CreditCard, Power, Loader2, Save, Calendar,
     MapPin, Hash, CheckCircle, XCircle, Users, Phone,
-    Landmark, Building2
+    Landmark, Building2, Plus, Trash2
 } from 'lucide-react';
 import { db } from '../firebase';
-import { doc, onSnapshot, updateDoc, getDoc, collection, getCountFromServer } from 'firebase/firestore';
+import { doc, onSnapshot, updateDoc, getDoc, collection, getCountFromServer, setDoc } from 'firebase/firestore';
 import { useAdminAuth } from '../contexts/AdminAuthContext';
 
 const SchoolDetail = () => {
@@ -19,6 +19,55 @@ const SchoolDetail = () => {
     const [stats, setStats] = useState({ total: '...', teachers: '...', parents: '...' });
     const [loading, setLoading] = useState(true);
     const [updating, setUpdating] = useState(false);
+    const [bankAccounts, setBankAccounts] = useState([]);
+    const [savingBanking, setSavingBanking] = useState(false);
+
+    // Listen to School's banking settings
+    useEffect(() => {
+        if (!id) return;
+        const unsub = onSnapshot(doc(db, `schools/${id}/settings`, 'banking'), (snap) => {
+            if (snap.exists()) {
+                setBankAccounts(snap.data().accounts || []);
+            } else {
+                setBankAccounts([]);
+            }
+        });
+        return () => unsub();
+    }, [id]);
+
+    const handleBankChange = (index, field, value) => {
+        const updated = [...bankAccounts];
+        updated[index] = { ...updated[index], [field]: value };
+        setBankAccounts(updated);
+    };
+
+    const addBankAccount = () => {
+        setBankAccounts([
+            ...bankAccounts,
+            { bankName: '', accountTitle: '', accountNumber: '', iban: '' }
+        ]);
+    };
+
+    const removeBankAccount = (index) => {
+        const updated = bankAccounts.filter((_, i) => i !== index);
+        setBankAccounts(updated);
+    };
+
+    const handleSaveBanking = async () => {
+        setSavingBanking(true);
+        try {
+            await setDoc(doc(db, `schools/${id}/settings`, 'banking'), {
+                accounts: bankAccounts,
+                updatedAt: new Date().toISOString()
+            }, { merge: true });
+            alert("Payment methods saved successfully for " + (school?.name || 'School') + "!");
+        } catch (err) {
+            console.error("Failed to save banking:", err);
+            alert("Error saving banking details: " + err.message);
+        } finally {
+            setSavingBanking(false);
+        }
+    };
 
     useEffect(() => {
         setLoading(true); // Reset loading on ID change
@@ -230,6 +279,121 @@ const SchoolDetail = () => {
                             <InfoItem icon={Hash} label="Principal UID" value={school.principalId || 'N/A'} />
                             <InfoItem icon={Calendar} label="Last Updated" value={school.updatedAt?.toDate().toLocaleDateString() || 'Never'} />
                         </div>
+                    </div>
+
+                    {/* Official Fee Collection Accounts Card */}
+                    <div className="card glass" style={{ padding: '2rem' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
+                            <h3 style={{ fontSize: '1.25rem', display: 'flex', alignItems: 'center', gap: '0.75rem', margin: 0 }}>
+                                <Landmark size={22} color="var(--primary)" />
+                                Fee Collection Accounts (EasyPaisa, JazzCash, Bank)
+                            </h3>
+                            <div style={{ display: 'flex', gap: '0.75rem' }}>
+                                <button
+                                    onClick={addBankAccount}
+                                    className="btn"
+                                    style={{ padding: '0.45rem 0.9rem', fontSize: '0.85rem', background: 'var(--card-inner-bg)', color: 'var(--primary)', borderColor: 'var(--primary)' }}
+                                >
+                                    <Plus size={16} /> Add Method
+                                </button>
+                                <button
+                                    onClick={handleSaveBanking}
+                                    disabled={savingBanking}
+                                    className="btn btn-primary"
+                                    style={{ padding: '0.45rem 1rem', fontSize: '0.85rem', fontWeight: '700' }}
+                                >
+                                    {savingBanking ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />} Save Accounts
+                                </button>
+                            </div>
+                        </div>
+
+                        <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '1.5rem' }}>
+                            These account details are rendered in the Parent App when parents click "Pay Now" to transfer fees.
+                        </p>
+
+                        {bankAccounts.length === 0 ? (
+                            <div style={{ textAlign: 'center', padding: '2rem', background: 'var(--card-inner-bg)', borderRadius: '12px', color: 'var(--text-muted)' }}>
+                                No payment accounts configured yet for this school. Click "+ Add Method" to set up EasyPaisa, JazzCash, or Bank accounts.
+                            </div>
+                        ) : (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                                {bankAccounts.map((acc, index) => (
+                                    <div key={index} style={{
+                                        position: 'relative', padding: '1.25rem', background: 'var(--card-inner-bg)',
+                                        borderRadius: '12px', border: '1px solid var(--glass-border)',
+                                        display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem',
+                                        paddingRight: '3rem'
+                                    }}>
+                                        <button
+                                            onClick={() => removeBankAccount(index)}
+                                            style={{
+                                                position: 'absolute', top: '1rem', right: '1rem', background: 'transparent',
+                                                border: 'none', color: '#f87171', cursor: 'pointer', padding: '4px'
+                                            }}
+                                            title="Delete Account"
+                                        >
+                                            <Trash2 size={18} />
+                                        </button>
+
+                                        <div>
+                                            <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '600', color: 'var(--text-muted)', marginBottom: '0.35rem' }}>
+                                                Method / Bank Name
+                                            </label>
+                                            <input
+                                                type="text"
+                                                value={acc.bankName || ''}
+                                                onChange={(e) => handleBankChange(index, 'bankName', e.target.value)}
+                                                placeholder="e.g. EasyPaisa, JazzCash, Meezan Bank"
+                                                className="input"
+                                                style={{ width: '100%', fontSize: '0.85rem' }}
+                                            />
+                                        </div>
+
+                                        <div>
+                                            <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '600', color: 'var(--text-muted)', marginBottom: '0.35rem' }}>
+                                                Account Title
+                                            </label>
+                                            <input
+                                                type="text"
+                                                value={acc.accountTitle || ''}
+                                                onChange={(e) => handleBankChange(index, 'accountTitle', e.target.value)}
+                                                placeholder="e.g. School Account"
+                                                className="input"
+                                                style={{ width: '100%', fontSize: '0.85rem' }}
+                                            />
+                                        </div>
+
+                                        <div>
+                                            <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '600', color: 'var(--text-muted)', marginBottom: '0.35rem' }}>
+                                                Account / Mobile Number
+                                            </label>
+                                            <input
+                                                type="text"
+                                                value={acc.accountNumber || ''}
+                                                onChange={(e) => handleBankChange(index, 'accountNumber', e.target.value)}
+                                                placeholder="e.g. 03001234567"
+                                                className="input"
+                                                style={{ width: '100%', fontSize: '0.85rem' }}
+                                            />
+                                        </div>
+
+                                        <div>
+                                            <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '600', color: 'var(--text-muted)', marginBottom: '0.35rem' }}>
+                                                IBAN / Details (Optional)
+                                            </label>
+                                            <input
+                                                type="text"
+                                                value={acc.iban || ''}
+                                                onChange={(e) => handleBankChange(index, 'iban', e.target.value)}
+                                                placeholder="PK00..."
+                                                className="input"
+                                                style={{ width: '100%', fontSize: '0.85rem' }}
+                                            />
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
                     </div>
                 </div>
 
