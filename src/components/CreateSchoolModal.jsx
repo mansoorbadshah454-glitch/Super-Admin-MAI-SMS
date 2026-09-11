@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Save, Shield, School, Mail, Lock } from 'lucide-react';
+import { X, Save, Shield, School, Mail, Lock, Sparkles, Crown, Bus, Tv } from 'lucide-react';
 import { db, auth, functions } from '../firebase';
 import { collection, doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
@@ -17,6 +17,13 @@ const CreateSchoolModal = ({ onClose, onSuccess }) => {
         city: '',
         address: '',
         schoolContact: '',
+        package: 'standard',
+        modules: {
+            transport: false,
+            surveillance: false,
+            paperGenerator: false,
+            store: false
+        },
         principalName: '',
         principalEmail: '',
         principalPassword: '',
@@ -25,6 +32,34 @@ const CreateSchoolModal = ({ onClose, onSuccess }) => {
 
     const handleChange = (e) => {
         setFormData({ ...formData, [e.target.name]: e.target.value });
+    };
+
+    const handlePackageChange = (pkg) => {
+        setFormData({
+            ...formData,
+            package: pkg,
+            modules: pkg === 'premium' ? {
+                transport: true,
+                surveillance: true,
+                paperGenerator: true,
+                store: true
+            } : {
+                transport: false,
+                surveillance: false,
+                paperGenerator: false,
+                store: false
+            }
+        });
+    };
+
+    const handleModuleToggle = (moduleKey) => {
+        setFormData({
+            ...formData,
+            modules: {
+                ...formData.modules,
+                [moduleKey]: !formData.modules[moduleKey]
+            }
+        });
     };
 
     const handleNextStep = () => {
@@ -52,6 +87,8 @@ const CreateSchoolModal = ({ onClose, onSuccess }) => {
                 city: formData.city,
                 address: formData.address,
                 contact: formData.schoolContact,
+                package: formData.package,
+                modules: formData.modules,
                 principalName: formData.principalName,
                 principalEmail: formData.principalEmail,
                 principalPassword: formData.principalPassword,
@@ -183,6 +220,225 @@ const CreateSchoolModal = ({ onClose, onSuccess }) => {
                                     value={formData.schoolContact}
                                     onChange={handleChange}
                                 />
+                            </div>
+
+                            {/* SaaS Subscription Package Selector */}
+                            <div style={{
+                                marginTop: '1.25rem',
+                                padding: '1.25rem',
+                                borderRadius: '18px',
+                                background: 'linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%)',
+                                border: '1px solid rgba(99, 102, 241, 0.4)',
+                                boxShadow: '0 10px 25px -5px rgba(15, 23, 42, 0.4)'
+                            }}>
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.9rem' }}>
+                                    <label style={{ color: '#ffffff', fontSize: '1rem', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '0.5rem', margin: 0 }}>
+                                        <Crown size={18} color="#fbbf24" />
+                                        Subscription Tier & Access
+                                    </label>
+                                    <span style={{
+                                        fontSize: '0.72rem',
+                                        fontWeight: '800',
+                                        letterSpacing: '0.05em',
+                                        textTransform: 'uppercase',
+                                        padding: '0.2rem 0.6rem',
+                                        borderRadius: '9999px',
+                                        background: formData.package === 'premium' ? 'rgba(245, 158, 11, 0.25)' : 'rgba(99, 102, 241, 0.25)',
+                                        color: formData.package === 'premium' ? '#fde047' : '#c7d2fe',
+                                        border: formData.package === 'premium' ? '1px solid rgba(245, 158, 11, 0.5)' : '1px solid rgba(99, 102, 241, 0.5)'
+                                    }}>
+                                        {formData.package === 'premium' ? '⭐ Premium Pro' : 'Standard Tier'}
+                                    </span>
+                                </div>
+
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.85rem', marginBottom: '1rem' }}>
+                                    {/* Standard Button */}
+                                    <button
+                                        type="button"
+                                        onClick={() => handlePackageChange('standard')}
+                                        style={{
+                                            padding: '1rem 0.9rem',
+                                            borderRadius: '14px',
+                                            textAlign: 'left',
+                                            cursor: 'pointer',
+                                            transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
+                                            background: formData.package === 'standard'
+                                                ? 'linear-gradient(135deg, #4f46e5 0%, #3730a3 100%)'
+                                                : 'rgba(30, 41, 59, 0.85)',
+                                            border: formData.package === 'standard'
+                                                ? '2px solid #818cf8'
+                                                : '1px solid rgba(255, 255, 255, 0.1)',
+                                            boxShadow: formData.package === 'standard'
+                                                ? '0 8px 20px -3px rgba(79, 70, 229, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.2)'
+                                                : 'none',
+                                            transform: formData.package === 'standard' ? 'translateY(-2px)' : 'none'
+                                        }}
+                                    >
+                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.35rem' }}>
+                                            <span style={{ fontWeight: '800', fontSize: '1rem', color: '#ffffff' }}>Standard</span>
+                                            <Sparkles size={18} color={formData.package === 'standard' ? '#ffffff' : '#94a3b8'} />
+                                        </div>
+                                        <p style={{ fontSize: '0.8rem', color: formData.package === 'standard' ? '#e0e7ff' : '#94a3b8', margin: 0, lineHeight: 1.35, fontWeight: '500' }}>
+                                            Core ERP, LMS, Fees, Exams & Notices
+                                        </p>
+                                    </button>
+
+                                    {/* Premium Button */}
+                                    <button
+                                        type="button"
+                                        onClick={() => handlePackageChange('premium')}
+                                        style={{
+                                            padding: '1rem 0.9rem',
+                                            borderRadius: '14px',
+                                            textAlign: 'left',
+                                            cursor: 'pointer',
+                                            transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
+                                            background: formData.package === 'premium'
+                                                ? 'linear-gradient(135deg, #d97706 0%, #92400e 100%)'
+                                                : 'rgba(30, 41, 59, 0.85)',
+                                            border: formData.package === 'premium'
+                                                ? '2px solid #fbbf24'
+                                                : '1px solid rgba(255, 255, 255, 0.1)',
+                                            boxShadow: formData.package === 'premium'
+                                                ? '0 8px 20px -3px rgba(217, 119, 6, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.2)'
+                                                : 'none',
+                                            transform: formData.package === 'premium' ? 'translateY(-2px)' : 'none'
+                                        }}
+                                    >
+                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.35rem' }}>
+                                            <span style={{ fontWeight: '800', fontSize: '1rem', color: '#ffffff' }}>Premium Pro</span>
+                                            <Crown size={18} color={formData.package === 'premium' ? '#fde047' : '#94a3b8'} />
+                                        </div>
+                                        <p style={{ fontSize: '0.8rem', color: formData.package === 'premium' ? '#fef3c7' : '#94a3b8', margin: 0, lineHeight: 1.35, fontWeight: '500' }}>
+                                            All Features + Fleet Hub & CCTV
+                                        </p>
+                                    </button>
+                                </div>
+
+                                {/* Granular Add-on Switches with Modern Toggle Pills */}
+                                <div style={{
+                                    background: 'rgba(15, 23, 42, 0.7)',
+                                    borderRadius: '14px',
+                                    padding: '0.9rem',
+                                    border: '1px solid rgba(255, 255, 255, 0.08)',
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    gap: '0.65rem'
+                                }}>
+                                    <div style={{ fontSize: '0.75rem', fontWeight: '800', textTransform: 'uppercase', color: '#94a3b8', letterSpacing: '0.06em' }}>
+                                        Active Add-on Modules:
+                                    </div>
+
+                                    {/* Transport Switch */}
+                                    <div
+                                        onClick={() => handleModuleToggle('transport')}
+                                        style={{
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'space-between',
+                                            padding: '0.6rem 0.75rem',
+                                            borderRadius: '10px',
+                                            background: formData.modules.transport ? 'rgba(245, 158, 11, 0.12)' : 'rgba(30, 41, 59, 0.5)',
+                                            border: formData.modules.transport ? '1px solid rgba(245, 158, 11, 0.3)' : '1px solid rgba(255, 255, 255, 0.05)',
+                                            cursor: 'pointer',
+                                            transition: 'all 0.2s ease'
+                                        }}
+                                    >
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                                            <div style={{
+                                                width: '32px',
+                                                height: '32px',
+                                                borderRadius: '8px',
+                                                background: 'rgba(245, 158, 11, 0.2)',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'center'
+                                            }}>
+                                                <Bus size={18} color="#fbbf24" />
+                                            </div>
+                                            <div>
+                                                <div style={{ color: '#ffffff', fontSize: '0.9rem', fontWeight: '700' }}>Transport & Van Fleet Hub</div>
+                                                <div style={{ color: '#94a3b8', fontSize: '0.72rem' }}>Live GPS bus map & driver tracking</div>
+                                            </div>
+                                        </div>
+                                        {/* Custom Modern Switch */}
+                                        <div style={{
+                                            width: '44px',
+                                            height: '24px',
+                                            borderRadius: '9999px',
+                                            background: formData.modules.transport ? '#10b981' : '#334155',
+                                            padding: '2px',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: formData.modules.transport ? 'flex-end' : 'flex-start',
+                                            transition: 'all 0.25s ease',
+                                            boxShadow: formData.modules.transport ? '0 0 10px rgba(16, 185, 129, 0.5)' : 'none'
+                                        }}>
+                                            <div style={{
+                                                width: '20px',
+                                                height: '20px',
+                                                borderRadius: '50%',
+                                                background: '#ffffff',
+                                                boxShadow: '0 2px 4px rgba(0,0,0,0.3)'
+                                            }} />
+                                        </div>
+                                    </div>
+
+                                    {/* Surveillance Switch */}
+                                    <div
+                                        onClick={() => handleModuleToggle('surveillance')}
+                                        style={{
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'space-between',
+                                            padding: '0.6rem 0.75rem',
+                                            borderRadius: '10px',
+                                            background: formData.modules.surveillance ? 'rgba(99, 102, 241, 0.15)' : 'rgba(30, 41, 59, 0.5)',
+                                            border: formData.modules.surveillance ? '1px solid rgba(99, 102, 241, 0.35)' : '1px solid rgba(255, 255, 255, 0.05)',
+                                            cursor: 'pointer',
+                                            transition: 'all 0.2s ease'
+                                        }}
+                                    >
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                                            <div style={{
+                                                width: '32px',
+                                                height: '32px',
+                                                borderRadius: '8px',
+                                                background: 'rgba(99, 102, 241, 0.2)',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'center'
+                                            }}>
+                                                <Tv size={18} color="#818cf8" />
+                                            </div>
+                                            <div>
+                                                <div style={{ color: '#ffffff', fontSize: '0.9rem', fontWeight: '700' }}>Live CCTV Surveillance</div>
+                                                <div style={{ color: '#94a3b8', fontSize: '0.72rem' }}>Multi-camera live campus streams</div>
+                                            </div>
+                                        </div>
+                                        {/* Custom Modern Switch */}
+                                        <div style={{
+                                            width: '44px',
+                                            height: '24px',
+                                            borderRadius: '9999px',
+                                            background: formData.modules.surveillance ? '#10b981' : '#334155',
+                                            padding: '2px',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: formData.modules.surveillance ? 'flex-end' : 'flex-start',
+                                            transition: 'all 0.25s ease',
+                                            boxShadow: formData.modules.surveillance ? '0 0 10px rgba(16, 185, 129, 0.5)' : 'none'
+                                        }}>
+                                            <div style={{
+                                                width: '20px',
+                                                height: '20px',
+                                                borderRadius: '50%',
+                                                background: '#ffffff',
+                                                boxShadow: '0 2px 4px rgba(0,0,0,0.3)'
+                                            }} />
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
 
                             <div className="flex justify-end pt-4">
