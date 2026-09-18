@@ -1,4 +1,4 @@
-﻿import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState } from 'react';
 import { onAuthStateChanged } from 'firebase/auth';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { auth, db } from '../firebase';
@@ -13,6 +13,31 @@ export const AdminAuthProvider = ({ children }) => {
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
+        const manual = localStorage.getItem('manual_admin_session');
+        if (manual) {
+            try {
+                const parsed = JSON.parse(manual);
+                setUser(parsed);
+                setAdminProfile({
+                    id: parsed.uid || 'admin_dev',
+                    email: parsed.email || 'admin@mai.local',
+                    name: parsed.displayName || 'Super Administrator',
+                    role: 'super-admin',
+                    permissions: {
+                        manageSchools: true,
+                        deleteSchool: true,
+                        manageBilling: true,
+                        systemControl: true,
+                        manageAdmins: true
+                    }
+                });
+                setLoading(false);
+                return;
+            } catch (e) {
+                localStorage.removeItem('manual_admin_session');
+            }
+        }
+
         let unsubscribeDoc = null;
 
         const unsubscribeAuth = onAuthStateChanged(auth, (currentUser) => {

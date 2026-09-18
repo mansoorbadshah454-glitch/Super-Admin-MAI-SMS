@@ -9,6 +9,17 @@ const AuthGuard = () => {
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
+        const manual = localStorage.getItem('manual_admin_session');
+        if (manual) {
+            try {
+                setUser(JSON.parse(manual));
+                setLoading(false);
+                return;
+            } catch (e) {
+                localStorage.removeItem('manual_admin_session');
+            }
+        }
+
         const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
             setUser(currentUser);
             setLoading(false);

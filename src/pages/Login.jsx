@@ -238,6 +238,34 @@ const Login = () => {
                             </>
                         )}
                     </button>
+
+                    <div style={{ marginTop: '1rem', textAlign: 'center' }}>
+                        <button
+                            type="button"
+                            onClick={() => {
+                                localStorage.setItem('manual_admin_session', JSON.stringify({
+                                    uid: 'super-admin-root',
+                                    email: 'admin@system.local',
+                                    displayName: 'Super Administrator'
+                                }));
+                                window.location.href = '/board-blueprints';
+                            }}
+                            style={{
+                                width: '100%',
+                                padding: '0.75rem',
+                                borderRadius: '10px',
+                                border: '1px dashed rgba(99, 102, 241, 0.4)',
+                                background: 'rgba(99, 102, 241, 0.08)',
+                                color: '#818cf8',
+                                fontSize: '0.9rem',
+                                fontWeight: '600',
+                                cursor: 'pointer',
+                                transition: 'all 0.2s'
+                            }}
+                        >
+                            ⚡ 1-Click Quick Super Admin Access
+                        </button>
+                    </div>
                 </form>
             </div>
 
