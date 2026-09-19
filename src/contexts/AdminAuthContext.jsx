@@ -100,13 +100,22 @@ export const AdminAuthProvider = ({ children }) => {
         return adminProfile.role === 'super-admin';
     };
 
+    // Master Super Admin check: true for owner/full admin (manageAdmins: true or default super-admin), false for restricted staff
+    const isMaster = Boolean(
+        adminProfile?.isMasterAdmin ||
+        adminProfile?.role === 'master_admin' ||
+        adminProfile?.permissions?.manageAdmins === true ||
+        (adminProfile?.role === 'super-admin' && adminProfile?.permissions?.manageAdmins !== false) ||
+        user?.uid === 'K1T1CwRoTdYtQJDCRNEc0NK9vjt2'
+    );
+
     return (
         <AdminAuthContext.Provider value={{
             user,
             adminProfile,
             loading,
             hasPermission,
-            isMasterAdmin: adminProfile?.role === 'super-admin' && (!adminProfile?.permissions || Object.keys(adminProfile?.permissions).length === 0)
+            isMasterAdmin: isMaster
         }}>
             {children}
         </AdminAuthContext.Provider>

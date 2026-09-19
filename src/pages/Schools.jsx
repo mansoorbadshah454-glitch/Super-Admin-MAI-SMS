@@ -576,6 +576,43 @@ const Schools = () => {
                                     </div>
                                 </div>
 
+                                {/* School Subscription Rate Badge */}
+                                <div style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'space-between',
+                                    padding: '0.6rem 0.9rem',
+                                    borderRadius: '12px',
+                                    background: 'rgba(255, 255, 255, 0.85)',
+                                    border: '1px solid #bae6fd',
+                                    marginBottom: '0.75rem'
+                                }}>
+                                    <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                        <span style={{ fontSize: '0.65rem', fontWeight: '800', textTransform: 'uppercase', color: '#1e40af', letterSpacing: '0.04em' }}>
+                                            Subscription Rate ({school.billingCycle === 'yearly' ? 'Yearly' : 'Monthly'})
+                                        </span>
+                                        <span style={{ fontSize: '0.95rem', fontWeight: '800', color: '#0f172a' }}>
+                                            ₨ {school.billingCycle === 'yearly' 
+                                                ? Number(school.yearlySubscriptionFee || 50000).toLocaleString() 
+                                                : Number(school.monthlySubscriptionFee || 5000).toLocaleString()}
+                                            <span style={{ fontSize: '0.7rem', fontWeight: '600', color: '#64748b' }}>
+                                                {school.billingCycle === 'yearly' ? ' / yr' : ' / mo'}
+                                            </span>
+                                        </span>
+                                    </div>
+                                    <span style={{
+                                        fontSize: '0.7rem',
+                                        fontWeight: '700',
+                                        padding: '0.2rem 0.5rem',
+                                        borderRadius: '6px',
+                                        background: school.billingCycle === 'yearly' ? '#fef3c7' : '#e0e7ff',
+                                        color: school.billingCycle === 'yearly' ? '#b45309' : '#4338ca',
+                                        border: school.billingCycle === 'yearly' ? '1px solid #fde68a' : '1px solid #c7d2fe'
+                                    }}>
+                                        {school.billingCycle === 'yearly' ? 'Yearly Plan' : 'Monthly Plan'}
+                                    </span>
+                                </div>
+
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', paddingTop: '1rem', borderTop: '1px solid #bae6fd' }}>
                                     <span style={{
                                         padding: '0.4rem 0.8rem',

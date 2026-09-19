@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { School, Users, Activity, Plus, Search, Filter, MoreVertical, GraduationCap, DollarSign, Play, Square, Eye, CheckCircle, XCircle, PlayCircle, StopCircle } from 'lucide-react';
+import { School, Users, Activity, Plus, Search, Filter, MoreVertical, GraduationCap, DollarSign, Play, Square, Eye, CheckCircle, XCircle, PlayCircle, StopCircle, CreditCard, ArrowRight } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import CreateSchoolModal from '../components/CreateSchoolModal';
 import { db } from '../firebase';
@@ -16,6 +16,11 @@ const Dashboard = () => {
     const [activeTab, setActiveTab] = useState('recent');
     const [openMenuId, setOpenMenuId] = useState(null);
     const menuRef = useRef(null);
+    const [totalPaidRevenue, setTotalPaidRevenue] = useState(0);
+    const [paidSchoolsCount, setPaidSchoolsCount] = useState(0);
+    const [unpaidSchoolsCount, setUnpaidSchoolsCount] = useState(0);
+    const [pendingSlips, setPendingSlips] = useState(0);
+
     const [stats, setStats] = useState([
         { label: 'Total Schools', value: '0', icon: School, color: '#6366f1' },
         { label: 'Total Students', value: '0', icon: Activity, color: '#8b5cf6' },
@@ -25,6 +30,20 @@ const Dashboard = () => {
         { label: 'Unpaid Schools', value: '0', icon: Users, color: '#f59e0b' },
     ]);
 
+    // Listen for pending verification slips
+    useEffect(() => {
+        const subsRef = collection(db, "platform_subscriptions");
+        const unsubSubs = onSnapshot(subsRef, (snapshot) => {
+            let pending = 0;
+            snapshot.forEach(doc => {
+                if (doc.data()?.status === 'pending') pending++;
+            });
+            setPendingSlips(pending);
+        }, (err) => console.warn("Subscriptions count notice:", err));
+
+        return () => unsubSubs();
+    }, []);
+
     useEffect(() => {
         // Fetch Schools for Table and Stats
         const q = collection(db, "schools");
@@ -32,6 +51,7 @@ const Dashboard = () => {
             const schoolsArray = [];
             let paidCount = 0;
             let unpaidCount = 0;
+            let calculatedRevenue = 0;
 
             querySnapshot.forEach((doc) => {
                 const data = doc.data();
@@ -45,9 +65,20 @@ const Dashboard = () => {
                     trialInfo
                 });
 
-                if (data.paymentStatus === 'paid') paidCount++;
-                else unpaidCount++;
+                if (data.paymentStatus === 'paid') {
+                    paidCount++;
+                    const fee = data.billingCycle === 'yearly'
+                        ? (Number(data.yearlySubscriptionFee) || 50000)
+                        : (Number(data.monthlySubscriptionFee) || 5000);
+                    calculatedRevenue += fee;
+                } else {
+                    unpaidCount++;
+                }
             });
+
+            setPaidSchoolsCount(paidCount);
+            setUnpaidSchoolsCount(unpaidCount);
+            setTotalPaidRevenue(calculatedRevenue);
 
             // Sort logic requested by user:
             // 1. Expired trials (0 days left) above all
@@ -77,7 +108,7 @@ const Dashboard = () => {
             setStats(prev => {
                 const newStats = [...prev];
                 newStats[0] = { ...newStats[0], value: schoolsArray.length.toString() };
-                newStats[4] = { ...newStats[4], value: paidCount.toString() };
+                newStats[4] = { ...newStats[4], value: `${paidCount} (₨ ${calculatedRevenue.toLocaleString()})` };
                 newStats[5] = { ...newStats[5], value: unpaidCount.toString() };
                 return newStats;
             });
@@ -266,6 +297,80 @@ const Dashboard = () => {
                     </button>
                 </div>
             </header>
+
+            {/* SaaS Revenue & Billing Summary Card */}
+            <div style={{
+                marginBottom: '1.5rem',
+                padding: '1.25rem 1.75rem',
+                borderRadius: '20px',
+                background: 'linear-gradient(135deg, #1e1b4b 0%, #0f172a 100%)',
+                border: '1px solid rgba(99, 102, 241, 0.35)',
+                boxShadow: '0 10px 25px -5px rgba(15, 23, 42, 0.4)',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                flexWrap: 'wrap',
+                gap: '1.25rem'
+            }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem' }}>
+                    <div style={{
+                        width: '56px',
+                        height: '56px',
+                        borderRadius: '16px',
+                        background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        boxShadow: '0 8px 16px rgba(16, 185, 129, 0.25)',
+                        color: 'white'
+                    }}>
+                        <CreditCard size={28} />
+                    </div>
+                    <div>
+                        <div style={{ fontSize: '0.75rem', fontWeight: '800', textTransform: 'uppercase', color: '#a7f3d0', letterSpacing: '0.05em' }}>
+                            Total Subscription Revenue (Paid Schools)
+                        </div>
+                        <div style={{ fontSize: '1.85rem', fontWeight: '800', color: '#ffffff', letterSpacing: '-0.02em' }}>
+                            ₨ {totalPaidRevenue.toLocaleString()}
+                        </div>
+                        <div style={{ fontSize: '0.8rem', color: '#94a3b8' }}>
+                            Active paid schools: <strong style={{ color: '#34d399' }}>{paidSchoolsCount} schools</strong> • Unpaid: <strong style={{ color: '#fbbf24' }}>{unpaidSchoolsCount} schools</strong>
+                        </div>
+                    </div>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
+                    {pendingSlips > 0 && (
+                        <button
+                            onClick={() => navigate('/billing-subscriptions')}
+                            className="btn"
+                            style={{
+                                padding: '0.65rem 1.25rem',
+                                borderRadius: '12px',
+                                background: 'rgba(245, 158, 11, 0.15)',
+                                border: '1px solid rgba(245, 158, 11, 0.4)',
+                                color: '#fbbf24',
+                                fontSize: '0.85rem',
+                                fontWeight: '700',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '0.5rem',
+                                cursor: 'pointer'
+                            }}
+                        >
+                            <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#f59e0b', boxShadow: '0 0 8px #f59e0b' }} />
+                            {pendingSlips} New Slip{pendingSlips > 1 ? 's' : ''} to Review
+                        </button>
+                    )}
+                    <button
+                        onClick={() => navigate('/billing-subscriptions')}
+                        className="btn btn-primary"
+                        style={{ padding: '0.65rem 1.25rem', fontSize: '0.85rem', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '0.4rem' }}
+                    >
+                        Manage Subscriptions <ArrowRight size={15} />
+                    </button>
+                </div>
+            </div>
 
             {/* Stats Grid */}
             <div style={{

@@ -15,15 +15,26 @@ import {
     Moon,
     Sparkles,
     Key,
-    ExternalLink
+    ExternalLink,
+    Landmark,
+    Plus,
+    Trash2,
+    Lock,
+    Check
 } from 'lucide-react';
 import { db } from '../firebase';
-import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc, setDoc, serverTimestamp, onSnapshot } from 'firebase/firestore';
+import { useAdminAuth } from '../contexts/AdminAuthContext';
 
 const Settings = () => {
+    const { isMasterAdmin } = useAdminAuth();
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
+    const [savingAccounts, setSavingAccounts] = useState(false);
+    const [accountsSavedNotice, setAccountsSavedNotice] = useState(false);
     const [message, setMessage] = useState({ type: '', text: '' });
+
+    const [officialAccounts, setOfficialAccounts] = useState([]);
 
     const [settings, setSettings] = useState({
         general: {
@@ -55,7 +66,53 @@ const Settings = () => {
         }
     });
 
+    const handleAddOfficialAccount = () => {
+        setOfficialAccounts(prev => [...prev, { bankName: '', accountTitle: '', accountNumber: '', iban: '' }]);
+    };
+
+    const handleSaveAccountsOnly = async (accountsToSave = officialAccounts) => {
+        setSavingAccounts(true);
+        try {
+            await setDoc(doc(db, "system_configs", "platform_billing"), {
+                accounts: accountsToSave,
+                updatedAt: serverTimestamp()
+            }, { merge: true });
+            setAccountsSavedNotice(true);
+            setTimeout(() => setAccountsSavedNotice(false), 3000);
+        } catch (accErr) {
+            console.error("Error saving official accounts:", accErr);
+        } finally {
+            setSavingAccounts(false);
+        }
+    };
+
+    const handleRemoveOfficialAccount = async (index) => {
+        const updated = officialAccounts.filter((_, i) => i !== index);
+        setOfficialAccounts(updated);
+        // Instant Live Auto-Save to Firestore so Principal App & Super Admin stay in 100% real-time sync
+        try {
+            await setDoc(doc(db, "system_configs", "platform_billing"), {
+                accounts: updated,
+                updatedAt: serverTimestamp()
+            }, { merge: true });
+            setAccountsSavedNotice(true);
+            setTimeout(() => setAccountsSavedNotice(false), 2500);
+        } catch (accErr) {
+            console.error("Auto-sync error on delete account:", accErr);
+        }
+    };
+
+    const handleOfficialAccountChange = (index, field, value) => {
+        setOfficialAccounts(prev => {
+            const copy = [...prev];
+            copy[index] = { ...copy[index], [field]: value };
+            return copy;
+        });
+    };
+
     useEffect(() => {
+        let unsubBilling = () => {};
+
         const fetchSettings = async () => {
             try {
                 // 1. Fetch AI Key from curriculums/ai_settings or local storage
@@ -89,8 +146,24 @@ const Settings = () => {
                             document.body.classList.remove('light-theme');
                         }
                     }
-                } catch (e) {
-                    console.warn("Global configs fetch fallback:", e);
+                } catch (gErr) {
+                    console.warn("Global configs fetch notice:", gErr);
+                }
+
+                // 3. Listen to Official Billing Accounts in Real-Time (onSnapshot)
+                try {
+                    unsubBilling = onSnapshot(doc(db, "system_configs", "platform_billing"), (billingSnap) => {
+                        if (billingSnap.exists()) {
+                            const data = billingSnap.data();
+                            if (Array.isArray(data?.accounts)) {
+                                setOfficialAccounts(data.accounts);
+                            }
+                        }
+                    }, (bErr) => {
+                        console.warn("platform_billing real-time listener notice:", bErr);
+                    });
+                } catch (bErr) {
+                    console.warn("platform_billing init notice:", bErr);
                 }
             } catch (error) {
                 console.error("Error fetching settings:", error);
@@ -98,7 +171,12 @@ const Settings = () => {
                 setLoading(false);
             }
         };
+
         fetchSettings();
+
+        return () => {
+            unsubBilling();
+        };
     }, []);
 
     const handleSave = async () => {
@@ -136,7 +214,19 @@ const Settings = () => {
                 console.warn("system_configs permission warning (saved to curriculums/ai_settings successfully):", permErr);
             }
 
-            setMessage({ type: 'success', text: 'Settings & Master AI Key updated successfully! AI is active across all schools.' });
+            // 4. Save Official Billing Accounts strictly if Master Admin
+            if (isMasterAdmin) {
+                try {
+                    await setDoc(doc(db, "system_configs", "platform_billing"), {
+                        accounts: officialAccounts,
+                        updatedAt: serverTimestamp()
+                    }, { merge: true });
+                } catch (accErr) {
+                    console.warn("Official billing accounts save notice:", accErr);
+                }
+            }
+
+            setMessage({ type: 'success', text: 'Settings & Payment Accounts updated successfully!' });
             setTimeout(() => setMessage({ type: '', text: '' }), 4000);
         } catch (error) {
             console.error("Save error:", error);
@@ -343,6 +433,154 @@ const Settings = () => {
                         </div>
                     </div>
                 </section>
+
+                {/* Master Admin Only: Official SaaS Receiving Accounts */}
+                {isMasterAdmin && (
+                    <section className="card glass" style={{ padding: '2rem', border: '1px solid rgba(245, 158, 11, 0.3)', background: 'linear-gradient(135deg, rgba(245, 158, 11, 0.04) 0%, rgba(99, 102, 241, 0.04) 100%)' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '0.75rem' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                                <Landmark className="text-warning" size={24} style={{ color: '#f59e0b' }} />
+                                <div>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                        <h3 style={{ fontSize: '1.25rem', fontWeight: '700', margin: 0, color: 'white' }}>Official Receiving Bank / Wallet Accounts</h3>
+                                        <span style={{ fontSize: '0.7rem', padding: '2px 8px', borderRadius: '6px', background: 'rgba(239, 68, 68, 0.2)', color: '#f87171', border: '1px solid rgba(239, 68, 68, 0.3)', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '3px' }}>
+                                            <Lock size={10} /> MASTER ADMIN ONLY
+                                        </span>
+                                    </div>
+                                    <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: '0.2rem 0 0 0' }}>
+                                        Yeh accounts tamam schools ke Principal App mein payment tab par 1-Click Copy ke saath show honge. Staff ko iska access nahi hai.
+                                    </p>
+                                </div>
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                                {accountsSavedNotice && (
+                                    <span style={{ fontSize: '0.78rem', color: '#10b981', display: 'flex', alignItems: 'center', gap: '4px', background: 'rgba(16, 185, 129, 0.15)', border: '1px solid rgba(16, 185, 129, 0.3)', padding: '4px 8px', borderRadius: '8px', fontWeight: '600' }}>
+                                        <Check size={14} /> Live Synced with Principal App!
+                                    </span>
+                                )}
+                                <button
+                                    type="button"
+                                    onClick={handleAddOfficialAccount}
+                                    className="btn"
+                                    style={{
+                                        padding: '0.45rem 0.9rem', fontSize: '0.82rem',
+                                        background: 'rgba(245, 158, 11, 0.15)', color: '#f59e0b',
+                                        border: '1px solid rgba(245, 158, 11, 0.3)', borderRadius: '10px',
+                                        display: 'flex', alignItems: 'center', gap: '0.4rem', cursor: 'pointer'
+                                    }}
+                                >
+                                    <Plus size={15} /> Add Account / Wallet
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => handleSaveAccountsOnly()}
+                                    disabled={savingAccounts}
+                                    className="btn"
+                                    style={{
+                                        padding: '0.45rem 0.9rem', fontSize: '0.82rem',
+                                        background: 'linear-gradient(135deg, #10b981, #059669)', color: '#ffffff',
+                                        border: 'none', borderRadius: '10px',
+                                        display: 'flex', alignItems: 'center', gap: '0.4rem', cursor: 'pointer',
+                                        fontWeight: '700'
+                                    }}
+                                >
+                                    {savingAccounts ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+                                    {savingAccounts ? 'Saving...' : 'Save Accounts'}
+                                </button>
+                            </div>
+                        </div>
+
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                            {officialAccounts.length === 0 && (
+                                <div style={{ textAlign: 'center', padding: '1.5rem', background: 'rgba(255, 255, 255, 0.02)', borderRadius: '12px', border: '1px dashed var(--glass-border)', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+                                    No official accounts added yet. Click "+ Add Account / Wallet" to setup EasyPaisa, JazzCash, or Bank details.
+                                </div>
+                            )}
+
+                            {officialAccounts.map((acc, index) => (
+                                <div
+                                    key={index}
+                                    style={{
+                                        position: 'relative', padding: '1.25rem',
+                                        background: 'rgba(15, 23, 42, 0.6)',
+                                        borderRadius: '14px', border: '1px solid var(--glass-border)',
+                                        display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem',
+                                        paddingRight: '3rem'
+                                    }}
+                                >
+                                    <button
+                                        type="button"
+                                        onClick={() => handleRemoveOfficialAccount(index)}
+                                        style={{
+                                            position: 'absolute', top: '1rem', right: '1rem',
+                                            background: 'transparent', border: 'none',
+                                            color: '#ef4444', cursor: 'pointer', padding: '4px'
+                                        }}
+                                        title="Delete Account"
+                                    >
+                                        <Trash2 size={16} />
+                                    </button>
+
+                                    <div>
+                                        <label className="label" style={{ fontSize: '0.75rem', marginBottom: '0.35rem' }}>
+                                            Payment Method / Bank
+                                        </label>
+                                        <input
+                                            type="text"
+                                            className="input-field"
+                                            style={{ fontSize: '0.85rem' }}
+                                            placeholder="e.g. JazzCash, EasyPaisa, Meezan Bank"
+                                            value={acc.bankName || ''}
+                                            onChange={(e) => handleOfficialAccountChange(index, 'bankName', e.target.value)}
+                                        />
+                                    </div>
+
+                                    <div>
+                                        <label className="label" style={{ fontSize: '0.75rem', marginBottom: '0.35rem' }}>
+                                            Account Title
+                                        </label>
+                                        <input
+                                            type="text"
+                                            className="input-field"
+                                            style={{ fontSize: '0.85rem' }}
+                                            placeholder="e.g. Official Name"
+                                            value={acc.accountTitle || ''}
+                                            onChange={(e) => handleOfficialAccountChange(index, 'accountTitle', e.target.value)}
+                                        />
+                                    </div>
+
+                                    <div>
+                                        <label className="label" style={{ fontSize: '0.75rem', marginBottom: '0.35rem' }}>
+                                            Account / Mobile Number
+                                        </label>
+                                        <input
+                                            type="text"
+                                            className="input-field"
+                                            style={{ fontSize: '0.85rem', fontFamily: 'monospace' }}
+                                            placeholder="e.g. 03001234567"
+                                            value={acc.accountNumber || ''}
+                                            onChange={(e) => handleOfficialAccountChange(index, 'accountNumber', e.target.value)}
+                                        />
+                                    </div>
+
+                                    <div>
+                                        <label className="label" style={{ fontSize: '0.75rem', marginBottom: '0.35rem' }}>
+                                            IBAN / Additional Info (Optional)
+                                        </label>
+                                        <input
+                                            type="text"
+                                            className="input-field"
+                                            style={{ fontSize: '0.85rem', fontFamily: 'monospace' }}
+                                            placeholder="PK00..."
+                                            value={acc.iban || ''}
+                                            onChange={(e) => handleOfficialAccountChange(index, 'iban', e.target.value)}
+                                        />
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </section>
+                )}
 
                 {/* System Controls */}
                 <section className="card glass" style={{ padding: '2rem' }}>

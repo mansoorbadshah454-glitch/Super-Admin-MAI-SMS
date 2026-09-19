@@ -6,6 +6,7 @@ import Schools from './pages/Schools';
 import SchoolDetail from './pages/SchoolDetail';
 import Admins from './pages/Admins';
 import Settings from './pages/Settings';
+import BillingSubscriptions from './pages/BillingSubscriptions';
 import BoardBlueprints from './pages/BoardBlueprints';
 import Login from './pages/Login';
 import AuthGuard from './components/AuthGuard';
@@ -23,6 +24,7 @@ function App() {
             <Route path="schools" element={<Schools />} />
             <Route path="schools/:id" element={<SchoolDetail />} />
             <Route path="board-blueprints" element={<BoardBlueprints />} />
+            <Route path="billing-subscriptions" element={<BillingSubscriptions />} />
             <Route path="admins" element={<Admins />} />
             <Route path="users" element={<Navigate to="/admins" replace />} />
             <Route path="settings" element={<Settings />} />

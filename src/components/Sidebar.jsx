@@ -1,4 +1,4 @@
-import { LayoutDashboard, School, Settings, LogOut, Shield, ShieldCheck, Sun, Moon, BookOpen } from 'lucide-react';
+import { LayoutDashboard, School, Settings, LogOut, Shield, ShieldCheck, Sun, Moon, BookOpen, CreditCard } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import { signOut } from 'firebase/auth';
 import { auth } from '../firebase';
@@ -8,13 +8,14 @@ import { useAdminAuth } from '../contexts/AdminAuthContext';
 const Sidebar = () => {
     const location = useLocation();
     const { theme, toggleTheme } = useTheme();
-    const { adminProfile } = useAdminAuth();
+    const { adminProfile, hasPermission, isMasterAdmin } = useAdminAuth();
 
     const menuItems = [
         { icon: LayoutDashboard, label: 'Dashboard', path: '/' },
         { icon: School, label: 'Schools', path: '/schools' },
+        { icon: CreditCard, label: 'Billing & Subscriptions', path: '/billing-subscriptions', permission: 'manageBilling' },
         { icon: BookOpen, label: 'Board Blueprints', path: '/board-blueprints' },
-        { icon: ShieldCheck, label: 'Admins', path: '/admins' },
+        { icon: ShieldCheck, label: 'Admins', path: '/admins', permission: 'manageAdmins' },
         { icon: Settings, label: 'Settings', path: '/settings' },
     ];
 
@@ -43,7 +44,7 @@ const Sidebar = () => {
 
             {/* Navigation */}
             <nav className="sidebar-nav">
-                {menuItems.map((item) => {
+                {menuItems.filter(item => !item.permission || isMasterAdmin || hasPermission(item.permission)).map((item) => {
                     const isActive = location.pathname === item.path;
                     return (
                         <Link

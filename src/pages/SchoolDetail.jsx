@@ -21,6 +21,10 @@ const SchoolDetail = () => {
     const [updating, setUpdating] = useState(false);
     const [bankAccounts, setBankAccounts] = useState([]);
     const [savingBanking, setSavingBanking] = useState(false);
+    const [monthlyFee, setMonthlyFee] = useState('');
+    const [yearlyFee, setYearlyFee] = useState('');
+    const [billingCycle, setBillingCycle] = useState('monthly');
+    const [savingPricing, setSavingPricing] = useState(false);
 
     // Listen to School's banking settings
     useEffect(() => {
@@ -76,6 +80,9 @@ const SchoolDetail = () => {
                 if (docSnap.exists()) {
                     const schoolData = { id: docSnap.id, ...docSnap.data() };
                     setSchool(schoolData);
+                    setMonthlyFee(schoolData.monthlySubscriptionFee ?? 5000);
+                    setYearlyFee(schoolData.yearlySubscriptionFee ?? 50000);
+                    setBillingCycle(schoolData.billingCycle || 'monthly');
                     console.log("School Data Loaded:", schoolData);
 
                     // Fetch principal info (Fail gracefully)
@@ -157,6 +164,28 @@ const SchoolDetail = () => {
             alert("Failed to update payment status: " + error.message);
         } finally {
             setUpdating(false);
+        }
+    };
+
+    const handleSaveSubscriptionPricing = async () => {
+        if (!isMasterAdmin && !hasPermission('manageBilling')) {
+            alert("Permission Denied: You do not have permission to manage billing pricing.");
+            return;
+        }
+        setSavingPricing(true);
+        try {
+            await updateDoc(doc(db, "schools", id), {
+                monthlySubscriptionFee: Number(monthlyFee) || 0,
+                yearlySubscriptionFee: Number(yearlyFee) || 0,
+                billingCycle: billingCycle,
+                updatedAt: new Date()
+            });
+            alert("School subscription pricing updated successfully!");
+        } catch (err) {
+            console.error("Error updating subscription pricing:", err);
+            alert("Failed to update pricing: " + err.message);
+        } finally {
+            setSavingPricing(false);
         }
     };
 
@@ -674,12 +703,12 @@ const SchoolDetail = () => {
                                 </div>
                             </div>
 
-                            {/* Payment Toggle */}
-                            <div style={{ padding: '1.25rem', borderRadius: '16px', background: 'var(--card-inner-bg)', border: '1px solid var(--glass-border)' }}>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                            {/* Subscription Pricing & Billing Status Card */}
+                            <div style={{ padding: '1.25rem', borderRadius: '16px', background: 'var(--card-inner-bg)', border: '1px solid var(--glass-border)', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                     <div>
-                                        <p style={{ fontSize: '0.875rem', fontWeight: '600' }}>Billing Status</p>
-                                        <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Cycle: Monthly Subscription</p>
+                                        <p style={{ fontSize: '0.875rem', fontWeight: '700', margin: 0, color: 'white' }}>Subscription Pricing & Status</p>
+                                        <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', margin: '2px 0 0 0' }}>School billing terms</p>
                                     </div>
                                     <span style={{
                                         padding: '0.25rem 0.6rem',
@@ -687,12 +716,97 @@ const SchoolDetail = () => {
                                         fontSize: '0.7rem',
                                         fontWeight: '700',
                                         textTransform: 'uppercase',
-                                        background: school.paymentStatus === 'paid' ? 'rgba(16, 185, 129, 0.1)' : 'rgba(245, 158, 11, 0.1)',
-                                        color: school.paymentStatus === 'paid' ? '#34d399' : '#fbbf24'
+                                        background: school.paymentStatus === 'paid' ? 'rgba(16, 185, 129, 0.15)' : 'rgba(245, 158, 11, 0.15)',
+                                        color: school.paymentStatus === 'paid' ? '#34d399' : '#fbbf24',
+                                        border: school.paymentStatus === 'paid' ? '1px solid rgba(16, 185, 129, 0.3)' : '1px solid rgba(245, 158, 11, 0.3)'
                                     }}>
                                         {school.paymentStatus || 'unpaid'}
                                     </span>
                                 </div>
+
+                                {/* Billing Cycle Choice */}
+                                <div>
+                                    <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '600', color: 'var(--text-muted)', marginBottom: '0.4rem' }}>
+                                        Active Billing Cycle
+                                    </label>
+                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
+                                        <button
+                                            type="button"
+                                            onClick={() => setBillingCycle('monthly')}
+                                            style={{
+                                                padding: '0.5rem',
+                                                fontSize: '0.78rem',
+                                                fontWeight: '700',
+                                                borderRadius: '8px',
+                                                border: billingCycle === 'monthly' ? '2px solid #6366f1' : '1px solid var(--glass-border)',
+                                                background: billingCycle === 'monthly' ? 'rgba(99, 102, 241, 0.2)' : 'rgba(255, 255, 255, 0.03)',
+                                                color: billingCycle === 'monthly' ? '#818cf8' : 'var(--text-muted)',
+                                                cursor: 'pointer'
+                                            }}
+                                        >
+                                            📅 Monthly
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setBillingCycle('yearly')}
+                                            style={{
+                                                padding: '0.5rem',
+                                                fontSize: '0.78rem',
+                                                fontWeight: '700',
+                                                borderRadius: '8px',
+                                                border: billingCycle === 'yearly' ? '2px solid #f59e0b' : '1px solid var(--glass-border)',
+                                                background: billingCycle === 'yearly' ? 'rgba(245, 158, 11, 0.2)' : 'rgba(255, 255, 255, 0.03)',
+                                                color: billingCycle === 'yearly' ? '#fbbf24' : 'var(--text-muted)',
+                                                cursor: 'pointer'
+                                            }}
+                                        >
+                                            ⭐ Yearly
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {/* Monthly & Yearly Rates Grid */}
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                                    <div>
+                                        <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: '600', color: 'var(--text-muted)', marginBottom: '0.3rem' }}>
+                                            Monthly Fee (Rs)
+                                        </label>
+                                        <input
+                                            type="number"
+                                            className="input"
+                                            style={{ width: '100%', fontSize: '0.85rem', padding: '0.45rem 0.6rem' }}
+                                            placeholder="5000"
+                                            value={monthlyFee}
+                                            onChange={(e) => setMonthlyFee(e.target.value)}
+                                        />
+                                    </div>
+                                    <div>
+                                        <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: '600', color: 'var(--text-muted)', marginBottom: '0.3rem' }}>
+                                            Yearly Fee (Rs)
+                                        </label>
+                                        <input
+                                            type="number"
+                                            className="input"
+                                            style={{ width: '100%', fontSize: '0.85rem', padding: '0.45rem 0.6rem' }}
+                                            placeholder="50000"
+                                            value={yearlyFee}
+                                            onChange={(e) => setYearlyFee(e.target.value)}
+                                        />
+                                    </div>
+                                </div>
+
+                                {/* Save Pricing Button */}
+                                <button
+                                    type="button"
+                                    onClick={handleSaveSubscriptionPricing}
+                                    disabled={savingPricing}
+                                    className="btn btn-primary"
+                                    style={{ width: '100%', justifyContent: 'center', fontSize: '0.8rem', padding: '0.5rem' }}
+                                >
+                                    {savingPricing ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />} Save Pricing Rates
+                                </button>
+
+                                {/* Toggle Paid / Unpaid */}
                                 <button
                                     onClick={handleTogglePayment}
                                     disabled={updating}
@@ -700,14 +814,16 @@ const SchoolDetail = () => {
                                     style={{
                                         width: '100%',
                                         justifyContent: 'center',
+                                        fontSize: '0.8rem',
+                                        padding: '0.5rem',
                                         background: school.paymentStatus === 'paid' ? 'rgba(245, 158, 11, 0.1)' : 'rgba(16, 185, 129, 0.1)',
                                         color: school.paymentStatus === 'paid' ? '#fbbf24' : '#34d399',
                                         borderColor: school.paymentStatus === 'paid' ? 'rgba(245, 158, 11, 0.2)' : 'rgba(16, 185, 129, 0.2)'
                                     }}
                                 >
-                                    {updating ? <Loader2 className="animate-spin" size={18} /> : (
+                                    {updating ? <Loader2 className="animate-spin" size={16} /> : (
                                         <>
-                                            <CreditCard size={18} />
+                                            <CreditCard size={16} />
                                             Mark as {school.paymentStatus === 'paid' ? 'Unpaid' : 'Paid'}
                                         </>
                                     )}
