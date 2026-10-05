@@ -27,26 +27,30 @@ const InlineEditSchool = ({ school, onClose, onSuccess, displayId }) => {
         confirmPassword: ''
     });
 
+    const [initialEmail, setInitialEmail] = useState('');
+
     useEffect(() => {
         const fetchPrincipalEmail = async () => {
             if (school.principalId) {
+                let fetchedEmail = '';
+                let fetchedContact = '';
                 const userDoc = await getDoc(doc(db, "global_users", school.principalId));
                 if (userDoc.exists()) {
-                    setFormData(prev => ({
-                        ...prev,
-                        principalEmail: userDoc.data().email || '',
-                        principalContact: userDoc.data().contact || ''
-                    }));
+                    fetchedEmail = userDoc.data().email || '';
+                    fetchedContact = userDoc.data().contact || '';
                 } else {
                     const schoolUserDoc = await getDoc(doc(db, `schools/${school.id}/users`, school.principalId));
                     if (schoolUserDoc.exists()) {
-                        setFormData(prev => ({
-                            ...prev,
-                            principalEmail: schoolUserDoc.data().email || '',
-                            principalContact: schoolUserDoc.data().contact || ''
-                        }));
+                        fetchedEmail = schoolUserDoc.data().email || '';
+                        fetchedContact = schoolUserDoc.data().contact || '';
                     }
                 }
+                setFormData(prev => ({
+                    ...prev,
+                    principalEmail: fetchedEmail,
+                    principalContact: fetchedContact
+                }));
+                setInitialEmail(fetchedEmail);
             }
         };
         fetchPrincipalEmail();
@@ -83,23 +87,31 @@ const InlineEditSchool = ({ school, onClose, onSuccess, displayId }) => {
                 updatedAt: new Date()
             };
 
-            if (formData.newPassword) {
+            const normalizedEmail = (formData.principalEmail || '').toLowerCase().trim();
+            const emailChanged = normalizedEmail && (normalizedEmail !== initialEmail.toLowerCase().trim());
+            const passwordChanged = !!formData.newPassword;
+
+            if (passwordChanged || emailChanged) {
                 if (!school.principalId) {
-                    setMessage({ type: 'error', text: 'Cannot update password: No Principal Account is linked to this school.' });
+                    setMessage({ type: 'error', text: 'Cannot update credentials: No Principal Account is linked to this school.' });
                     setLoading(false);
                     return;
                 }
                 const updateSchoolUserPassword = httpsCallable(functions, 'updateSchoolUserPassword');
-                await updateSchoolUserPassword({
+                const authPayload = {
                     targetUid: school.principalId,
-                    newPassword: formData.newPassword,
                     schoolId: school.id
-                });
+                };
+                if (passwordChanged) {
+                    authPayload.newPassword = formData.newPassword;
+                }
+                if (normalizedEmail) {
+                    authPayload.newEmail = normalizedEmail;
+                }
+                await updateSchoolUserPassword(authPayload);
             }
 
-            if (school.principalId) {
-                const normalizedEmail = formData.principalEmail.toLowerCase().trim();
-
+            if (school.principalId && normalizedEmail) {
                 const globalUserRef = doc(db, "global_users", school.principalId);
                 await setDoc(globalUserRef, {
                     email: normalizedEmail,
