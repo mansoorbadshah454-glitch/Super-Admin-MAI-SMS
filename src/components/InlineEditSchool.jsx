@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Save, Shield, Loader2, Key, RefreshCw, Copy, Check, ArrowRight, ArrowLeft, Eye, EyeOff, Mail } from 'lucide-react';
+import { X, Save, Shield, Loader2, ArrowRight, ArrowLeft, Mail } from 'lucide-react';
 import { db, functions, auth } from '../firebase';
 import { doc, updateDoc, getDoc, setDoc } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
@@ -141,84 +141,130 @@ const InlineEditSchool = ({ school, onClose, onSuccess, displayId }) => {
         }
     };
 
+    const inputStyle = {
+        width: '100%',
+        padding: '5px 8px',
+        fontSize: '12px',
+        fontFamily: 'Tahoma, sans-serif',
+        background: '#fff',
+        border: '1px solid #7F9DB9',
+        borderRadius: '2px',
+        outline: 'none',
+        boxSizing: 'border-box'
+    };
+
+    const labelStyle = {
+        fontSize: '11px',
+        fontWeight: 'bold',
+        color: '#1E293B',
+        marginBottom: '3px',
+        display: 'block'
+    };
+
     return (
-        <div style={{ padding: '1.5rem', height: '100%', display: 'flex', flexDirection: 'column', background: '#bfdbfe' }} className="animate-in fade-in duration-300">
+        <div style={{
+            padding: '12px',
+            background: '#ECE9D8',
+            border: '1px solid #7F9DB9',
+            fontFamily: 'Tahoma, "Segoe UI", sans-serif',
+            borderRadius: '0 0 4px 4px'
+        }}>
             {/* Header Area */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-                <h3 style={{ margin: 0, fontSize: '1.1rem', color: '#1e3a8a', fontWeight: 'bold' }}>
-                    {page === 1 ? 'Edit Details' : 'Principal Account'}
-                </h3>
-                <div style={{ display: 'flex', gap: '0.5rem' }}>
-                    <div style={{ padding: '0.25rem 0.5rem', background: 'rgba(255,255,255,0.5)', borderRadius: '8px', fontSize: '0.75rem', color: '#1e40af', fontWeight: '600' }}>
+            <div style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                paddingBottom: '8px',
+                borderBottom: '1px solid #D0D0BF',
+                marginBottom: '10px'
+            }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#003399' }}>
+                        ⚙ {page === 1 ? 'Quick Edit: Campus Specifications' : 'Quick Edit: Administrator Credentials'}
+                    </span>
+                    <span style={{ fontSize: '10px', background: '#D9E4F5', border: '1px solid #7F9DB9', padding: '1px 6px', borderRadius: '3px', color: '#003399', fontWeight: 'bold' }}>
                         {displayId}
-                    </div>
-                    <button onClick={onClose} style={{ color: '#1e3a8a', background: 'transparent', border: 'none', cursor: 'pointer', padding: '0.2rem' }}>
-                        <X size={20} />
-                    </button>
+                    </span>
                 </div>
+                <button
+                    type="button"
+                    onClick={onClose}
+                    style={{
+                        background: '#ECE9D8',
+                        border: '1px solid #7F9DB9',
+                        borderRadius: '2px',
+                        cursor: 'pointer',
+                        padding: '1px 4px',
+                        display: 'flex',
+                        alignItems: 'center'
+                    }}
+                >
+                    <X size={14} color="#333" />
+                </button>
             </div>
 
             {message.text && (
                 <div style={{
-                    padding: '0.75rem',
-                    borderRadius: '8px',
-                    marginBottom: '1rem',
-                    fontSize: '0.75rem',
-                    background: message.type === 'success' ? '#d1fae5' : '#fee2e2',
-                    color: message.type === 'success' ? '#059669' : '#dc2626',
-                    border: `1px solid ${message.type === 'success' ? '#34d399' : '#f87171'}`
+                    padding: '6px 10px',
+                    borderRadius: '3px',
+                    marginBottom: '10px',
+                    fontSize: '11px',
+                    background: message.type === 'success' ? '#DCFCE7' : '#FEE2E2',
+                    color: message.type === 'success' ? '#166534' : '#991B1B',
+                    border: `1px solid ${message.type === 'success' ? '#16A34A' : '#EF4444'}`
                 }}>
                     {message.text}
                 </div>
             )}
 
-            <div style={{ flex: 1 }}>
+            <div>
                 {page === 1 ? (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }} className="animate-in slide-in-from-left duration-300">
-                        <div>
-                            <label style={{ fontSize: '0.7rem', color: '#1e40af', fontWeight: 'bold', marginBottom: '0.25rem', display: 'block' }}>School Name</label>
-                            <input
-                                type="text"
-                                style={{ width: '100%', padding: '0.5rem', borderRadius: '8px', border: '1px solid #93c5fd', background: 'white', color: '#1e293b', fontSize: '0.875rem' }}
-                                value={formData.schoolName}
-                                onChange={(e) => setFormData({ ...formData, schoolName: e.target.value })}
-                            />
-                        </div>
-
-                        <div>
-                            <label style={{ fontSize: '0.7rem', color: '#1e40af', fontWeight: 'bold', marginBottom: '0.25rem', display: 'block' }}>State / Province</label>
-                            <select
-                                style={{ width: '100%', padding: '0.5rem', borderRadius: '8px', border: '1px solid #93c5fd', background: 'white', color: '#1e293b', fontSize: '0.875rem' }}
-                                value={formData.state}
-                                onChange={(e) => setFormData({ ...formData, state: e.target.value })}
-                            >
-                                <option value="Punjab">Punjab</option>
-                                <option value="Sindh">Sindh</option>
-                                <option value="Khyber Pakhtunkhwa">Khyber Pakhtunkhwa (KPK)</option>
-                                <option value="Balochistan">Balochistan</option>
-                                <option value="Islamabad (ICT)">Islamabad (ICT / Federal)</option>
-                                <option value="Azad Jammu & Kashmir">Azad Jammu & Kashmir (AJK)</option>
-                                <option value="Gilgit-Baltistan">Gilgit-Baltistan</option>
-                            </select>
-                        </div>
-
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '8px' }}>
                             <div>
-                                <label style={{ fontSize: '0.7rem', color: '#1e40af', fontWeight: 'bold', marginBottom: '0.25rem', display: 'block' }}>District</label>
+                                <label style={labelStyle}>School / Institution Name</label>
                                 <input
                                     type="text"
-                                    placeholder="e.g. Rawalpindi, Lahore..."
-                                    style={{ width: '100%', padding: '0.5rem', borderRadius: '8px', border: '1px solid #93c5fd', background: 'white', color: '#1e293b', fontSize: '0.875rem' }}
+                                    style={inputStyle}
+                                    value={formData.schoolName}
+                                    onChange={(e) => setFormData({ ...formData, schoolName: e.target.value })}
+                                />
+                            </div>
+                            <div>
+                                <label style={labelStyle}>State / Province</label>
+                                <select
+                                    style={inputStyle}
+                                    value={formData.state}
+                                    onChange={(e) => setFormData({ ...formData, state: e.target.value })}
+                                >
+                                    <option value="Punjab">Punjab</option>
+                                    <option value="Sindh">Sindh</option>
+                                    <option value="Khyber Pakhtunkhwa">KPK</option>
+                                    <option value="Balochistan">Balochistan</option>
+                                    <option value="Islamabad (ICT)">Islamabad (ICT)</option>
+                                    <option value="Azad Jammu & Kashmir">AJK</option>
+                                    <option value="Gilgit-Baltistan">Gilgit-Baltistan</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                            <div>
+                                <label style={labelStyle}>District</label>
+                                <input
+                                    type="text"
+                                    placeholder="e.g. Rawalpindi"
+                                    style={inputStyle}
                                     value={formData.district}
                                     onChange={(e) => setFormData({ ...formData, district: e.target.value })}
                                 />
                             </div>
                             <div>
-                                <label style={{ fontSize: '0.7rem', color: '#1e40af', fontWeight: 'bold', marginBottom: '0.25rem', display: 'block' }}>City</label>
+                                <label style={labelStyle}>City / Tehsil</label>
                                 <input
                                     type="text"
-                                    placeholder="e.g. Taxila, Gujar Khan..."
-                                    style={{ width: '100%', padding: '0.5rem', borderRadius: '8px', border: '1px solid #93c5fd', background: 'white', color: '#1e293b', fontSize: '0.875rem' }}
+                                    placeholder="e.g. Taxila"
+                                    style={inputStyle}
                                     value={formData.city}
                                     onChange={(e) => setFormData({ ...formData, city: e.target.value })}
                                 />
@@ -226,84 +272,100 @@ const InlineEditSchool = ({ school, onClose, onSuccess, displayId }) => {
                         </div>
 
                         <div>
-                            <label style={{ fontSize: '0.7rem', color: '#1e40af', fontWeight: 'bold', marginBottom: '0.25rem', display: 'block' }}>Address</label>
+                            <label style={labelStyle}>Physical Street Address</label>
                             <input
                                 type="text"
-                                style={{ width: '100%', padding: '0.5rem', borderRadius: '8px', border: '1px solid #93c5fd', background: 'white', color: '#1e293b', fontSize: '0.875rem' }}
+                                style={inputStyle}
                                 value={formData.address}
                                 onChange={(e) => setFormData({ ...formData, address: e.target.value })}
                             />
                         </div>
 
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '8px' }}>
                             <div>
-                                <label style={{ fontSize: '0.7rem', color: '#1e40af', fontWeight: 'bold', marginBottom: '0.25rem', display: 'block' }}>Principal Contact</label>
+                                <label style={labelStyle}>Principal Mobile</label>
                                 <input
                                     type="text"
-                                    style={{ width: '100%', padding: '0.5rem', borderRadius: '8px', border: '1px solid #93c5fd', background: 'white', color: '#1e293b', fontSize: '0.875rem' }}
+                                    style={inputStyle}
                                     value={formData.principalContact}
                                     onChange={(e) => setFormData({ ...formData, principalContact: e.target.value })}
                                 />
                             </div>
                             <div>
-                                <label style={{ fontSize: '0.7rem', color: '#1e40af', fontWeight: 'bold', marginBottom: '0.25rem', display: 'block' }}>Vice Principal Contact</label>
+                                <label style={labelStyle}>Vice Principal</label>
                                 <input
                                     type="text"
-                                    style={{ width: '100%', padding: '0.5rem', borderRadius: '8px', border: '1px solid #93c5fd', background: 'white', color: '#1e293b', fontSize: '0.875rem' }}
+                                    style={inputStyle}
                                     value={formData.vicePrincipalContact}
                                     onChange={(e) => setFormData({ ...formData, vicePrincipalContact: e.target.value })}
                                 />
                             </div>
                             <div>
-                                <label style={{ fontSize: '0.7rem', color: '#1e40af', fontWeight: 'bold', marginBottom: '0.25rem', display: 'block' }}>Landline</label>
+                                <label style={labelStyle}>Landline</label>
                                 <input
                                     type="text"
-                                    style={{ width: '100%', padding: '0.5rem', borderRadius: '8px', border: '1px solid #93c5fd', background: 'white', color: '#1e293b', fontSize: '0.875rem' }}
+                                    style={inputStyle}
                                     value={formData.landline}
                                     onChange={(e) => setFormData({ ...formData, landline: e.target.value })}
                                 />
                             </div>
                             <div>
-                                <label style={{ fontSize: '0.7rem', color: '#1e40af', fontWeight: 'bold', marginBottom: '0.25rem', display: 'block' }}>School Contact</label>
+                                <label style={labelStyle}>Official Office Phone</label>
                                 <input
                                     type="text"
-                                    style={{ width: '100%', padding: '0.5rem', borderRadius: '8px', border: '1px solid #93c5fd', background: 'white', color: '#1e293b', fontSize: '0.875rem' }}
+                                    style={inputStyle}
                                     value={formData.schoolContact}
                                     onChange={(e) => setFormData({ ...formData, schoolContact: e.target.value })}
                                 />
                             </div>
                         </div>
 
-                        <button
-                            type="button"
-                            onClick={() => setPage(2)}
-                            className="btn btn-primary"
-                            style={{ marginTop: '1rem', width: '100%', justifyContent: 'center', background: '#1e40af', color: 'white', border: 'none', padding: '0.6rem', borderRadius: '8px' }}
-                        >
-                            Next <ArrowRight size={16} />
-                        </button>
+                        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '6px' }}>
+                            <button
+                                type="button"
+                                onClick={() => setPage(2)}
+                                style={{
+                                    padding: '4px 14px',
+                                    fontSize: '11px',
+                                    fontWeight: 'bold',
+                                    fontFamily: 'Tahoma, sans-serif',
+                                    background: 'linear-gradient(180deg, #FFFFFF 0%, #ECE9D8 100%)',
+                                    border: '1px solid #7F9DB9',
+                                    borderRadius: '3px',
+                                    cursor: 'pointer',
+                                    color: '#003399',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '4px'
+                                }}
+                            >
+                                Next: Principal Security <ArrowRight size={12} />
+                            </button>
+                        </div>
                     </div>
                 ) : (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }} className="animate-in slide-in-from-right duration-300">
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                         <div>
-                            <label style={{ fontSize: '0.7rem', color: '#1e40af', fontWeight: 'bold', marginBottom: '0.25rem', display: 'block' }}>Login (Email/Username)</label>
+                            <label style={labelStyle}>Principal Login Email</label>
                             <input
                                 type="email"
-                                style={{ width: '100%', padding: '0.5rem', borderRadius: '8px', border: '1px solid #93c5fd', background: 'white', color: '#1e293b', fontSize: '0.875rem' }}
+                                style={inputStyle}
                                 value={formData.principalEmail}
                                 onChange={(e) => setFormData({ ...formData, principalEmail: e.target.value })}
                             />
                         </div>
 
-                        <div style={{ padding: '0.85rem', background: 'rgba(255,255,255,0.6)', borderRadius: '12px', border: '1px solid #bfdbfe', marginTop: '0.5rem' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.35rem' }}>
-                                <Shield size={16} color="#1d4ed8" />
-                                <span style={{ fontSize: '0.8rem', color: '#1e3a8a', fontWeight: 'bold' }}>
-                                    Principal Privacy & Password Control
-                                </span>
-                            </div>
-                            <p style={{ fontSize: '0.75rem', color: '#475569', margin: '0 0 0.75rem 0', lineHeight: 1.4 }}>
-                                Principals manage their own private password in their Settings. Super Admin cannot view or overwrite their password directly. If the principal is locked out, send them an official reset link.
+                        <fieldset style={{
+                            border: '1px solid #D0D0BF',
+                            borderRadius: '3px',
+                            padding: '8px 10px',
+                            background: '#FFFFFF'
+                        }}>
+                            <legend style={{ fontSize: '10px', fontWeight: 'bold', color: '#003399', padding: '0 4px' }}>
+                                Principal Privacy & Password Control
+                            </legend>
+                            <p style={{ fontSize: '11px', color: '#475569', margin: '0 0 8px 0', lineHeight: '1.4' }}>
+                                Principals manage their own private passwords. Super Admins cannot overwrite passwords in plain text.
                             </p>
                             <button
                                 type="button"
@@ -313,37 +375,62 @@ const InlineEditSchool = ({ school, onClose, onSuccess, displayId }) => {
                                     display: 'flex',
                                     alignItems: 'center',
                                     justifyContent: 'center',
-                                    gap: '0.4rem',
-                                    padding: '0.5rem 0.85rem',
-                                    borderRadius: '8px',
-                                    background: '#2563eb',
-                                    color: 'white',
-                                    border: 'none',
-                                    fontSize: '0.78rem',
-                                    fontWeight: '600',
-                                    cursor: passwordLoading ? 'not-allowed' : 'pointer',
-                                    width: '100%'
+                                    gap: '6px',
+                                    padding: '5px 10px',
+                                    background: 'linear-gradient(180deg, #FFFFFF 0%, #ECE9D8 100%)',
+                                    border: '1px solid #7F9DB9',
+                                    borderRadius: '3px',
+                                    fontSize: '11px',
+                                    fontWeight: 'bold',
+                                    color: '#003399',
+                                    cursor: passwordLoading ? 'not-allowed' : 'pointer'
                                 }}
                             >
-                                {passwordLoading ? <Loader2 size={14} className="animate-spin" /> : <Mail size={14} />}
-                                {passwordLoading ? 'Sending Reset Link...' : 'Send Password Reset Link to Principal Email'}
+                                {passwordLoading ? <Loader2 size={12} className="animate-spin" /> : <Mail size={12} />}
+                                Send Password Reset Link to Principal
                             </button>
-                        </div>
+                        </fieldset>
 
-                        <div style={{ display: 'flex', gap: '0.5rem', marginTop: '1rem' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '6px' }}>
                             <button
                                 type="button"
                                 onClick={() => setPage(1)}
-                                style={{ flex: 1, background: 'rgba(255,255,255,0.6)', border: 'none', padding: '0.6rem', borderRadius: '8px', color: '#1e40af', cursor: 'pointer', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '0.25rem', fontSize: '0.875rem' }}
+                                style={{
+                                    padding: '4px 12px',
+                                    fontSize: '11px',
+                                    fontFamily: 'Tahoma, sans-serif',
+                                    background: 'linear-gradient(180deg, #FFFFFF 0%, #ECE9D8 100%)',
+                                    border: '1px solid #7F9DB9',
+                                    borderRadius: '3px',
+                                    cursor: 'pointer',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '4px'
+                                }}
                             >
-                                <ArrowLeft size={16} /> Back
+                                <ArrowLeft size={12} /> Back
                             </button>
                             <button
+                                type="button"
                                 onClick={handleSubmit}
                                 disabled={loading}
-                                style={{ flex: 1, background: '#10b981', color: 'white', border: 'none', padding: '0.6rem', borderRadius: '8px', cursor: 'pointer', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '0.25rem', fontSize: '0.875rem', fontWeight: 'bold' }}
+                                style={{
+                                    padding: '4px 16px',
+                                    fontSize: '11px',
+                                    fontWeight: 'bold',
+                                    fontFamily: 'Tahoma, sans-serif',
+                                    background: 'linear-gradient(180deg, #16A34A 0%, #15803D 100%)',
+                                    border: '1px solid #14532D',
+                                    color: '#FFF',
+                                    borderRadius: '3px',
+                                    cursor: loading ? 'not-allowed' : 'pointer',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '4px'
+                                }}
                             >
-                                {loading ? <Loader2 className="animate-spin" size={16} /> : <><Save size={16} /> Save</>}
+                                {loading ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />}
+                                Save Changes
                             </button>
                         </div>
                     </div>

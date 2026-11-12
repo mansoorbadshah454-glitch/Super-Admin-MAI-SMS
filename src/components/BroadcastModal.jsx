@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { X, Send, Bell, MessageSquare, Loader2, Sparkles, AlertTriangle } from 'lucide-react';
+import { createPortal } from 'react-dom';
+import { X, Send, Bell, Loader2, Sparkles, AlertTriangle } from 'lucide-react';
 import { db } from '../firebase';
 import { collection, getDocs, writeBatch, doc, serverTimestamp } from 'firebase/firestore';
 
@@ -63,143 +64,241 @@ const BroadcastModal = ({ onClose }) => {
         }
     };
 
-    return (
+    const modalContent = (
         <div style={{
             position: 'fixed',
             inset: 0,
-            background: 'rgba(0,0,0,0.85)',
-            backdropFilter: 'blur(10px)',
+            background: 'rgba(0, 0, 0, 0.75)',
+            backdropFilter: 'blur(5px)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            zIndex: 2000,
-            padding: '1rem'
+            zIndex: 99999,
+            padding: '16px'
         }}>
-            <div className="card glass animate-in zoom-in duration-300" style={{
+            <div style={{
                 width: '100%',
-                maxWidth: '600px',
-                padding: '2.5rem',
-                position: 'relative',
-                background: 'var(--bg-card)',
-                border: '1px solid var(--glass-border)'
+                maxWidth: '620px',
+                background: '#ECE9D8',
+                border: '2px solid #0055EA',
+                borderRadius: '8px 8px 4px 4px',
+                boxShadow: '0 20px 45px rgba(0,0,0,0.5)',
+                fontFamily: 'Tahoma, "Segoe UI", sans-serif',
+                overflow: 'hidden'
             }}>
-                <button onClick={onClose} style={{ position: 'absolute', right: '1.5rem', top: '1.5rem', background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}>
-                    <X size={24} />
-                </button>
-
-                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '2rem' }}>
-                    <div style={{ width: '56px', height: '56px', borderRadius: '16px', background: 'linear-gradient(135deg, var(--primary), var(--secondary))', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 8px 16px rgba(99, 102, 241, 0.2)' }}>
-                        <Bell color="white" size={28} />
+                {/* Windows XP / 7 Style Titlebar */}
+                <div style={{
+                    background: 'linear-gradient(180deg, #0A246A 0%, #A6CAF0 100%)',
+                    padding: '6px 10px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    color: '#fff',
+                    borderBottom: '1px solid #001040'
+                }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <Bell size={16} color="#fff" />
+                        <span style={{ fontSize: '12px', fontWeight: 'bold', textShadow: '1px 1px 1px rgba(0,0,0,0.5)' }}>
+                            System Broadcast Service - Global Announcement Dispatcher
+                        </span>
                     </div>
-                    <div>
-                        <h2 style={{ fontSize: '1.5rem', fontWeight: '800' }}>System Broadcast</h2>
-                        <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>Send an alert bar to all school dashboards.</p>
-                    </div>
-                </div>
-
-                {status.text && (
-                    <div style={{
-                        padding: '1rem',
-                        borderRadius: '12px',
-                        marginBottom: '1.5rem',
-                        background: status.type === 'success' ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)',
-                        border: `1px solid ${status.type === 'success' ? '#10b981' : '#ef4444'}`,
-                        color: status.type === 'success' ? '#34d399' : '#f87171',
-                        fontSize: '0.875rem',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '0.75rem'
-                    }}>
-                        {status.type === 'success' ? <Sparkles size={18} /> : <AlertTriangle size={18} />}
-                        {status.text}
-                    </div>
-                )}
-
-                <div style={{ marginBottom: '1.5rem' }}>
-                    <label className="label" style={{ marginBottom: '0.75rem', display: 'block' }}>Professional Templates</label>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '0.75rem' }}>
-                        {templates.map((tpl, i) => (
-                            <button
-                                key={i}
-                                onClick={() => { setMessage(tpl.text); setType(tpl.type); }}
-                                style={{
-                                    padding: '0.75rem',
-                                    borderRadius: '12px',
-                                    background: 'rgba(255,255,255,0.03)',
-                                    border: '1px solid var(--glass-border)',
-                                    color: 'var(--text-main)',
-                                    fontSize: '0.75rem',
-                                    fontWeight: '600',
-                                    cursor: 'pointer',
-                                    textAlign: 'left',
-                                    transition: 'all 0.2s ease',
-                                    height: '100%'
-                                }}
-                                onMouseOver={(e) => e.currentTarget.style.borderColor = 'var(--primary)'}
-                                onMouseOut={(e) => e.currentTarget.style.borderColor = 'var(--glass-border)'}
-                            >
-                                <span style={{ color: tpl.type === 'warning' ? '#fbbf24' : tpl.type === 'success' ? '#34d399' : 'var(--primary)', marginBottom: '0.25rem', display: 'block' }}>● {tpl.label}</span>
-                                <div style={{ color: 'var(--text-muted)', fontSize: '0.65rem', overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
-                                    {tpl.text}
-                                </div>
-                            </button>
-                        ))}
+                    <div style={{ display: 'flex', gap: '4px' }}>
+                        <button
+                            type="button"
+                            onClick={onClose}
+                            style={{
+                                width: '22px',
+                                height: '20px',
+                                background: '#c53030',
+                                border: '1px solid #fff',
+                                borderRadius: '3px',
+                                color: '#fff',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                cursor: 'pointer',
+                                fontWeight: 'bold'
+                            }}
+                            title="Close"
+                        >
+                            ✕
+                        </button>
                     </div>
                 </div>
 
-                <div className="input-group">
-                    <label className="label">Message Type</label>
-                    <div style={{ display: 'flex', gap: '0.5rem' }}>
-                        {['info', 'warning', 'success'].map((t) => (
-                            <button
-                                key={t}
-                                onClick={() => setType(t)}
-                                style={{
-                                    flex: 1,
-                                    padding: '0.5rem',
-                                    borderRadius: '8px',
-                                    border: '1px solid var(--glass-border)',
-                                    background: type === t ? (t === 'warning' ? 'rgba(245, 158, 11, 0.1)' : t === 'success' ? 'rgba(16, 185, 129, 0.1)' : 'rgba(99, 102, 241, 0.1)') : 'transparent',
-                                    color: type === t ? (t === 'warning' ? '#fbbf24' : t === 'success' ? '#34d399' : 'var(--primary)') : 'var(--text-muted)',
-                                    fontSize: '0.75rem',
-                                    fontWeight: '700',
-                                    textTransform: 'uppercase',
-                                    cursor: 'pointer'
-                                }}
-                            >
-                                {t}
-                            </button>
-                        ))}
-                    </div>
-                </div>
-
-                <div className="input-group">
-                    <label className="label">Custom Message Content</label>
-                    <textarea
-                        className="input-field"
-                        style={{ width: '100%', minHeight: '120px', resize: 'none', paddingTop: '1rem' }}
-                        placeholder="Type your announcement here..."
-                        value={message}
-                        onChange={(e) => setMessage(e.target.value)}
-                    />
-                </div>
-
-                <button
-                    onClick={handleSend}
-                    disabled={loading || !message.trim()}
-                    className="btn btn-primary"
-                    style={{ width: '100%', marginTop: '1rem', justifyContent: 'center', height: '55px' }}
-                >
-                    {loading ? <Loader2 className="animate-spin" size={20} /> : (
-                        <>
-                            <Send size={20} />
-                            Dispatch Broadcast to All Schools
-                        </>
+                {/* Body Area */}
+                <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                    {status.text && (
+                        <div style={{
+                            background: status.type === 'success' ? '#DCFCE7' : '#FEE2E2',
+                            border: `1px solid ${status.type === 'success' ? '#16A34A' : '#EF4444'}`,
+                            borderRadius: '4px',
+                            padding: '8px 12px',
+                            color: status.type === 'success' ? '#166534' : '#991B1B',
+                            fontSize: '12px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '8px'
+                        }}>
+                            {status.type === 'success' ? <Sparkles size={16} /> : <AlertTriangle size={16} />}
+                            <span>{status.text}</span>
+                        </div>
                     )}
-                </button>
+
+                    {/* Template Picker */}
+                    <fieldset style={{
+                        border: '1px solid #D0D0BF',
+                        borderRadius: '4px',
+                        padding: '10px 12px',
+                        background: '#FFFFFF'
+                    }}>
+                        <legend style={{ fontSize: '11px', fontWeight: 'bold', color: '#003399', padding: '0 6px' }}>
+                            Preset Notice Templates
+                        </legend>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '8px' }}>
+                            {templates.map((tpl, i) => (
+                                <button
+                                    key={i}
+                                    type="button"
+                                    onClick={() => { setMessage(tpl.text); setType(tpl.type); }}
+                                    style={{
+                                        padding: '6px 10px',
+                                        background: 'linear-gradient(180deg, #F8FAFC 0%, #EEF2F6 100%)',
+                                        border: '1px solid #CBD5E1',
+                                        borderRadius: '3px',
+                                        textAlign: 'left',
+                                        cursor: 'pointer',
+                                        fontSize: '11px',
+                                        lineHeight: '1.4'
+                                    }}
+                                >
+                                    <div style={{ fontWeight: 'bold', color: tpl.type === 'warning' ? '#B45309' : tpl.type === 'success' ? '#15803D' : '#0055EA', marginBottom: '2px' }}>
+                                        ● {tpl.label}
+                                    </div>
+                                    <div style={{ color: '#64748B', fontSize: '10px', overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>
+                                        {tpl.text}
+                                    </div>
+                                </button>
+                            ))}
+                        </div>
+                    </fieldset>
+
+                    {/* Broadcast Level / Type */}
+                    <fieldset style={{
+                        border: '1px solid #D0D0BF',
+                        borderRadius: '4px',
+                        padding: '10px 12px',
+                        background: '#FFFFFF'
+                    }}>
+                        <legend style={{ fontSize: '11px', fontWeight: 'bold', color: '#003399', padding: '0 6px' }}>
+                            Announcement Severity & Color
+                        </legend>
+                        <div style={{ display: 'flex', gap: '16px' }}>
+                            {[
+                                { key: 'info', label: 'ℹ General Info (Blue)' },
+                                { key: 'warning', label: '⚠ Warning Notice (Amber)' },
+                                { key: 'success', label: '✓ Good News / Update (Green)' }
+                            ].map((item) => (
+                                <label key={item.key} style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', cursor: 'pointer', color: '#1E293B' }}>
+                                    <input
+                                        type="radio"
+                                        name="broadcast_type"
+                                        checked={type === item.key}
+                                        onChange={() => setType(item.key)}
+                                    />
+                                    {item.label}
+                                </label>
+                            ))}
+                        </div>
+                    </fieldset>
+
+                    {/* Custom Message Area */}
+                    <fieldset style={{
+                        border: '1px solid #D0D0BF',
+                        borderRadius: '4px',
+                        padding: '10px 12px',
+                        background: '#FFFFFF'
+                    }}>
+                        <legend style={{ fontSize: '11px', fontWeight: 'bold', color: '#003399', padding: '0 6px' }}>
+                            Broadcast Message Text
+                        </legend>
+                        <textarea
+                            value={message}
+                            onChange={(e) => setMessage(e.target.value)}
+                            placeholder="Type notice to display across all active school principal dashboards..."
+                            rows={4}
+                            style={{
+                                width: '100%',
+                                padding: '8px',
+                                fontSize: '12px',
+                                fontFamily: 'Tahoma, sans-serif',
+                                background: '#FFFFFF',
+                                border: '1px solid #7F9DB9',
+                                borderRadius: '3px',
+                                outline: 'none',
+                                boxSizing: 'border-box',
+                                resize: 'vertical'
+                            }}
+                        />
+                    </fieldset>
+                </div>
+
+                {/* Footer Bar with Classic Push Buttons */}
+                <div style={{
+                    background: '#F0F0F0',
+                    borderTop: '1px solid #D0D0D0',
+                    padding: '10px 16px',
+                    display: 'flex',
+                    justifyContent: 'flex-end',
+                    gap: '8px'
+                }}>
+                    <button
+                        type="button"
+                        onClick={onClose}
+                        disabled={loading}
+                        style={{
+                            padding: '5px 16px',
+                            fontSize: '12px',
+                            fontFamily: 'Tahoma, sans-serif',
+                            background: 'linear-gradient(180deg, #FFFFFF 0%, #ECE9D8 100%)',
+                            border: '1px solid #7F9DB9',
+                            borderRadius: '3px',
+                            cursor: 'pointer',
+                            color: '#000'
+                        }}
+                    >
+                        Cancel
+                    </button>
+                    <button
+                        type="button"
+                        onClick={handleSend}
+                        disabled={loading || !message.trim()}
+                        style={{
+                            padding: '5px 18px',
+                            fontSize: '12px',
+                            fontFamily: 'Tahoma, sans-serif',
+                            fontWeight: 'bold',
+                            background: message.trim()
+                                ? 'linear-gradient(180deg, #0055EA 0%, #003399 100%)'
+                                : 'linear-gradient(180deg, #E2E8F0 0%, #CBD5E1 100%)',
+                            border: message.trim() ? '1px solid #002266' : '1px solid #94A3B8',
+                            borderRadius: '3px',
+                            cursor: message.trim() && !loading ? 'pointer' : 'not-allowed',
+                            color: message.trim() ? '#FFF' : '#64748B',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '6px'
+                        }}
+                    >
+                        {loading ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
+                        Dispatch to All Schools
+                    </button>
+                </div>
             </div>
         </div>
     );
+
+    return createPortal(modalContent, document.body);
 };
 
 export default BroadcastModal;

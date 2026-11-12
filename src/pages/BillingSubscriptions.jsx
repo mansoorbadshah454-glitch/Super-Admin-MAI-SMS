@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
 import {
     CreditCard,
@@ -24,7 +25,8 @@ import {
     ExternalLink,
     Settings,
     Save,
-    AlertTriangle
+    AlertTriangle,
+    Check
 } from 'lucide-react';
 import { db } from '../firebase';
 import {
@@ -157,7 +159,7 @@ const BillingSubscriptions = () => {
                 updatedAt: serverTimestamp()
             }, { merge: true });
 
-            alert("✅ Due Date & Suspension Policy updated! All schools will now see this policy in their Billing tab.");
+            alert("Due Date & Suspension Policy updated! All schools will now see this policy in their Billing tab.");
             setShowPolicyModal(false);
         } catch (err) {
             console.error("Error saving policy:", err);
@@ -223,7 +225,7 @@ const BillingSubscriptions = () => {
             if (sub.schoolId) {
                 try {
                     await updateDoc(doc(db, 'schools', sub.schoolId), {
-                        status: 'active', // Auto-reactivate suspended school on approved payment!
+                        status: 'active',
                         paymentStatus: 'paid',
                         paidUntil: validUntil.toISOString(),
                         lastPaymentDate: now.toISOString(),
@@ -343,31 +345,92 @@ const BillingSubscriptions = () => {
     const approvedCount = submissions.filter(s => s.status === 'approved').length;
     const rejectedCount = submissions.filter(s => s.status === 'rejected').length;
 
+    const fontFamily = "'Segoe UI', Tahoma, Verdana, sans-serif";
+
     return (
-        <div className="animate-in fade-in slide-in-from-bottom-4 duration-700">
-            {/* Header */}
-            <header className="page-header" style={{ marginBottom: '1.75rem' }}>
+        <div className="animate-in fade-in duration-300" style={{ fontFamily: fontFamily }}>
+            <style>{`
+                .win-btn {
+                    font-family: inherit;
+                    font-size: 12.5px;
+                    font-weight: 600;
+                    padding: 6px 14px;
+                    border-radius: 4px;
+                    cursor: pointer;
+                    display: inline-flex;
+                    align-items: center;
+                    gap: 6px;
+                    border: 1px solid #CBD5E1;
+                    background: #FFFFFF;
+                    color: #334155;
+                    transition: all 0.15s ease;
+                }
+                .win-btn:hover {
+                    background: #F1F5F9;
+                    border-color: #94A3B8;
+                }
+                .win-btn-primary {
+                    border: 1px solid #1D4ED8;
+                    background: linear-gradient(180deg, #3B82F6 0%, #2563EB 50%, #1D4ED8 100%);
+                    color: #FFFFFF;
+                    box-shadow: 0 1px 2px rgba(37, 99, 235, 0.3);
+                }
+                .win-btn-primary:hover {
+                    background: linear-gradient(180deg, #60A5FA 0%, #3B82F6 50%, #2563EB 100%);
+                }
+                .win-tab-header {
+                    padding: 7px 14px;
+                    font-size: 12.5px;
+                    font-weight: 700;
+                    cursor: pointer;
+                    display: inline-flex;
+                    align-items: center;
+                    gap: 6px;
+                    border-radius: 4px;
+                    border: 1px solid transparent;
+                    color: #64748B;
+                    transition: all 0.12s ease;
+                    user-select: none;
+                }
+                .win-tab-header-active {
+                    color: #1D4ED8;
+                    background-color: #EFF6FF;
+                    border-color: #BFDBFE;
+                }
+            `}</style>
+
+            {/* 1. TOP HEADER & COMMAND TOOLBAR */}
+            <div
+                style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    marginBottom: '1.25rem',
+                    flexWrap: 'wrap',
+                    gap: '12px'
+                }}
+            >
                 <div>
-                    <h2 style={{ fontSize: '2rem', marginBottom: '0.25rem' }} className="text-gradient">
-                        Billing & Subscriptions
+                    <h2 style={{ fontSize: '1.6rem', fontWeight: '800', color: '#0F172A', margin: 0 }}>
+                        Billing & Subscriptions Center
                     </h2>
-                    <p style={{ color: 'var(--text-muted)', margin: 0 }}>
-                        Review school subscription fee payments, verify slips, and approve or reject receipts.
+                    <p style={{ color: '#64748B', fontSize: '0.85rem', margin: '2px 0 0 0' }}>
+                        Review school subscription payments, verify bank deposit slips, and manage billing policies.
                     </p>
                 </div>
 
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
                     <div style={{
-                        padding: '0.5rem 1rem',
-                        borderRadius: '12px',
-                        background: 'rgba(99, 102, 241, 0.1)',
-                        border: '1px solid rgba(99, 102, 241, 0.2)',
+                        padding: '6px 12px',
+                        borderRadius: '4px',
+                        backgroundColor: '#EFF6FF',
+                        border: '1px solid #BFDBFE',
                         display: 'flex',
                         alignItems: 'center',
-                        gap: '0.5rem'
+                        gap: '6px'
                     }}>
-                        <Clock size={16} color="#818cf8" />
-                        <span style={{ fontSize: '0.85rem', color: '#c7d2fe', fontWeight: '700' }}>
+                        <Clock size={15} color="#2563EB" />
+                        <span style={{ fontSize: '12.5px', color: '#1E40AF', fontWeight: '700' }}>
                             {pendingCount} Pending Review
                         </span>
                     </div>
@@ -375,115 +438,103 @@ const BillingSubscriptions = () => {
                     {isMasterAdmin && (
                         <Link
                             to="/settings"
-                            className="btn"
-                            style={{
-                                padding: '0.5rem 1rem',
-                                borderRadius: '12px',
-                                background: 'rgba(245, 158, 11, 0.15)',
-                                border: '1px solid rgba(245, 158, 11, 0.3)',
-                                color: '#f59e0b',
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '0.5rem',
-                                textDecoration: 'none',
-                                fontSize: '0.85rem',
-                                fontWeight: '700'
-                            }}
+                            className="win-btn"
+                            style={{ textDecoration: 'none' }}
                         >
-                            <Landmark size={16} /> Manage Company Accounts
+                            <Landmark size={15} color="#D97706" /> Company Accounts
                         </Link>
                     )}
 
                     <button
                         type="button"
                         onClick={() => setShowPolicyModal(true)}
-                        className="btn"
-                        style={{
-                            padding: '0.5rem 1rem',
-                            borderRadius: '12px',
-                            background: 'rgba(99, 102, 241, 0.15)',
-                            border: '1px solid rgba(99, 102, 241, 0.3)',
-                            color: '#818cf8',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '0.5rem',
-                            fontSize: '0.85rem',
-                            fontWeight: '700',
-                            cursor: 'pointer'
-                        }}
+                        className="win-btn win-btn-primary"
                     >
-                        <Calendar size={16} /> Due Date & Policy Notice
+                        <Calendar size={15} /> Due Date & Policy Notice
                     </button>
                 </div>
-            </header>
+            </div>
 
-            {/* Filter Tabs & Search Bar */}
-            <div style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                flexWrap: 'wrap',
-                gap: '1rem',
-                marginBottom: '1.5rem'
-            }}>
-                <div style={{ display: 'flex', gap: '0.5rem', background: 'rgba(15, 23, 42, 0.6)', padding: '4px', borderRadius: '12px', border: '1px solid var(--glass-border)' }}>
+            {/* 2. FILTER TABS & SEARCH BAR (Windows Explorer Toolbar) */}
+            <div
+                style={{
+                    backgroundColor: '#FFFFFF',
+                    border: '1px solid #CBD5E1',
+                    borderRadius: '6px',
+                    padding: '8px 12px',
+                    marginBottom: '1.25rem',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    flexWrap: 'wrap',
+                    gap: '10px',
+                    boxShadow: '0 2px 4px rgba(0, 0, 0, 0.04)'
+                }}
+            >
+                {/* Status Tabs */}
+                <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
                     {[
-                        { key: 'pending', label: `Pending (${pendingCount})`, color: '#f59e0b' },
-                        { key: 'approved', label: `Approved (${approvedCount})`, color: '#10b981' },
-                        { key: 'rejected', label: `Rejected (${rejectedCount})`, color: '#ef4444' },
-                        { key: 'all', label: `All (${submissions.length})`, color: '#6366f1' }
-                    ].map(tab => (
-                        <button
-                            key={tab.key}
-                            onClick={() => setFilterStatus(tab.key)}
-                            style={{
-                                padding: '0.5rem 1rem',
-                                borderRadius: '8px',
-                                border: 'none',
-                                background: filterStatus === tab.key ? 'rgba(255, 255, 255, 0.12)' : 'transparent',
-                                color: filterStatus === tab.key ? '#ffffff' : 'var(--text-muted)',
-                                fontSize: '0.85rem',
-                                fontWeight: filterStatus === tab.key ? '700' : '500',
-                                cursor: 'pointer',
-                                transition: 'all 0.2s ease'
-                            }}
-                        >
-                            {tab.label}
-                        </button>
-                    ))}
+                        { key: 'pending', label: `Pending (${pendingCount})` },
+                        { key: 'approved', label: `Approved (${approvedCount})` },
+                        { key: 'rejected', label: `Rejected (${rejectedCount})` },
+                        { key: 'all', label: `All (${submissions.length})` }
+                    ].map(tab => {
+                        const isActive = filterStatus === tab.key;
+                        return (
+                            <button
+                                key={tab.key}
+                                onClick={() => setFilterStatus(tab.key)}
+                                className={`win-tab-header ${isActive ? 'win-tab-header-active' : ''}`}
+                            >
+                                {tab.label}
+                            </button>
+                        );
+                    })}
                 </div>
 
-                <div style={{ position: 'relative', width: '320px' }}>
-                    <Search style={{ position: 'absolute', left: '0.85rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} size={16} />
+                {/* Search Bar */}
+                <div style={{ position: 'relative', width: '300px' }}>
+                    <Search style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: '#64748B' }} size={15} />
                     <input
                         type="text"
-                        placeholder="Search school, TRX ID, method..."
+                        placeholder="Search school name, TRX ID, method..."
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
-                        className="input-field"
-                        style={{ paddingLeft: '2.5rem', marginBottom: 0, fontSize: '0.85rem' }}
+                        style={{
+                            width: '100%',
+                            paddingLeft: '32px',
+                            paddingRight: '10px',
+                            paddingTop: '6px',
+                            paddingBottom: '6px',
+                            borderRadius: '3px',
+                            border: '1px solid #94A3B8',
+                            fontSize: '12.5px',
+                            outline: 'none',
+                            color: '#1E293B',
+                            boxSizing: 'border-box'
+                        }}
                     />
                 </div>
             </div>
 
-            {/* Content Table / Cards */}
+            {/* 3. CONTENT SUBMISSIONS LIST */}
             {loading ? (
-                <div style={{ height: '50vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-                    <Loader2 className="animate-spin" size={42} color="var(--primary)" />
-                    <p style={{ marginTop: '1rem', color: 'var(--text-muted)' }}>Loading subscription submissions...</p>
+                <div style={{ height: '40vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '10px' }}>
+                    <Loader2 className="animate-spin" size={36} color="#2563EB" />
+                    <span style={{ fontSize: '13px', color: '#64748B' }}>Loading subscription submissions...</span>
                 </div>
             ) : filteredSubmissions.length === 0 ? (
-                <div className="card glass" style={{ textAlign: 'center', padding: '4rem 2rem' }}>
-                    <CreditCard size={48} style={{ color: 'var(--text-muted)', margin: '0 auto 1rem', opacity: 0.4 }} />
-                    <h3 style={{ color: '#ffffff', fontSize: '1.2rem', marginBottom: '0.5rem' }}>No submissions found</h3>
-                    <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', margin: 0 }}>
+                <div style={{ textAlign: 'center', padding: '3.5rem 1rem', backgroundColor: '#FFFFFF', borderRadius: '6px', border: '1px solid #CBD5E1' }}>
+                    <CreditCard size={44} style={{ color: '#94A3B8', margin: '0 auto 10px', opacity: 0.5 }} />
+                    <h3 style={{ color: '#1E293B', fontSize: '1.1rem', margin: '0 0 4px 0' }}>No submissions found</h3>
+                    <p style={{ color: '#64748B', fontSize: '0.85rem', margin: 0 }}>
                         {filterStatus === 'pending'
                             ? 'All school payments have been reviewed! No pending slips waiting.'
                             : 'No subscription payment records match your search filter.'}
                     </p>
                 </div>
             ) : (
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '1rem' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                     {filteredSubmissions.map((sub) => {
                         const isProcessing = processingId === sub.id;
                         const dateStr = sub.submittedAt?.toDate
@@ -493,193 +544,152 @@ const BillingSubscriptions = () => {
                         return (
                             <div
                                 key={sub.id}
-                                className="card glass animate-in fade-in"
                                 style={{
-                                    padding: '1.5rem',
-                                    border: sub.status === 'pending' ? '1px solid rgba(245, 158, 11, 0.4)' : '1px solid var(--glass-border)',
-                                    background: sub.status === 'pending' ? 'linear-gradient(135deg, rgba(245, 158, 11, 0.04) 0%, rgba(15, 23, 42, 0.6) 100%)' : 'rgba(15, 23, 42, 0.6)',
+                                    backgroundColor: '#FFFFFF',
+                                    border: sub.status === 'pending' ? '1px solid #F59E0B' : '1px solid #CBD5E1',
+                                    borderRadius: '6px',
+                                    padding: '14px 18px',
+                                    boxShadow: '0 2px 4px rgba(0, 0, 0, 0.03)',
                                     display: 'flex',
                                     flexDirection: 'column',
-                                    gap: '1.25rem'
+                                    gap: '12px'
                                 }}
                             >
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem' }}>
-                                    {/* School & Plan Info */}
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                                {/* Header Row */}
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '10px' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                                         <div style={{
-                                            width: '48px',
-                                            height: '48px',
-                                            borderRadius: '14px',
-                                            background: 'linear-gradient(135deg, #4f46e5 0%, #3730a3 100%)',
+                                            width: '40px',
+                                            height: '40px',
+                                            borderRadius: '6px',
+                                            background: '#EFF6FF',
+                                            color: '#2563EB',
                                             display: 'flex',
                                             alignItems: 'center',
                                             justifyContent: 'center',
-                                            color: 'white',
-                                            boxShadow: '0 4px 12px rgba(79, 70, 229, 0.3)'
+                                            flexShrink: 0
                                         }}>
-                                            <School size={24} />
+                                            <School size={20} />
                                         </div>
                                         <div>
-                                            <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: '800', color: '#ffffff' }}>
+                                            <h3 style={{ margin: 0, fontSize: '14px', fontWeight: '800', color: '#0F172A' }}>
                                                 {sub.schoolName || 'School Submission'}
                                             </h3>
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginTop: '0.25rem' }}>
-                                                <span style={{ fontSize: '0.75rem', fontFamily: 'monospace', color: '#818cf8', fontWeight: '700' }}>
-                                                    {sub.schoolId}
-                                                </span>
-                                                <span style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>•</span>
-                                                <span style={{ fontSize: '0.75rem', color: '#94a3b8' }}>
-                                                    {dateStr}
-                                                </span>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '2px', fontSize: '11.5px', color: '#64748B' }}>
+                                                <code style={{ color: '#1D4ED8', fontWeight: '700' }}>{sub.schoolId}</code>
+                                                <span>•</span>
+                                                <span>{dateStr}</span>
                                             </div>
                                         </div>
                                     </div>
 
                                     {/* Status Badge */}
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                        <span style={{
-                                            padding: '0.35rem 0.8rem',
-                                            borderRadius: '9999px',
-                                            fontSize: '0.75rem',
-                                            fontWeight: '800',
-                                            textTransform: 'uppercase',
-                                            letterSpacing: '0.05em',
-                                            background: sub.status === 'approved'
-                                                ? 'rgba(16, 185, 129, 0.15)'
-                                                : (sub.status === 'rejected' ? 'rgba(239, 68, 68, 0.15)' : 'rgba(245, 158, 11, 0.15)'),
-                                            color: sub.status === 'approved'
-                                                ? '#34d399'
-                                                : (sub.status === 'rejected' ? '#f87171' : '#fbbf24'),
-                                            border: sub.status === 'approved'
-                                                ? '1px solid rgba(16, 185, 129, 0.3)'
-                                                : (sub.status === 'rejected' ? '1px solid rgba(239, 68, 68, 0.3)' : '1px solid rgba(245, 158, 11, 0.3)')
-                                        }}>
-                                            {sub.status === 'approved' ? '✓ Approved' : (sub.status === 'rejected' ? '✕ Rejected' : '⏱ Pending Review')}
-                                        </span>
-                                    </div>
+                                    <span style={{
+                                        padding: '3px 8px',
+                                        borderRadius: '3px',
+                                        fontSize: '11px',
+                                        fontWeight: '700',
+                                        textTransform: 'uppercase',
+                                        backgroundColor: sub.status === 'approved' ? '#DEF7EC' : (sub.status === 'rejected' ? '#FEE2E2' : '#FEF3C7'),
+                                        color: sub.status === 'approved' ? '#03543F' : (sub.status === 'rejected' ? '#991B1B' : '#92400E'),
+                                        border: sub.status === 'approved' ? '1px solid #84E1BC' : (sub.status === 'rejected' ? '1px solid #FCA5A5' : '1px solid #FDE68A')
+                                    }}>
+                                        {sub.status === 'approved' ? '✓ Approved' : (sub.status === 'rejected' ? '✕ Rejected' : '⏱ Pending Review')}
+                                    </span>
                                 </div>
 
-                                {/* Transaction Details Grid */}
+                                {/* Transaction Financial Details Grid */}
                                 <div style={{
                                     display: 'grid',
-                                    gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
-                                    gap: '1rem',
-                                    background: 'rgba(0, 0, 0, 0.25)',
-                                    padding: '1rem 1.25rem',
-                                    borderRadius: '12px',
-                                    border: '1px solid var(--glass-border)'
+                                    gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))',
+                                    gap: '12px',
+                                    backgroundColor: '#F8FAFC',
+                                    padding: '10px 14px',
+                                    borderRadius: '4px',
+                                    border: '1px solid #E2E8F0'
                                 }}>
                                     <div>
-                                        <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', display: 'block', fontWeight: '600' }}>AMOUNT PAID</span>
-                                        <span style={{ fontSize: '1.2rem', fontWeight: '800', color: '#ffffff' }}>
+                                        <span style={{ fontSize: '10.5px', color: '#64748B', display: 'block', fontWeight: '700', textTransform: 'uppercase' }}>Amount Paid</span>
+                                        <span style={{ fontSize: '1.15rem', fontWeight: '800', color: '#0F172A' }}>
                                             ₨ {Number(sub.amount || 0).toLocaleString()}
                                         </span>
                                     </div>
                                     <div>
-                                        <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', display: 'block', fontWeight: '600' }}>BILLING CYCLE</span>
-                                        <span style={{ fontSize: '0.9rem', fontWeight: '700', color: '#c7d2fe', textTransform: 'capitalize' }}>
+                                        <span style={{ fontSize: '10.5px', color: '#64748B', display: 'block', fontWeight: '700', textTransform: 'uppercase' }}>Billing Cycle</span>
+                                        <span style={{ fontSize: '13px', fontWeight: '700', color: '#1E40AF', textTransform: 'capitalize' }}>
                                             {sub.cycle === 'yearly' ? '⭐ Yearly Plan' : '📅 Monthly Plan'}
                                         </span>
                                     </div>
                                     <div>
-                                        <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', display: 'block', fontWeight: '600' }}>PAYMENT METHOD</span>
-                                        <span style={{ fontSize: '0.9rem', fontWeight: '700', color: '#ffffff' }}>
+                                        <span style={{ fontSize: '10.5px', color: '#64748B', display: 'block', fontWeight: '700', textTransform: 'uppercase' }}>Payment Method</span>
+                                        <span style={{ fontSize: '13px', fontWeight: '700', color: '#334155' }}>
                                             {sub.paymentMethod || 'Online Transfer'}
                                         </span>
                                     </div>
                                     <div>
-                                        <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', display: 'block', fontWeight: '600' }}>TRANSACTION ID (TRX)</span>
-                                        <span style={{ fontSize: '0.9rem', fontWeight: '700', fontFamily: 'monospace', color: '#f59e0b' }}>
+                                        <span style={{ fontSize: '10.5px', color: '#64748B', display: 'block', fontWeight: '700', textTransform: 'uppercase' }}>Transaction ID (TRX)</span>
+                                        <span style={{ fontSize: '12.5px', fontWeight: '700', fontFamily: 'monospace', color: '#D97706' }}>
                                             {sub.transactionId || 'N/A'}
                                         </span>
                                     </div>
                                 </div>
 
-                                {/* If Rejected, display reason */}
+                                {/* Rejection Reason banner if rejected */}
                                 {sub.status === 'rejected' && sub.rejectReason && (
                                     <div style={{
-                                        padding: '0.85rem 1rem',
-                                        borderRadius: '10px',
-                                        background: 'rgba(239, 68, 68, 0.1)',
-                                        border: '1px solid rgba(239, 68, 68, 0.25)',
-                                        color: '#fca5a5',
-                                        fontSize: '0.85rem',
+                                        padding: '8px 12px',
+                                        borderRadius: '4px',
+                                        backgroundColor: '#FEF2F2',
+                                        border: '1px solid #FCA5A5',
+                                        color: '#991B1B',
+                                        fontSize: '12px',
                                         display: 'flex',
                                         alignItems: 'center',
-                                        gap: '0.6rem'
+                                        gap: '6px'
                                     }}>
-                                        <AlertCircle size={18} color="#ef4444" style={{ flexShrink: 0 }} />
+                                        <AlertCircle size={15} color="#DC2626" />
                                         <span><strong>Rejection Reason:</strong> {sub.rejectReason}</span>
                                     </div>
                                 )}
 
-                                {/* Action Buttons */}
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem', paddingTop: '0.5rem' }}>
-                                    {/* View Slip Button */}
+                                {/* Action Buttons Strip */}
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px', paddingTop: '4px' }}>
                                     {sub.proofUrl ? (
                                         <button
                                             type="button"
                                             onClick={() => { setViewingSlipUrl(sub.proofUrl); setViewingSub(sub); setZoomLevel(1); }}
-                                            className="btn"
-                                            style={{
-                                                padding: '0.5rem 1rem',
-                                                fontSize: '0.85rem',
-                                                background: 'rgba(99, 102, 241, 0.15)',
-                                                color: '#818cf8',
-                                                border: '1px solid rgba(99, 102, 241, 0.3)',
-                                                display: 'flex',
-                                                alignItems: 'center',
-                                                gap: '0.5rem'
-                                            }}
+                                            className="win-btn"
+                                            style={{ color: '#1D4ED8', borderColor: '#BFDBFE', backgroundColor: '#EFF6FF' }}
                                         >
-                                            <Eye size={16} /> View Payment Slip
+                                            <Eye size={14} /> View Payment Slip
                                         </button>
                                     ) : (
-                                        <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>No slip attached</span>
+                                        <span style={{ fontSize: '12px', color: '#94A3B8' }}>No deposit slip attached</span>
                                     )}
 
-                                    {/* Action Buttons for Pending */}
                                     {sub.status === 'pending' && (
-                                        <div style={{ display: 'flex', gap: '0.75rem' }}>
+                                        <div style={{ display: 'flex', gap: '8px' }}>
                                             <button
                                                 type="button"
                                                 onClick={() => handleOpenReject(sub)}
                                                 disabled={isProcessing}
-                                                className="btn"
-                                                style={{
-                                                    padding: '0.5rem 1.25rem',
-                                                    fontSize: '0.85rem',
-                                                    background: 'rgba(239, 68, 68, 0.15)',
-                                                    color: '#f87171',
-                                                    borderColor: 'rgba(239, 68, 68, 0.3)',
-                                                    fontWeight: '700',
-                                                    display: 'flex',
-                                                    alignItems: 'center',
-                                                    gap: '0.4rem'
-                                                }}
+                                                className="win-btn"
+                                                style={{ color: '#DC2626', borderColor: '#FECACA', backgroundColor: '#FEF2F2' }}
                                             >
-                                                <XCircle size={16} /> Reject Slip
+                                                <XCircle size={14} /> Reject Slip
                                             </button>
 
                                             <button
                                                 type="button"
                                                 onClick={() => handleApprove(sub)}
                                                 disabled={isProcessing}
-                                                className="btn"
+                                                className="win-btn win-btn-primary"
                                                 style={{
-                                                    padding: '0.5rem 1.4rem',
-                                                    fontSize: '0.85rem',
-                                                    background: 'linear-gradient(135deg, #059669 0%, #10b981 100%)',
-                                                    color: 'white',
-                                                    border: 'none',
-                                                    fontWeight: '700',
-                                                    display: 'flex',
-                                                    alignItems: 'center',
-                                                    gap: '0.4rem',
-                                                    boxShadow: '0 4px 12px rgba(16, 185, 129, 0.3)'
+                                                    background: 'linear-gradient(180deg, #16A34A 0%, #15803D 50%, #166534 100%)',
+                                                    borderColor: '#14532D'
                                                 }}
                                             >
-                                                {isProcessing ? <Loader2 size={16} className="animate-spin" /> : <CheckCircle2 size={16} />}
+                                                {isProcessing ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} strokeWidth={3} />}
                                                 Approve Payment
                                             </button>
                                         </div>
@@ -691,8 +701,8 @@ const BillingSubscriptions = () => {
                 </div>
             )}
 
-            {/* Full-Size Canvas Slip Preview Modal Studio */}
-            {viewingSlipUrl && (
+            {/* MODAL 1: Full-Size Canvas Slip Preview Studio (React Portal directly on document.body) */}
+            {viewingSlipUrl && createPortal(
                 <div
                     onClick={() => { setViewingSlipUrl(null); setViewingSub(null); }}
                     style={{
@@ -701,607 +711,386 @@ const BillingSubscriptions = () => {
                         left: 0,
                         right: 0,
                         bottom: 0,
-                        background: 'rgba(3, 7, 18, 0.88)',
-                        backdropFilter: 'blur(10px)',
-                        zIndex: 9999,
+                        width: '100vw',
+                        height: '100vh',
+                        backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                        backdropFilter: 'blur(5px)',
+                        zIndex: 9999999,
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
-                        padding: '1rem'
+                        padding: '16px',
+                        boxSizing: 'border-box'
                     }}
                 >
                     <div
                         onClick={(e) => e.stopPropagation()}
                         style={{
-                            position: 'relative',
-                            width: '96vw',
-                            maxWidth: '1360px',
-                            height: '92vh',
-                            maxHeight: '92vh',
+                            width: '100%',
+                            maxWidth: '1000px',
+                            height: '90vh',
+                            backgroundColor: '#ECE9D8',
+                            border: '3px solid #0055ea',
+                            borderRadius: '8px 8px 4px 4px',
+                            boxShadow: '0 25px 60px rgba(0, 0, 0, 0.85)',
                             display: 'flex',
                             flexDirection: 'column',
-                            background: '#090d16',
-                            borderRadius: '20px',
-                            border: '1px solid rgba(255, 255, 255, 0.12)',
-                            overflow: 'hidden',
-                            boxShadow: '0 25px 60px -12px rgba(0, 0, 0, 0.75), 0 0 0 1px rgba(255, 255, 255, 0.05)'
+                            overflow: 'hidden'
                         }}
                     >
-                        {/* Top Studio Header Bar with School Details & Controls */}
-                        <div style={{
-                            width: '100%',
-                            padding: '0.85rem 1.5rem',
-                            background: 'rgba(15, 23, 42, 0.95)',
-                            display: 'flex',
-                            justifyContent: 'space-between',
-                            alignItems: 'center',
-                            borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
-                            flexShrink: 0,
-                            flexWrap: 'wrap',
-                            gap: '0.75rem'
-                        }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                    <FileText size={20} color="#818cf8" />
-                                    <span style={{ fontSize: '1rem', fontWeight: '800', color: '#ffffff' }}>
-                                        Payment Slip Preview Studio
-                                    </span>
-                                </div>
-                                {viewingSub && (
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-                                        <span style={{
-                                            fontSize: '0.8rem',
-                                            fontWeight: '700',
-                                            padding: '3px 10px',
-                                            borderRadius: '8px',
-                                            background: 'rgba(99, 102, 241, 0.2)',
-                                            color: '#a5b4fc',
-                                            border: '1px solid rgba(99, 102, 241, 0.3)'
-                                        }}>
-                                            {viewingSub.schoolName || viewingSub.schoolId}
-                                        </span>
-                                        <span style={{
-                                            fontSize: '0.82rem',
-                                            fontWeight: '800',
-                                            padding: '3px 10px',
-                                            borderRadius: '8px',
-                                            background: 'rgba(16, 185, 129, 0.2)',
-                                            color: '#34d399',
-                                            border: '1px solid rgba(16, 185, 129, 0.3)'
-                                        }}>
-                                            ₨ {Number(viewingSub.amount || 0).toLocaleString()}
-                                        </span>
-                                        {viewingSub.transactionId && (
-                                            <span style={{
-                                                fontSize: '0.78rem',
-                                                fontFamily: 'monospace',
-                                                color: '#cbd5e1',
-                                                background: 'rgba(255, 255, 255, 0.06)',
-                                                padding: '3px 8px',
-                                                borderRadius: '6px',
-                                                border: '1px solid rgba(255, 255, 255, 0.1)'
-                                            }}>
-                                                TID: {viewingSub.transactionId}
-                                            </span>
-                                        )}
-                                    </div>
-                                )}
-                            </div>
-
-                            {/* Zoom Controls & Close Button */}
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                <div style={{
+                        {/* Windows Title Bar */}
+                        <div
+                            style={{
+                                height: '34px',
+                                background: 'linear-gradient(180deg, #2b70f0 0%, #1e56cb 12%, #0042b3 88%, #0036a1 100%)',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'space-between',
+                                padding: '0 8px 0 12px',
+                                userSelect: 'none'
+                            }}
+                        >
+                            <span style={{ color: '#FFFFFF', fontSize: '13px', fontWeight: '700' }}>
+                                Payment Slip Viewer — {viewingSub?.schoolName || 'School'}
+                            </span>
+                            <button
+                                type="button"
+                                onClick={() => { setViewingSlipUrl(null); setViewingSub(null); }}
+                                style={{
+                                    width: '21px',
+                                    height: '21px',
+                                    borderRadius: '3px',
+                                    border: '1px solid #781010',
+                                    background: 'linear-gradient(180deg, #E66453 0%, #D83B26 50%, #B81907 100%)',
+                                    color: '#FFFFFF',
                                     display: 'flex',
                                     alignItems: 'center',
-                                    background: 'rgba(255, 255, 255, 0.06)',
-                                    borderRadius: '10px',
-                                    border: '1px solid rgba(255, 255, 255, 0.1)',
-                                    padding: '2px 4px'
-                                }}>
-                                    <button
-                                        type="button"
-                                        onClick={handleZoomOut}
-                                        className="btn"
-                                        style={{ padding: '0.35rem 0.6rem', fontSize: '0.8rem', background: 'transparent', border: 'none', color: '#e2e8f0', cursor: 'pointer' }}
-                                        title="Zoom Out"
-                                    >
-                                        <ZoomOut size={15} />
-                                    </button>
-                                    <span style={{ fontSize: '0.8rem', color: '#cbd5e1', fontWeight: '700', minWidth: '46px', textAlign: 'center' }}>
-                                        {Math.round(zoomLevel * 100)}%
-                                    </span>
-                                    <button
-                                        type="button"
-                                        onClick={handleZoomIn}
-                                        className="btn"
-                                        style={{ padding: '0.35rem 0.6rem', fontSize: '0.8rem', background: 'transparent', border: 'none', color: '#e2e8f0', cursor: 'pointer' }}
-                                        title="Zoom In"
-                                    >
-                                        <ZoomIn size={15} />
-                                    </button>
-                                    <button
-                                        type="button"
-                                        onClick={handleResetZoom}
-                                        className="btn"
-                                        style={{ padding: '0.35rem 0.6rem', fontSize: '0.8rem', background: 'transparent', border: 'none', color: '#94a3b8', cursor: 'pointer' }}
-                                        title="Reset 100%"
-                                    >
-                                        <RotateCcw size={14} />
-                                    </button>
-                                </div>
+                                    justifyContent: 'center',
+                                    cursor: 'pointer'
+                                }}
+                            >
+                                <X size={13} strokeWidth={3} />
+                            </button>
+                        </div>
 
-                                <button
-                                    type="button"
-                                    onClick={() => { setViewingSlipUrl(null); setViewingSub(null); }}
-                                    style={{
-                                        background: 'rgba(239, 68, 68, 0.15)',
-                                        border: '1px solid rgba(239, 68, 68, 0.3)',
-                                        borderRadius: '10px',
-                                        color: '#f87171',
-                                        cursor: 'pointer',
-                                        padding: '6px 8px',
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        justifyContent: 'center',
-                                        transition: 'all 0.2s'
-                                    }}
-                                    title="Close Preview (Esc)"
-                                >
-                                    <X size={18} />
-                                </button>
+                        {/* Top Toolbar */}
+                        <div style={{ padding: '8px 12px', backgroundColor: '#F8FAFC', borderBottom: '1px solid #CBD5E1', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', color: '#334155' }}>
+                                <span>TRX: <strong>{viewingSub?.transactionId || 'N/A'}</strong></span>
+                                <span>•</span>
+                                <span>Amount: <strong>₨ {Number(viewingSub?.amount || 0).toLocaleString()}</strong></span>
+                            </div>
+                            <div style={{ display: 'flex', gap: '6px' }}>
+                                <button className="win-btn" onClick={handleZoomOut} style={{ padding: '4px 8px' }}><ZoomOut size={14} /></button>
+                                <button className="win-btn" onClick={handleResetZoom} style={{ padding: '4px 8px', fontSize: '11px' }}>{Math.round(zoomLevel * 100)}%</button>
+                                <button className="win-btn" onClick={handleZoomIn} style={{ padding: '4px 8px' }}><ZoomIn size={14} /></button>
                             </div>
                         </div>
 
-                        {/* Full-Size Canvas Body */}
-                        <div style={{
-                            flex: 1,
-                            width: '100%',
-                            overflow: 'auto',
-                            position: 'relative',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            padding: '2rem',
-                            background: 'radial-gradient(ellipse at center, #131d31 0%, #070b14 100%)'
-                        }}>
+                        {/* Canvas Image Container */}
+                        <div style={{ flex: 1, overflow: 'auto', backgroundColor: '#1E293B', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}>
                             <img
                                 src={viewingSlipUrl}
-                                alt="Payment Proof Receipt"
+                                alt="Payment Proof"
                                 style={{
-                                    transform: `scale(${zoomLevel})`,
-                                    transformOrigin: 'center center',
-                                    transition: 'transform 0.15s ease-out',
                                     maxWidth: '100%',
                                     maxHeight: '100%',
-                                    objectFit: 'contain',
-                                    borderRadius: '12px',
-                                    boxShadow: '0 25px 60px rgba(0, 0, 0, 0.8), 0 0 0 1px rgba(255, 255, 255, 0.12)'
+                                    transform: `scale(${zoomLevel})`,
+                                    transition: 'transform 0.15s ease',
+                                    borderRadius: '4px',
+                                    boxShadow: '0 10px 25px rgba(0,0,0,0.5)'
                                 }}
                             />
                         </div>
-
-                        {/* Studio Footer Bar with Open Full Size & Quick Actions */}
-                        <div style={{
-                            width: '100%',
-                            padding: '0.85rem 1.5rem',
-                            background: 'rgba(15, 23, 42, 0.95)',
-                            display: 'flex',
-                            justifyContent: 'space-between',
-                            alignItems: 'center',
-                            borderTop: '1px solid rgba(255, 255, 255, 0.08)',
-                            flexShrink: 0,
-                            flexWrap: 'wrap',
-                            gap: '0.75rem'
-                        }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', color: '#94a3b8', fontSize: '0.82rem' }}>
-                                <span>Method: <strong style={{ color: '#ffffff' }}>{viewingSub?.paymentMethod || 'Bank Transfer'}</strong></span>
-                                <span>Cycle: <strong style={{ color: '#ffffff' }}>{viewingSub?.cycle === 'yearly' ? 'Yearly Plan' : 'Monthly Plan'}</strong></span>
-                                {viewingSub?.submittedAt && (
-                                    <span style={{ fontSize: '0.78rem' }}>
-                                        Submitted: {viewingSub.submittedAt?.toDate ? viewingSub.submittedAt.toDate().toLocaleDateString() : new Date(viewingSub.submittedAt).toLocaleDateString()}
-                                    </span>
-                                )}
-                            </div>
-
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
-                                <a
-                                    href={viewingSlipUrl}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="btn"
-                                    style={{
-                                        padding: '0.5rem 1rem',
-                                        fontSize: '0.82rem',
-                                        background: 'rgba(255, 255, 255, 0.06)',
-                                        color: '#e2e8f0',
-                                        border: '1px solid rgba(255, 255, 255, 0.12)',
-                                        borderRadius: '8px',
-                                        textDecoration: 'none',
-                                        display: 'inline-flex',
-                                        alignItems: 'center',
-                                        gap: '6px',
-                                        fontWeight: '600'
-                                    }}
-                                >
-                                    Open Raw Full Size <ExternalLink size={14} />
-                                </a>
-
-                                {viewingSub && viewingSub.status === 'pending' && (
-                                    <>
-                                        <button
-                                            type="button"
-                                            onClick={() => {
-                                                const current = viewingSub;
-                                                setViewingSlipUrl(null);
-                                                setViewingSub(null);
-                                                handleOpenReject(current);
-                                            }}
-                                            className="btn"
-                                            style={{
-                                                padding: '0.5rem 1rem',
-                                                fontSize: '0.82rem',
-                                                background: 'rgba(239, 68, 68, 0.15)',
-                                                color: '#f87171',
-                                                border: '1px solid rgba(239, 68, 68, 0.3)',
-                                                borderRadius: '8px',
-                                                fontWeight: '700',
-                                                display: 'inline-flex',
-                                                alignItems: 'center',
-                                                gap: '6px',
-                                                cursor: 'pointer'
-                                            }}
-                                        >
-                                            <XCircle size={15} /> Reject
-                                        </button>
-                                        <button
-                                            type="button"
-                                            onClick={async () => {
-                                                const current = viewingSub;
-                                                setViewingSlipUrl(null);
-                                                setViewingSub(null);
-                                                await handleApprove(current);
-                                            }}
-                                            className="btn"
-                                            style={{
-                                                padding: '0.5rem 1.15rem',
-                                                fontSize: '0.82rem',
-                                                background: 'linear-gradient(135deg, #10b981, #059669)',
-                                                color: '#ffffff',
-                                                border: 'none',
-                                                borderRadius: '8px',
-                                                fontWeight: '800',
-                                                display: 'inline-flex',
-                                                alignItems: 'center',
-                                                gap: '6px',
-                                                cursor: 'pointer',
-                                                boxShadow: '0 4px 12px rgba(16, 185, 129, 0.3)'
-                                            }}
-                                        >
-                                            <CheckCircle2 size={15} /> Approve Payment
-                                        </button>
-                                    </>
-                                )}
-
-                                <button
-                                    type="button"
-                                    onClick={() => { setViewingSlipUrl(null); setViewingSub(null); }}
-                                    className="btn"
-                                    style={{
-                                        padding: '0.5rem 1rem',
-                                        fontSize: '0.82rem',
-                                        background: '#334155',
-                                        color: '#f8fafc',
-                                        border: 'none',
-                                        borderRadius: '8px',
-                                        fontWeight: '600',
-                                        cursor: 'pointer'
-                                    }}
-                                >
-                                    Close Preview
-                                </button>
-                            </div>
-                        </div>
                     </div>
-                </div>
+                </div>,
+                document.body
             )}
 
-            {/* Reject Reason Modal */}
-            {rejectingSub && (
-                <div style={{
-                    position: 'fixed',
-                    top: 0,
-                    left: 0,
-                    right: 0,
-                    bottom: 0,
-                    background: 'rgba(0, 0, 0, 0.75)',
-                    backdropFilter: 'blur(4px)',
-                    zIndex: 9999,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    padding: '1rem'
-                }}>
-                    <div className="card glass animate-in zoom-in-95 duration-200" style={{ maxWidth: '480px', width: '100%', padding: '2rem' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-                                <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: 'rgba(239, 68, 68, 0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#ef4444' }}>
-                                    <XCircle size={20} />
-                                </div>
-                                <h3 style={{ fontSize: '1.2rem', fontWeight: '800', margin: 0, color: 'white' }}>Reject Payment Slip</h3>
-                            </div>
+            {/* MODAL 2: Reject Reason Dialog (React Portal) */}
+            {rejectingSub && createPortal(
+                <div
+                    onClick={() => setRejectingSub(null)}
+                    style={{
+                        position: 'fixed',
+                        top: 0,
+                        left: 0,
+                        right: 0,
+                        bottom: 0,
+                        width: '100vw',
+                        height: '100vh',
+                        backgroundColor: 'rgba(0, 0, 0, 0.75)',
+                        backdropFilter: 'blur(5px)',
+                        zIndex: 9999999,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        padding: '16px',
+                        boxSizing: 'border-box'
+                    }}
+                >
+                    <div
+                        onClick={(e) => e.stopPropagation()}
+                        style={{
+                            width: '100%',
+                            maxWidth: '520px',
+                            backgroundColor: '#ECE9D8',
+                            border: '3px solid #0055ea',
+                            borderRadius: '8px 8px 4px 4px',
+                            boxShadow: '0 25px 60px rgba(0, 0, 0, 0.85)',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            overflow: 'hidden',
+                            margin: 'auto'
+                        }}
+                    >
+                        {/* Title Bar */}
+                        <div
+                            style={{
+                                height: '34px',
+                                background: 'linear-gradient(180deg, #2b70f0 0%, #1e56cb 12%, #0042b3 88%, #0036a1 100%)',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'space-between',
+                                padding: '0 8px 0 12px',
+                                userSelect: 'none'
+                            }}
+                        >
+                            <span style={{ color: '#FFFFFF', fontSize: '13px', fontWeight: '700' }}>
+                                Reject Payment Submission
+                            </span>
                             <button
+                                type="button"
                                 onClick={() => setRejectingSub(null)}
-                                style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}
+                                style={{
+                                    width: '21px',
+                                    height: '21px',
+                                    borderRadius: '3px',
+                                    border: '1px solid #781010',
+                                    background: 'linear-gradient(180deg, #E66453 0%, #D83B26 50%, #B81907 100%)',
+                                    color: '#FFFFFF',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    cursor: 'pointer'
+                                }}
                             >
-                                <X size={20} />
+                                <X size={13} strokeWidth={3} />
                             </button>
                         </div>
 
-                        <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '1rem' }}>
-                            Specify why this payment slip is being rejected. The school principal will be able to see this reason and re-upload the correct receipt.
-                        </p>
+                        {/* Content */}
+                        <div style={{ padding: '16px', backgroundColor: '#ECE9D8' }}>
+                            <div style={{ fontSize: '13px', color: '#1F2937', marginBottom: '10px' }}>
+                                Rejecting subscription slip for: <strong>{rejectingSub.schoolName || rejectingSub.schoolId}</strong>
+                            </div>
 
-                        <div style={{ marginBottom: '1.5rem' }}>
-                            <label className="label" style={{ marginBottom: '0.4rem' }}>Rejection Reason</label>
+                            <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: '#374151', marginBottom: '4px' }}>
+                                Reason for Rejection <span style={{ color: '#DC2626' }}>*</span>
+                            </label>
                             <textarea
                                 rows={3}
-                                className="input-field"
-                                placeholder="e.g. Invalid Transaction ID, amount does not match invoice, or slip image unreadable."
+                                placeholder="e.g. Deposit slip image is unreadable / Transaction ID does not match our bank records..."
                                 value={rejectReason}
                                 onChange={(e) => setRejectReason(e.target.value)}
-                                style={{ resize: 'vertical' }}
+                                style={{
+                                    width: '100%',
+                                    boxSizing: 'border-box',
+                                    padding: '8px',
+                                    borderRadius: '3px',
+                                    border: '1px solid #7F9DB9',
+                                    fontSize: '13px',
+                                    outline: 'none',
+                                    fontFamily: 'inherit'
+                                }}
                             />
                         </div>
 
-                        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem' }}>
+                        {/* Sunken Footer */}
+                        <div style={{ padding: '10px 16px', backgroundColor: '#ECE9D8', borderTop: '1px solid #999', display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
+                            <button className="win-btn" onClick={() => setRejectingSub(null)}>Cancel</button>
                             <button
-                                type="button"
-                                onClick={() => setRejectingSub(null)}
-                                className="btn"
-                                style={{ padding: '0.5rem 1rem', fontSize: '0.85rem' }}
-                            >
-                                Cancel
-                            </button>
-                            <button
-                                type="button"
+                                className="win-btn"
                                 onClick={handleConfirmReject}
-                                disabled={processingId === rejectingSub.id}
-                                className="btn"
-                                style={{
-                                    padding: '0.5rem 1.25rem',
-                                    fontSize: '0.85rem',
-                                    background: '#ef4444',
-                                    color: 'white',
-                                    border: 'none',
-                                    fontWeight: '700'
-                                }}
+                                style={{ backgroundColor: '#DC2626', color: '#FFFFFF', borderColor: '#B91C1C' }}
                             >
-                                {processingId === rejectingSub.id ? <Loader2 size={16} className="animate-spin" /> : 'Confirm Rejection'}
+                                Confirm Rejection
                             </button>
                         </div>
                     </div>
-                </div>
+                </div>,
+                document.body
             )}
 
-            {/* Policy & Due Date Configuration Modal */}
-            {showPolicyModal && (
-                <div style={{
-                    position: 'fixed',
-                    top: 0,
-                    left: 0,
-                    right: 0,
-                    bottom: 0,
-                    background: 'rgba(0, 0, 0, 0.75)',
-                    backdropFilter: 'blur(6px)',
-                    zIndex: 9999,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    padding: '1.25rem'
-                }}>
-                    <div className="card glass animate-in zoom-in-95 duration-200" style={{ maxWidth: '640px', width: '100%', padding: '2rem', maxHeight: '90vh', overflowY: 'auto' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                                <div style={{ width: '40px', height: '40px', borderRadius: '12px', background: 'rgba(99, 102, 241, 0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#818cf8' }}>
-                                    <Calendar size={22} />
-                                </div>
-                                <div>
-                                    <h3 style={{ fontSize: '1.25rem', fontWeight: '800', margin: 0, color: 'white' }}>
-                                        Monthly Due Date & Suspension Policy
-                                    </h3>
-                                    <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: 0 }}>
-                                        Real-time notice configuration for all school principal portals
-                                    </p>
-                                </div>
-                            </div>
+            {/* MODAL 3: Due Date & Suspension Policy Dialog (React Portal) */}
+            {showPolicyModal && createPortal(
+                <div
+                    onClick={() => setShowPolicyModal(false)}
+                    style={{
+                        position: 'fixed',
+                        top: 0,
+                        left: 0,
+                        right: 0,
+                        bottom: 0,
+                        width: '100vw',
+                        height: '100vh',
+                        backgroundColor: 'rgba(0, 0, 0, 0.75)',
+                        backdropFilter: 'blur(5px)',
+                        zIndex: 9999999,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        padding: '16px',
+                        boxSizing: 'border-box'
+                    }}
+                >
+                    <div
+                        onClick={(e) => e.stopPropagation()}
+                        style={{
+                            width: '100%',
+                            maxWidth: '620px',
+                            backgroundColor: '#ECE9D8',
+                            border: '3px solid #0055ea',
+                            borderRadius: '8px 8px 4px 4px',
+                            boxShadow: '0 25px 60px rgba(0, 0, 0, 0.85)',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            overflow: 'hidden',
+                            margin: 'auto'
+                        }}
+                    >
+                        {/* Title Bar */}
+                        <div
+                            style={{
+                                height: '34px',
+                                background: 'linear-gradient(180deg, #2b70f0 0%, #1e56cb 12%, #0042b3 88%, #0036a1 100%)',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'space-between',
+                                padding: '0 8px 0 12px',
+                                userSelect: 'none'
+                            }}
+                        >
+                            <span style={{ color: '#FFFFFF', fontSize: '13px', fontWeight: '700' }}>
+                                Monthly Due Date & Suspension Policy Configuration
+                            </span>
                             <button
                                 type="button"
                                 onClick={() => setShowPolicyModal(false)}
-                                style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}
+                                style={{
+                                    width: '21px',
+                                    height: '21px',
+                                    borderRadius: '3px',
+                                    border: '1px solid #781010',
+                                    background: 'linear-gradient(180deg, #E66453 0%, #D83B26 50%, #B81907 100%)',
+                                    color: '#FFFFFF',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    cursor: 'pointer'
+                                }}
                             >
-                                <X size={20} />
+                                <X size={13} strokeWidth={3} />
                             </button>
                         </div>
 
-                        {/* Switch Enable/Disable */}
-                        <div style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'space-between',
-                            padding: '1rem',
-                            borderRadius: '12px',
-                            background: 'rgba(15, 23, 42, 0.6)',
-                            border: '1px solid var(--glass-border)',
-                            marginBottom: '1.5rem'
-                        }}>
-                            <div>
-                                <h4 style={{ margin: 0, fontSize: '0.95rem', color: 'white', fontWeight: '700' }}>
-                                    Display Policy Banner in Principal WebApp
-                                </h4>
-                                <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                                    Shows the polite due date reminder & late suspension notice to school principals
-                                </p>
-                            </div>
-                            <label style={{ position: 'relative', display: 'inline-block', width: '44px', height: '24px', cursor: 'pointer' }}>
+                        {/* Content Area */}
+                        <div style={{ padding: '16px', maxHeight: '65vh', overflowY: 'auto', backgroundColor: '#ECE9D8' }}>
+                            {/* Toggle Enable */}
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 12px', backgroundColor: '#F8FAFC', borderRadius: '4px', border: '1px solid #CBD5E1', marginBottom: '12px' }}>
+                                <div>
+                                    <div style={{ fontSize: '13px', fontWeight: '700', color: '#1E293B' }}>Display Policy Banner in Principal App</div>
+                                    <div style={{ fontSize: '11.5px', color: '#64748B' }}>Shows the due date reminder & late suspension notice to school principals</div>
+                                </div>
                                 <input
                                     type="checkbox"
                                     checked={billingPolicy.enabled !== false}
                                     onChange={(e) => setBillingPolicy(p => ({ ...p, enabled: e.target.checked }))}
-                                    style={{ opacity: 0, width: 0, height: 0 }}
+                                    style={{ width: '18px', height: '18px', cursor: 'pointer', accentColor: '#2563EB' }}
                                 />
-                                <span style={{
-                                    position: 'absolute',
-                                    cursor: 'pointer',
-                                    top: 0, left: 0, right: 0, bottom: 0,
-                                    backgroundColor: billingPolicy.enabled !== false ? '#6366f1' : '#334155',
-                                    transition: '0.3s',
-                                    borderRadius: '24px'
-                                }}>
-                                    <span style={{
-                                        position: 'absolute',
-                                        content: '""',
-                                        height: '18px',
-                                        width: '18px',
-                                        left: billingPolicy.enabled !== false ? '22px' : '3px',
-                                        bottom: '3px',
-                                        backgroundColor: 'white',
-                                        transition: '0.3s',
-                                        borderRadius: '50%'
-                                    }} />
-                                </span>
-                            </label>
-                        </div>
-
-                        {/* Grid: Due Day & Grace Days */}
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1.25rem', marginBottom: '1.5rem' }}>
-                            <div>
-                                <label className="label" style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.4rem' }}>
-                                    <Clock size={14} color="#818cf8" />
-                                    <span>Monthly Due Date (Day of Month)</span>
-                                </label>
-                                <select
-                                    value={billingPolicy.dueDay || 5}
-                                    onChange={(e) => setBillingPolicy(p => ({ ...p, dueDay: Number(e.target.value) }))}
-                                    className="input-field"
-                                    style={{ cursor: 'pointer' }}
-                                >
-                                    {Array.from({ length: 28 }, (_, i) => i + 1).map(day => (
-                                        <option key={day} value={day} style={{ background: '#0f172a', color: 'white' }}>
-                                            {day}{day === 1 ? 'st' : day === 2 ? 'nd' : day === 3 ? 'rd' : 'th'} of each month {day === 5 ? '(Recommended)' : ''}
-                                        </option>
-                                    ))}
-                                </select>
-                                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'block', marginTop: '4px' }}>
-                                    Principals will be asked to clear dues by this date.
-                                </span>
                             </div>
 
-                            <div>
-                                <label className="label" style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.4rem' }}>
-                                    <Shield size={14} color="#10b981" />
-                                    <span>Grace Period Allowance (Days)</span>
-                                </label>
-                                <select
-                                    value={billingPolicy.graceDays ?? 2}
-                                    onChange={(e) => setBillingPolicy(p => ({ ...p, graceDays: Number(e.target.value) }))}
-                                    className="input-field"
-                                    style={{ cursor: 'pointer' }}
-                                >
-                                    {[0, 1, 2, 3, 4, 5, 7, 10].map(days => (
-                                        <option key={days} value={days} style={{ background: '#0f172a', color: 'white' }}>
-                                            {days === 0 ? 'No Grace Period (Immediate)' : `${days} Days Grace Period ${days === 2 ? '(Recommended)' : ''}`}
-                                        </option>
-                                    ))}
-                                </select>
-                                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'block', marginTop: '4px' }}>
-                                    Additional days before system suspension warning turns critical.
-                                </span>
-                            </div>
-                        </div>
-
-                        {/* Custom Policy Notice / Instructions */}
-                        <div style={{ marginBottom: '1.5rem' }}>
-                            <label className="label" style={{ marginBottom: '0.4rem' }}>
-                                Custom Polite Notice / Specific Instructions (Optional)
-                            </label>
-                            <textarea
-                                rows={3}
-                                className="input-field"
-                                placeholder="e.g. Please clear your subscription dues on or before the 5th to prevent temporary service pause. Payment proof slips are verified within a few hours."
-                                value={billingPolicy.customMessage || ''}
-                                onChange={(e) => setBillingPolicy(p => ({ ...p, customMessage: e.target.value }))}
-                                style={{ resize: 'vertical', fontSize: '0.85rem' }}
-                            />
-                            <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'block', marginTop: '4px' }}>
-                                If left blank, the system displays the default polite bilingual (English & Urdu) notice.
-                            </span>
-                        </div>
-
-                        {/* Live Preview Box */}
-                        <div style={{
-                            padding: '1rem',
-                            borderRadius: '12px',
-                            background: 'rgba(99, 102, 241, 0.08)',
-                            border: '1px dashed rgba(99, 102, 241, 0.3)',
-                            marginBottom: '1.5rem'
-                        }}>
-                            <span style={{ fontSize: '0.72rem', fontWeight: '800', textTransform: 'uppercase', color: '#818cf8', letterSpacing: '0.05em', display: 'block', marginBottom: '0.5rem' }}>
-                                👁️ Live Principal Portal Preview:
-                            </span>
-                            <div style={{
-                                padding: '0.85rem 1rem',
-                                borderRadius: '10px',
-                                background: '#f8fafc',
-                                border: '1px solid #cbd5e1',
-                                color: '#1e293b'
-                            }}>
-                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
-                                    <span style={{ fontSize: '0.82rem', fontWeight: '800', color: '#4f46e5' }}>
-                                        📅 Monthly Due Date: {billingPolicy.dueDay || 5}th of Every Month
-                                    </span>
-                                    <span style={{ fontSize: '0.72rem', padding: '2px 8px', borderRadius: '999px', background: '#e0e7ff', color: '#3730a3', fontWeight: '700' }}>
-                                        {billingPolicy.graceDays || 2} Days Grace
-                                    </span>
+                            {/* Due Day & Grace Days */}
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '12px' }}>
+                                <div>
+                                    <label style={{ display: 'block', fontSize: '11.5px', fontWeight: '700', color: '#374151', marginBottom: '4px' }}>
+                                        Monthly Due Date (Day of Month)
+                                    </label>
+                                    <select
+                                        value={billingPolicy.dueDay || 5}
+                                        onChange={(e) => setBillingPolicy(p => ({ ...p, dueDay: Number(e.target.value) }))}
+                                        style={{ width: '100%', padding: '6px', borderRadius: '3px', border: '1px solid #7F9DB9', fontSize: '13px', background: '#FFFFFF' }}
+                                    >
+                                        {Array.from({ length: 28 }, (_, i) => i + 1).map(day => (
+                                            <option key={day} value={day}>
+                                                {day}{day === 1 ? 'st' : day === 2 ? 'nd' : day === 3 ? 'rd' : 'th'} of each month {day === 5 ? '(Recommended)' : ''}
+                                            </option>
+                                        ))}
+                                    </select>
                                 </div>
-                                <p style={{ fontSize: '0.8rem', margin: '4px 0', color: '#475569', lineHeight: '1.4' }}>
-                                    {billingPolicy.customMessage ? billingPolicy.customMessage : `Monthly subscription fees are requested on or before the ${billingPolicy.dueDay || 5}th of each month. Late dues past grace period may lead to temporary portal suspension until payment slip verification.`}
-                                </p>
-                                <p style={{ fontSize: '0.78rem', margin: '4px 0 0', color: '#64748b', direction: 'rtl', lineHeight: '1.4' }}>
-                                    محترم پرنسپل صاحب، براہ کرم ہر ماہ کی {billingPolicy.dueDay || 5} تاریخ تک فیس ادا کر کے سلپ اپلوڈ فرمائیں تاکہ سسٹم بلا تعطل فعال رہے۔
-                                </p>
+
+                                <div>
+                                    <label style={{ display: 'block', fontSize: '11.5px', fontWeight: '700', color: '#374151', marginBottom: '4px' }}>
+                                        Grace Period Allowance (Days)
+                                    </label>
+                                    <select
+                                        value={billingPolicy.graceDays ?? 2}
+                                        onChange={(e) => setBillingPolicy(p => ({ ...p, graceDays: Number(e.target.value) }))}
+                                        style={{ width: '100%', padding: '6px', borderRadius: '3px', border: '1px solid #7F9DB9', fontSize: '13px', background: '#FFFFFF' }}
+                                    >
+                                        {[0, 1, 2, 3, 4, 5, 7, 10].map(days => (
+                                            <option key={days} value={days}>
+                                                {days === 0 ? 'No Grace Period (Immediate)' : `${days} Days Grace Period ${days === 2 ? '(Recommended)' : ''}`}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+                            </div>
+
+                            {/* Custom Message */}
+                            <div style={{ marginBottom: '12px' }}>
+                                <label style={{ display: 'block', fontSize: '11.5px', fontWeight: '700', color: '#374151', marginBottom: '4px' }}>
+                                    Custom Polite Notice / Specific Instructions (Optional)
+                                </label>
+                                <textarea
+                                    rows={3}
+                                    placeholder="e.g. Please clear subscription dues on or before the 5th to prevent service pause..."
+                                    value={billingPolicy.customMessage || ''}
+                                    onChange={(e) => setBillingPolicy(p => ({ ...p, customMessage: e.target.value }))}
+                                    style={{
+                                        width: '100%',
+                                        boxSizing: 'border-box',
+                                        padding: '8px',
+                                        borderRadius: '3px',
+                                        border: '1px solid #7F9DB9',
+                                        fontSize: '12.5px',
+                                        outline: 'none',
+                                        fontFamily: 'inherit'
+                                    }}
+                                />
+                            </div>
+
+                            {/* Preview box */}
+                            <div style={{ backgroundColor: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: '4px', padding: '10px 12px', fontSize: '12px', color: '#1E40AF' }}>
+                                <strong>Live Principal Portal Preview:</strong> Monthly subscription dues are requested by the <strong>{billingPolicy.dueDay || 5}th</strong> with <strong>{billingPolicy.graceDays || 2} days</strong> grace period.
                             </div>
                         </div>
 
-                        {/* Modal Action Buttons */}
-                        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem' }}>
+                        {/* Sunken Footer */}
+                        <div style={{ padding: '10px 16px', backgroundColor: '#ECE9D8', borderTop: '1px solid #999', display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
+                            <button className="win-btn" onClick={() => setShowPolicyModal(false)}>Cancel</button>
                             <button
-                                type="button"
-                                onClick={() => setShowPolicyModal(false)}
-                                className="btn"
-                                style={{ padding: '0.55rem 1.25rem', fontSize: '0.85rem' }}
-                            >
-                                Cancel
-                            </button>
-                            <button
-                                type="button"
+                                className="win-btn win-btn-primary"
                                 onClick={handleSavePolicy}
                                 disabled={savingPolicy}
-                                className="btn btn-primary"
-                                style={{
-                                    padding: '0.55rem 1.5rem',
-                                    fontSize: '0.85rem',
-                                    fontWeight: '700',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    gap: '0.5rem'
-                                }}
                             >
-                                {savingPolicy ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
-                                <span>Save Policy Settings</span>
+                                {savingPolicy ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+                                Save Policy Settings
                             </button>
                         </div>
                     </div>
-                </div>
+                </div>,
+                document.body
             )}
         </div>
     );

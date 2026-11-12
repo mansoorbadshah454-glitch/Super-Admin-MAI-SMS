@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Shield, Mail, Lock, Loader2, ArrowRight } from 'lucide-react';
+import { Shield, Mail, Lock, Loader2, ArrowRight, KeyRound, UserCheck } from 'lucide-react';
 import { signInWithEmailAndPassword, sendPasswordResetEmail } from 'firebase/auth';
 import { auth } from '../firebase';
 import { useNavigate } from 'react-router-dom';
@@ -13,7 +13,7 @@ const Login = () => {
     const navigate = useNavigate();
 
     const handleLogin = async (e) => {
-        e.preventDefault();
+        if (e) e.preventDefault();
         setLoading(true);
         setError('');
         setResetMessage('');
@@ -48,241 +48,264 @@ const Login = () => {
         }
     };
 
+    const handleQuickLogin = () => {
+        localStorage.setItem('manual_admin_session', JSON.stringify({
+            uid: 'super-admin-root',
+            email: 'admin@system.local',
+            displayName: 'Super Administrator'
+        }));
+        window.location.href = '/';
+    };
+
     return (
         <div style={{
             minHeight: '100vh',
             width: '100vw',
             display: 'flex',
+            flexDirection: 'column',
             alignItems: 'center',
             justifyContent: 'center',
-            background: 'var(--bg-dark)',
+            background: 'radial-gradient(ellipse at center, #1E5799 0%, #174880 50%, #0D2644 100%)',
+            fontFamily: 'Tahoma, "Segoe UI", sans-serif',
             position: 'relative',
             overflow: 'hidden'
         }}>
-            {/* Background Ambience */}
+            {/* Windows 7 Logon Soft Light Flare */}
             <div style={{
-                position: 'absolute', top: '-10%', left: '-10%',
-                width: '600px', height: '600px',
-                background: 'radial-gradient(circle, rgba(99,102,241,0.15) 0%, rgba(0,0,0,0) 70%)',
-                borderRadius: '50%', filter: 'blur(80px)'
-            }} />
-            <div style={{
-                position: 'absolute', bottom: '-10%', right: '-10%',
-                width: '600px', height: '600px',
-                background: 'radial-gradient(circle, rgba(139,92,246,0.15) 0%, rgba(0,0,0,0) 70%)',
-                borderRadius: '50%', filter: 'blur(80px)'
+                position: 'absolute',
+                top: '0',
+                left: '0',
+                right: '0',
+                height: '40%',
+                background: 'linear-gradient(180deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0) 100%)',
+                pointerEvents: 'none'
             }} />
 
-            {/* Login Card */}
-            <div className="card glass" style={{
-                width: '100%', maxWidth: '440px',
-                padding: '3rem',
-                position: 'relative',
+            {/* Main Windows 7 / XP Logon Box */}
+            <div style={{
+                width: '100%',
+                maxWidth: '460px',
+                background: 'rgba(255, 255, 255, 0.12)',
+                backdropFilter: 'blur(12px)',
+                WebkitBackdropFilter: 'blur(12px)',
+                border: '1px solid rgba(255, 255, 255, 0.3)',
+                borderRadius: '12px',
+                boxShadow: '0 20px 50px rgba(0, 0, 0, 0.6), inset 0 1px 1px rgba(255, 255, 255, 0.4)',
+                padding: '36px 32px',
                 zIndex: 10,
-                border: '1px solid var(--glass-border)',
-                boxShadow: 'var(--shadow-lg)'
+                color: '#fff',
+                textAlign: 'center'
             }}>
-                {/* Logo Section */}
-                <div style={{ textAlign: 'center', marginBottom: '3rem' }}>
-                    <div style={{
-                        width: '72px', height: '72px',
-                        background: 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)',
-                        borderRadius: '20px',
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        margin: '0 auto 1.5rem',
-                        boxShadow: '0 10px 25px rgba(79, 70, 229, 0.4)'
-                    }}>
-                        <Shield color="white" size={36} strokeWidth={2.5} />
-                    </div>
-                    <h1 style={{
-                        fontSize: '2rem', fontWeight: '800',
-                        color: 'var(--text-main)', letterSpacing: '-0.02em',
-                        marginBottom: '0.5rem'
-                    }}>
-                        MAI SMS
-                    </h1>
-                    <p style={{
-                        color: '#94a3b8', fontSize: '0.95rem',
-                        fontWeight: '500', textTransform: 'uppercase',
-                        letterSpacing: '0.1em'
-                    }}>
-                        Super Admin Portal
-                    </p>
+                {/* User Tile Frame */}
+                <div style={{
+                    width: '84px',
+                    height: '84px',
+                    margin: '0 auto 16px auto',
+                    borderRadius: '8px',
+                    background: 'linear-gradient(180deg, #3B82F6 0%, #1D4ED8 100%)',
+                    border: '3px solid #FFFFFF',
+                    boxShadow: '0 6px 16px rgba(0,0,0,0.5)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center'
+                }}>
+                    <Shield size={44} color="#FFFFFF" strokeWidth={2.2} />
                 </div>
 
-                {/* Form */}
-                <form onSubmit={handleLogin}>
-                    <div style={{ marginBottom: '1.25rem' }}>
+                {/* Account Headings */}
+                <h1 style={{
+                    fontSize: '22px',
+                    fontWeight: 'bold',
+                    margin: '0 0 4px 0',
+                    color: '#FFFFFF',
+                    textShadow: '0 2px 4px rgba(0,0,0,0.6)'
+                }}>
+                    Super Administrator
+                </h1>
+                <div style={{
+                    fontSize: '12px',
+                    color: '#CBD5E1',
+                    marginBottom: '24px',
+                    letterSpacing: '0.05em'
+                }}>
+                    MAI SCHOOL MANAGEMENT SYSTEM • ROOT DOMAIN
+                </div>
+
+                {/* Notification / Error Badges */}
+                {error && (
+                    <div style={{
+                        background: 'rgba(239, 68, 68, 0.25)',
+                        border: '1px solid #EF4444',
+                        borderRadius: '4px',
+                        padding: '8px 12px',
+                        marginBottom: '16px',
+                        fontSize: '12px',
+                        color: '#FEE2E2',
+                        textAlign: 'center'
+                    }}>
+                        {error}
+                    </div>
+                )}
+
+                {resetMessage && (
+                    <div style={{
+                        background: 'rgba(34, 197, 94, 0.25)',
+                        border: '1px solid #22C55E',
+                        borderRadius: '4px',
+                        padding: '8px 12px',
+                        marginBottom: '16px',
+                        fontSize: '12px',
+                        color: '#DCFCE7',
+                        textAlign: 'center'
+                    }}>
+                        {resetMessage}
+                    </div>
+                )}
+
+                {/* Credentials Form */}
+                <form onSubmit={handleLogin} style={{ textAlign: 'left' }}>
+                    {/* Admin Email Field */}
+                    <div style={{ marginBottom: '12px' }}>
+                        <label style={{ fontSize: '11px', color: '#E2E8F0', display: 'block', marginBottom: '4px', fontWeight: 'bold' }}>
+                            Administrator Account Email
+                        </label>
                         <div style={{ position: 'relative' }}>
-                            <Mail size={20} color="#94a3b8" style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)' }} />
+                            <Mail size={16} color="#64748B" style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)' }} />
                             <input
                                 type="email"
-                                placeholder="Admin Email"
                                 value={email}
                                 onChange={(e) => setEmail(e.target.value)}
+                                placeholder="admin@domain.com"
+                                required
                                 style={{
                                     width: '100%',
-                                    padding: '1rem 1rem 1rem 3rem',
-                                    background: 'var(--input-bg)',
-                                    border: '1px solid var(--glass-border)',
-                                    borderRadius: '12px',
-                                    color: 'var(--text-main)',
-                                    fontSize: '1rem',
+                                    padding: '8px 10px 8px 34px',
+                                    fontSize: '13px',
+                                    fontFamily: 'Tahoma, sans-serif',
+                                    background: '#FFFFFF',
+                                    border: '1px solid #7F9DB9',
+                                    borderRadius: '3px',
                                     outline: 'none',
-                                    transition: 'border-color 0.2s'
+                                    color: '#000',
+                                    boxSizing: 'border-box'
                                 }}
-                                className="login-input"
-                                required
                             />
                         </div>
                     </div>
 
-                    <div style={{ marginBottom: '2rem' }}>
-                        <div style={{ position: 'relative' }}>
-                            <Lock size={20} color="#94a3b8" style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)' }} />
-                            <input
-                                type="password"
-                                placeholder="Password"
-                                value={password}
-                                onChange={(e) => setPassword(e.target.value)}
-                                style={{
-                                    width: '100%',
-                                    padding: '1rem 1rem 1rem 3rem',
-                                    background: 'var(--input-bg)',
-                                    border: '1px solid var(--glass-border)',
-                                    borderRadius: '12px',
-                                    color: 'var(--text-main)',
-                                    fontSize: '1rem',
-                                    outline: 'none',
-                                    transition: 'border-color 0.2s'
-                                }}
-                                className="login-input"
-                                required
-                            />
-                        </div>
-                        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '0.75rem' }}>
+                    {/* Password Field + Submit Button */}
+                    <div style={{ marginBottom: '8px' }}>
+                        <label style={{ fontSize: '11px', color: '#E2E8F0', display: 'block', marginBottom: '4px', fontWeight: 'bold' }}>
+                            Secure Password
+                        </label>
+                        <div style={{ display: 'flex', gap: '6px' }}>
+                            <div style={{ position: 'relative', flex: 1 }}>
+                                <Lock size={16} color="#64748B" style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)' }} />
+                                <input
+                                    type="password"
+                                    value={password}
+                                    onChange={(e) => setPassword(e.target.value)}
+                                    placeholder="Enter your security password"
+                                    required
+                                    style={{
+                                        width: '100%',
+                                        padding: '8px 10px 8px 34px',
+                                        fontSize: '13px',
+                                        fontFamily: 'Tahoma, sans-serif',
+                                        background: '#FFFFFF',
+                                        border: '1px solid #7F9DB9',
+                                        borderRadius: '3px',
+                                        outline: 'none',
+                                        color: '#000',
+                                        boxSizing: 'border-box'
+                                    }}
+                                />
+                            </div>
+
+                            {/* Windows 7 Circular Arrow Submit Button */}
                             <button
-                                type="button"
-                                onClick={handleForgotPassword}
+                                type="submit"
                                 disabled={loading}
                                 style={{
-                                    background: 'none',
-                                    border: 'none',
-                                    color: '#6366f1',
-                                    fontSize: '0.875rem',
-                                    fontWeight: '500',
+                                    width: '38px',
+                                    height: '34px',
+                                    borderRadius: '3px',
+                                    background: 'linear-gradient(180deg, #3B82F6 0%, #1D4ED8 100%)',
+                                    border: '1px solid #1E40AF',
+                                    boxShadow: '0 2px 4px rgba(0,0,0,0.3)',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
                                     cursor: loading ? 'not-allowed' : 'pointer',
-                                    padding: 0,
-                                    textDecoration: 'underline'
+                                    color: '#FFFFFF'
                                 }}
+                                title="Log on"
                             >
-                                Forgot Password?
+                                {loading ? <Loader2 size={16} className="animate-spin" /> : <ArrowRight size={18} strokeWidth={2.5} />}
                             </button>
                         </div>
                     </div>
 
-                    {error && (
-                        <div style={{
-                            padding: '0.75rem', borderRadius: '8px',
-                            background: 'rgba(239, 68, 68, 0.1)',
-                            border: '1px solid rgba(239, 68, 68, 0.2)',
-                            color: '#f87171', fontSize: '0.9rem',
-                            marginBottom: '1.5rem', textAlign: 'center'
-                        }}>
-                            {error}
-                        </div>
-                    )}
-
-                    {resetMessage && (
-                        <div style={{
-                            padding: '0.75rem', borderRadius: '8px',
-                            background: 'rgba(52, 211, 153, 0.1)',
-                            border: '1px solid rgba(52, 211, 153, 0.2)',
-                            color: '#34d399', fontSize: '0.9rem',
-                            marginBottom: '1.5rem', textAlign: 'center'
-                        }}>
-                            {resetMessage}
-                        </div>
-                    )}
-
-                    <button
-                        type="submit"
-                        disabled={loading}
-                        style={{
-                            width: '100%',
-                            padding: '1rem',
-                            borderRadius: '12px',
-                            border: 'none',
-                            background: 'linear-gradient(135deg, #6366f1 0%, #4338ca 100%)',
-                            color: 'white',
-                            fontSize: '1rem',
-                            fontWeight: '600',
-                            cursor: loading ? 'not-allowed' : 'pointer',
-                            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.75rem',
-                            boxShadow: '0 4px 12px rgba(79, 70, 229, 0.3)',
-                            transition: 'transform 0.1s'
-                        }}
-                        onMouseDown={(e) => !loading && (e.currentTarget.style.transform = 'scale(0.98)')}
-                        onMouseUp={(e) => !loading && (e.currentTarget.style.transform = 'scale(1)')}
-                        onMouseLeave={(e) => !loading && (e.currentTarget.style.transform = 'scale(1)')}
-                    >
-                        {loading ? (
-                            <>
-                                <Loader2 size={20} className="animate-spin" />
-                                <span>Authenticating...</span>
-                            </>
-                        ) : (
-                            <>
-                                <span>Access Dashboard</span>
-                                <ArrowRight size={20} />
-                            </>
-                        )}
-                    </button>
-
-                    <div style={{ marginTop: '1rem', textAlign: 'center' }}>
+                    {/* Forgot Password Link */}
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '20px' }}>
                         <button
                             type="button"
-                            onClick={() => {
-                                localStorage.setItem('manual_admin_session', JSON.stringify({
-                                    uid: 'super-admin-root',
-                                    email: 'admin@system.local',
-                                    displayName: 'Super Administrator'
-                                }));
-                                window.location.href = '/';
-                            }}
+                            onClick={handleForgotPassword}
+                            disabled={loading}
                             style={{
-                                width: '100%',
-                                padding: '0.75rem',
-                                borderRadius: '10px',
-                                border: '1px dashed rgba(99, 102, 241, 0.4)',
-                                background: 'rgba(99, 102, 241, 0.08)',
-                                color: '#818cf8',
-                                fontSize: '0.9rem',
-                                fontWeight: '600',
+                                background: 'transparent',
+                                border: 'none',
+                                color: '#93C5FD',
+                                fontSize: '11px',
                                 cursor: 'pointer',
-                                transition: 'all 0.2s'
+                                textDecoration: 'underline',
+                                padding: 0
                             }}
                         >
-                            ⚡ 1-Click Quick Super Admin Access
+                            Reset Password via Email
                         </button>
                     </div>
+
+                    {/* 1-Click Quick Admin Access (Windows XP/7 Smartcard / Emergency Bypass) */}
+                    <button
+                        type="button"
+                        onClick={handleQuickLogin}
+                        style={{
+                            width: '100%',
+                            padding: '8px 12px',
+                            background: 'rgba(255, 255, 255, 0.15)',
+                            border: '1px solid rgba(255, 255, 255, 0.35)',
+                            borderRadius: '4px',
+                            color: '#FFFFFF',
+                            fontSize: '12px',
+                            fontWeight: 'bold',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: '8px'
+                        }}
+                    >
+                        <UserCheck size={16} />
+                        1-Click Instant Super Admin Session
+                    </button>
                 </form>
             </div>
 
-            {/* Footer */}
+            {/* Bottom Windows System Bar */}
             <div style={{
-                position: 'absolute', bottom: '2rem',
-                color: '#64748b', fontSize: '0.85rem'
+                position: 'absolute',
+                bottom: '16px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '12px',
+                color: 'rgba(255, 255, 255, 0.65)',
+                fontSize: '11px'
             }}>
-                &copy; {new Date().getFullYear()} MAI SMS System. Secure Environment.
+                <span>Windows Console Shell • Super Administrator Environment</span>
+                <span>•</span>
+                <span>&copy; {new Date().getFullYear()} MAI SMS Cloud</span>
             </div>
-
-            <style>{`
-                .login-input:focus {
-                    border-color: #6366f1 !important;
-                    background: var(--bg-dark) !important;
-                }
-            `}</style>
         </div>
     );
 };

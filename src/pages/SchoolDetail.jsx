@@ -4,7 +4,8 @@ import {
     ChevronLeft, School, User, Mail, Shield,
     CreditCard, Power, Loader2, Save, Calendar,
     MapPin, Hash, CheckCircle, XCircle, Users, Phone,
-    Landmark, Building2, Plus, Trash2, Crown, Sparkles, Bus, Tv
+    Landmark, Building2, Plus, Trash2, Crown, Sparkles, Bus, Tv,
+    DollarSign, SlidersHorizontal, Check, AlertCircle, ArrowLeft
 } from 'lucide-react';
 import { db } from '../firebase';
 import { doc, onSnapshot, updateDoc, getDoc, collection, getCountFromServer, setDoc } from 'firebase/firestore';
@@ -25,6 +26,9 @@ const SchoolDetail = () => {
     const [yearlyFee, setYearlyFee] = useState('');
     const [billingCycle, setBillingCycle] = useState('monthly');
     const [savingPricing, setSavingPricing] = useState(false);
+    
+    // Windows 7 / XP Tab Navigation State
+    const [activeTab, setActiveTab] = useState('general'); // 'general' | 'principal' | 'subscription' | 'banking'
 
     // Listen to School's banking settings
     useEffect(() => {
@@ -74,7 +78,7 @@ const SchoolDetail = () => {
     };
 
     useEffect(() => {
-        setLoading(true); // Reset loading on ID change
+        setLoading(true);
         const unsubscribe = onSnapshot(doc(db, "schools", id), async (docSnap) => {
             try {
                 if (docSnap.exists()) {
@@ -83,7 +87,6 @@ const SchoolDetail = () => {
                     setMonthlyFee(schoolData.monthlySubscriptionFee ?? 5000);
                     setYearlyFee(schoolData.yearlySubscriptionFee ?? 50000);
                     setBillingCycle(schoolData.billingCycle || 'monthly');
-                    console.log("School Data Loaded:", schoolData);
 
                     // Fetch principal info (Fail gracefully)
                     if (schoolData.principalId) {
@@ -91,7 +94,6 @@ const SchoolDetail = () => {
                             const principalSnap = await getDoc(doc(db, "global_users", schoolData.principalId));
                             let pData = principalSnap.exists() ? principalSnap.data() : null;
 
-                            // Fallback to school-specific user doc
                             const fallbackSnap = await getDoc(doc(db, `schools/${id}/users`, schoolData.principalId));
                             if (fallbackSnap.exists()) {
                                 pData = { ...pData, ...fallbackSnap.data() };
@@ -106,7 +108,6 @@ const SchoolDetail = () => {
                     fetchSchoolStats(id);
                 } else {
                     console.error("School not found");
-                    // alert("School not found!"); // Optional
                     navigate('/schools');
                 }
             } catch (err) {
@@ -126,17 +127,14 @@ const SchoolDetail = () => {
 
     const fetchSchoolStats = async (schoolId) => {
         try {
-            // 1. Students
             const studentsRef = collection(db, `schools/${schoolId}/students`);
             const totalSnapshot = await getCountFromServer(studentsRef);
             const total = totalSnapshot.data().count;
 
-            // 2. Teachers
             const teachersRef = collection(db, `schools/${schoolId}/teachers`);
             const teachersSnapshot = await getCountFromServer(teachersRef);
             const teachers = teachersSnapshot.data().count;
 
-            // 3. Parents
             const parentsRef = collection(db, `schools/${schoolId}/parents`);
             const parentsSnapshot = await getCountFromServer(parentsRef);
             const parents = parentsSnapshot.data().count;
@@ -252,655 +250,718 @@ const SchoolDetail = () => {
 
     if (loading) {
         return (
-            <div style={{ height: '80vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <Loader2 className="animate-spin" size={48} color="var(--primary)" />
+            <div style={{ height: '70vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '12px' }}>
+                <Loader2 className="animate-spin" size={36} color="#2563EB" />
+                <span style={{ fontSize: '13px', color: '#64748B', fontWeight: '600' }}>Loading School Console...</span>
             </div>
         );
     }
 
-    const isSuspended = school.status === 'suspended';
+    const isSuspended = school?.status === 'suspended';
+    const isPaid = school?.paymentStatus === 'paid';
 
     return (
-        <div className="animate-in fade-in slide-in-from-bottom-4 duration-700">
-            <header className="page-header" style={{ marginBottom: '2rem' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+        <div className="animate-in fade-in duration-300" style={{ maxWidth: '1100px', margin: '0 auto', fontFamily: "'Segoe UI', Tahoma, Verdana, sans-serif" }}>
+            <style>{`
+                .win-btn {
+                    font-family: inherit;
+                    font-size: 12.5px;
+                    font-weight: 600;
+                    padding: 6px 14px;
+                    border-radius: 4px;
+                    cursor: pointer;
+                    display: inline-flex;
+                    align-items: center;
+                    gap: 6px;
+                    border: 1px solid #CBD5E1;
+                    background: #FFFFFF;
+                    color: #334155;
+                    transition: all 0.15s ease;
+                }
+                .win-btn:hover {
+                    background: #F1F5F9;
+                    border-color: #94A3B8;
+                }
+                .win-tab {
+                    padding: 9px 18px;
+                    font-size: 13px;
+                    font-weight: 700;
+                    cursor: pointer;
+                    display: inline-flex;
+                    align-items: center;
+                    gap: 7px;
+                    border-top: 2px solid transparent;
+                    border-bottom: 2px solid transparent;
+                    color: #64748B;
+                    transition: all 0.15s ease;
+                    user-select: none;
+                }
+                .win-tab-active {
+                    color: #1D4ED8;
+                    border-bottom: 2px solid #2563EB;
+                    background-color: #EFF6FF;
+                }
+                .win-tab:hover:not(.win-tab-active) {
+                    color: #1E293B;
+                    background-color: #F8FAFC;
+                }
+                .win-fieldset {
+                    border: 1px solid #CBD5E1;
+                    border-radius: 6px;
+                    padding: 16px 18px;
+                    margin-bottom: 16px;
+                    background: #FFFFFF;
+                }
+                .win-legend {
+                    font-size: 12px;
+                    font-weight: 700;
+                    color: #1E40AF;
+                    padding: 0 8px;
+                    text-transform: uppercase;
+                    letter-spacing: 0.04em;
+                }
+                .win-input {
+                    width: 100%;
+                    box-sizing: border-box;
+                    background: #FFFFFF;
+                    border: 1px solid #94A3B8;
+                    border-radius: 3px;
+                    padding: 6px 10px;
+                    font-size: 13px;
+                    color: #1E293B;
+                    outline: none;
+                    font-family: inherit;
+                }
+                .win-input:focus {
+                    border-color: #2563EB;
+                    box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.2);
+                }
+            `}</style>
+
+            {/* 1. TOP WINDOWS EXPLORER COMMAND BAR */}
+            <div
+                style={{
+                    backgroundColor: '#FFFFFF',
+                    border: '1px solid #CBD5E1',
+                    borderRadius: '8px',
+                    padding: '12px 18px',
+                    marginBottom: '1rem',
+                    boxShadow: '0 2px 4px rgba(0, 0, 0, 0.04)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    flexWrap: 'wrap',
+                    gap: '12px'
+                }}
+            >
+                {/* Left: Back Button & Title */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
                     <button
                         onClick={() => navigate('/schools')}
-                        className="btn"
-                        style={{ padding: '0.5rem', background: 'var(--card-inner-bg)' }}
+                        className="win-btn"
+                        title="Back to Schools Directory"
+                        style={{ padding: '6px 10px' }}
                     >
-                        <ChevronLeft size={24} />
+                        <ChevronLeft size={16} /> Back
                     </button>
-                    <div>
-                        <h2 style={{ fontSize: '2rem' }} className="text-gradient">{school.name}</h2>
-                        <p style={{ color: 'var(--text-muted)' }}>Detailed school management and administrative controls.</p>
-                    </div>
-                </div>
-            </header>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '2rem' }}>
-                {/* Main Info Section */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
-                    {/* School Profile Card */}
-                    <div className="card glass" style={{ padding: '2rem' }}>
-                        <h3 style={{ fontSize: '1.25rem', marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                            <School size={22} color="var(--primary)" />
-                            School Profile
-                        </h3>
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2rem' }}>
-                            <InfoItem icon={Hash} label="School ID" value={school.id} />
-                            <InfoItem icon={Landmark} label="State / Province" value={school.state || 'Not Specified'} />
-                            <InfoItem icon={Building2} label="District" value={school.district || 'Not Specified'} />
-                            <InfoItem icon={MapPin} label="City" value={school.city || 'Not Specified'} />
-                            <InfoItem icon={MapPin} label="Physical Address" value={school.address || 'Not Provided'} />
-                            <InfoItem icon={Phone} label="School Contact" value={school.contact || 'Not Provided'} />
-                            <InfoItem icon={Calendar} label="Registered On" value={school.createdAt?.toDate ? school.createdAt.toDate().toLocaleDateString() : 'N/A'} />
-                            <InfoItem
-                                icon={isSuspended ? XCircle : CheckCircle}
-                                label="Current Access"
-                                value={isSuspended ? 'Suspended' : 'Active Access'}
-                                color={isSuspended ? '#f87171' : '#34d399'}
-                            />
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                        <div style={{
+                            width: '40px',
+                            height: '40px',
+                            borderRadius: '8px',
+                            background: 'linear-gradient(135deg, #2563EB, #1D4ED8)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            color: '#FFFFFF'
+                        }}>
+                            <School size={20} />
                         </div>
-
-                        {/* Student Stats in Detail Page */}
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1.5rem', marginTop: '2.5rem', paddingTop: '2rem', borderTop: '1px solid var(--glass-border)' }}>
-                            {/* Students */}
-                            <div style={{ background: 'rgba(99, 102, 241, 0.05)', padding: '1.5rem', borderRadius: '20px', border: '1px solid rgba(99, 102, 241, 0.1)' }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', color: 'var(--primary)', marginBottom: '0.5rem' }}>
-                                    <Users size={18} />
-                                    <span style={{ fontSize: '0.8rem', fontWeight: '700', textTransform: 'uppercase' }}>Total Students</span>
-                                </div>
-                                <div style={{ fontSize: '2rem', fontWeight: '800' }}>{typeof stats.total === 'number' ? stats.total.toLocaleString() : (stats.total || '...')}</div>
+                        <div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: '800', color: '#0F172A' }}>
+                                    {school.name || school.schoolName || 'Unnamed School'}
+                                </h2>
+                                <span style={{
+                                    fontSize: '11px',
+                                    fontFamily: 'monospace',
+                                    padding: '2px 6px',
+                                    borderRadius: '4px',
+                                    backgroundColor: '#F1F5F9',
+                                    color: '#475569',
+                                    border: '1px solid #CBD5E1'
+                                }}>
+                                    ID: {school.id}
+                                </span>
                             </div>
-
-                            {/* Teachers */}
-                            <div style={{ background: 'rgba(236, 72, 153, 0.05)', padding: '1.5rem', borderRadius: '20px', border: '1px solid rgba(236, 72, 153, 0.1)' }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', color: '#ec4899', marginBottom: '0.5rem' }}>
-                                    <User size={18} />
-                                    <span style={{ fontSize: '0.8rem', fontWeight: '700', textTransform: 'uppercase' }}>Total Teachers</span>
-                                </div>
-                                <div style={{ fontSize: '2rem', fontWeight: '800' }}>{typeof stats.teachers === 'number' ? stats.teachers.toLocaleString() : (stats.teachers || '0')}</div>
-                            </div>
-
-                            {/* Parents */}
-                            <div style={{ background: 'rgba(245, 158, 11, 0.05)', padding: '1.5rem', borderRadius: '20px', border: '1px solid rgba(245, 158, 11, 0.1)' }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', color: '#f59e0b', marginBottom: '0.5rem' }}>
-                                    <Users size={18} />
-                                    <span style={{ fontSize: '0.8rem', fontWeight: '700', textTransform: 'uppercase' }}>Total Parents</span>
-                                </div>
-                                <div style={{ fontSize: '2rem', fontWeight: '800' }}>{typeof stats.parents === 'number' ? stats.parents.toLocaleString() : (stats.parents || '0')}</div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: '#64748B', marginTop: '2px' }}>
+                                <MapPin size={12} style={{ color: '#2563EB' }} />
+                                <span>{school.city || school.district || 'City N/A'}, {school.state || 'Province N/A'}</span>
                             </div>
                         </div>
-                    </div>
-
-                    {/* Principal Profile Card */}
-                    <div className="card glass" style={{ padding: '2rem' }}>
-                        <h3 style={{ fontSize: '1.25rem', marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                            <Shield size={22} color="var(--accent)" />
-                            Principal Administrative Info
-                        </h3>
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2rem' }}>
-                            <InfoItem icon={User} label="Principal Name" value={principal?.name || 'Not Found'} />
-                            <InfoItem icon={Mail} label="Contact Email" value={principal?.email || 'N/A'} />
-                            <InfoItem icon={Phone} label="Principal Phone" value={principal?.contact || 'Not Provided'} />
-                            <InfoItem icon={Phone} label="Vice Principal Contact" value={school.vicePrincipalContact || 'Not Provided'} />
-                            <InfoItem icon={Phone} label="Landline" value={school.landline || 'Not Provided'} />
-                            <InfoItem icon={Phone} label="School Contact" value={school.contact || 'Not Provided'} />
-                            <InfoItem icon={Hash} label="Principal UID" value={school.principalId || 'N/A'} />
-                            <InfoItem icon={Calendar} label="Last Updated" value={school.updatedAt?.toDate().toLocaleDateString() || 'Never'} />
-                        </div>
-                    </div>
-
-                    {/* Official Fee Collection Accounts Card */}
-                    <div className="card glass" style={{ padding: '2rem' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
-                            <h3 style={{ fontSize: '1.25rem', display: 'flex', alignItems: 'center', gap: '0.75rem', margin: 0 }}>
-                                <Landmark size={22} color="var(--primary)" />
-                                Fee Collection Accounts (EasyPaisa, JazzCash, Bank)
-                            </h3>
-                            <div style={{ display: 'flex', gap: '0.75rem' }}>
-                                <button
-                                    onClick={addBankAccount}
-                                    className="btn"
-                                    style={{ padding: '0.45rem 0.9rem', fontSize: '0.85rem', background: 'var(--card-inner-bg)', color: 'var(--primary)', borderColor: 'var(--primary)' }}
-                                >
-                                    <Plus size={16} /> Add Method
-                                </button>
-                                <button
-                                    onClick={handleSaveBanking}
-                                    disabled={savingBanking}
-                                    className="btn btn-primary"
-                                    style={{ padding: '0.45rem 1rem', fontSize: '0.85rem', fontWeight: '700' }}
-                                >
-                                    {savingBanking ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />} Save Accounts
-                                </button>
-                            </div>
-                        </div>
-
-                        <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '1.5rem' }}>
-                            These account details are rendered in the Parent App when parents click "Pay Now" to transfer fees.
-                        </p>
-
-                        {bankAccounts.length === 0 ? (
-                            <div style={{ textAlign: 'center', padding: '2rem', background: 'var(--card-inner-bg)', borderRadius: '12px', color: 'var(--text-muted)' }}>
-                                No payment accounts configured yet for this school. Click "+ Add Method" to set up EasyPaisa, JazzCash, or Bank accounts.
-                            </div>
-                        ) : (
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                                {bankAccounts.map((acc, index) => (
-                                    <div key={index} style={{
-                                        position: 'relative', padding: '1.25rem', background: 'var(--card-inner-bg)',
-                                        borderRadius: '12px', border: '1px solid var(--glass-border)',
-                                        display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem',
-                                        paddingRight: '3rem'
-                                    }}>
-                                        <button
-                                            onClick={() => removeBankAccount(index)}
-                                            style={{
-                                                position: 'absolute', top: '1rem', right: '1rem', background: 'transparent',
-                                                border: 'none', color: '#f87171', cursor: 'pointer', padding: '4px'
-                                            }}
-                                            title="Delete Account"
-                                        >
-                                            <Trash2 size={18} />
-                                        </button>
-
-                                        <div>
-                                            <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '600', color: 'var(--text-muted)', marginBottom: '0.35rem' }}>
-                                                Method / Bank Name
-                                            </label>
-                                            <input
-                                                type="text"
-                                                value={acc.bankName || ''}
-                                                onChange={(e) => handleBankChange(index, 'bankName', e.target.value)}
-                                                placeholder="e.g. EasyPaisa, JazzCash, Meezan Bank"
-                                                className="input"
-                                                style={{ width: '100%', fontSize: '0.85rem' }}
-                                            />
-                                        </div>
-
-                                        <div>
-                                            <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '600', color: 'var(--text-muted)', marginBottom: '0.35rem' }}>
-                                                Account Title
-                                            </label>
-                                            <input
-                                                type="text"
-                                                value={acc.accountTitle || ''}
-                                                onChange={(e) => handleBankChange(index, 'accountTitle', e.target.value)}
-                                                placeholder="e.g. School Account"
-                                                className="input"
-                                                style={{ width: '100%', fontSize: '0.85rem' }}
-                                            />
-                                        </div>
-
-                                        <div>
-                                            <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '600', color: 'var(--text-muted)', marginBottom: '0.35rem' }}>
-                                                Account / Mobile Number
-                                            </label>
-                                            <input
-                                                type="text"
-                                                value={acc.accountNumber || ''}
-                                                onChange={(e) => handleBankChange(index, 'accountNumber', e.target.value)}
-                                                placeholder="e.g. 03001234567"
-                                                className="input"
-                                                style={{ width: '100%', fontSize: '0.85rem' }}
-                                            />
-                                        </div>
-
-                                        <div>
-                                            <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '600', color: 'var(--text-muted)', marginBottom: '0.35rem' }}>
-                                                IBAN / Details (Optional)
-                                            </label>
-                                            <input
-                                                type="text"
-                                                value={acc.iban || ''}
-                                                onChange={(e) => handleBankChange(index, 'iban', e.target.value)}
-                                                placeholder="PK00..."
-                                                className="input"
-                                                style={{ width: '100%', fontSize: '0.85rem' }}
-                                            />
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
                     </div>
                 </div>
 
-                {/* Controls Section */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
-                    <div className="card glass" style={{ padding: '2rem', border: '1px solid var(--primary-glow)' }}>
-                        <h3 style={{ fontSize: '1.25rem', marginBottom: '1.5rem' }}>Administrative Controls</h3>
+                {/* Right: Quick Action Controls Bar */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    {/* System Status Pill & Toggle */}
+                    <span style={{
+                        padding: '4px 9px',
+                        borderRadius: '4px',
+                        fontSize: '11.5px',
+                        fontWeight: '700',
+                        textTransform: 'uppercase',
+                        backgroundColor: isSuspended ? '#FEE2E2' : '#DEF7EC',
+                        color: isSuspended ? '#991B1B' : '#03543F',
+                        border: isSuspended ? '1px solid #FCA5A5' : '1px solid #84E1BC'
+                    }}>
+                        {isSuspended ? 'Suspended' : 'Active'}
+                    </span>
 
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-                            {/* SaaS Subscription Package Tier Control */}
-                            <div style={{
-                                padding: '1.5rem',
-                                borderRadius: '20px',
-                                background: 'linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%)',
-                                border: '1px solid rgba(99, 102, 241, 0.4)',
-                                boxShadow: '0 12px 30px -5px rgba(15, 23, 42, 0.45)'
-                            }}>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.1rem' }}>
+                    <button
+                        onClick={handleToggleSystemStatus}
+                        disabled={updating}
+                        className="win-btn"
+                        style={{
+                            color: isSuspended ? '#059669' : '#DC2626',
+                            borderColor: isSuspended ? '#A7F3D0' : '#FECACA',
+                            backgroundColor: isSuspended ? '#ECFDF5' : '#FEF2F2'
+                        }}
+                    >
+                        <Power size={14} />
+                        {isSuspended ? 'Start System' : 'Stop System'}
+                    </button>
+
+                    {/* Payment Pill & Toggle */}
+                    <span style={{
+                        padding: '4px 9px',
+                        borderRadius: '4px',
+                        fontSize: '11.5px',
+                        fontWeight: '700',
+                        textTransform: 'uppercase',
+                        backgroundColor: isPaid ? '#DEF7EC' : '#FEF08A',
+                        color: isPaid ? '#03543F' : '#854D0E',
+                        border: isPaid ? '1px solid #84E1BC' : '1px solid #FDE047'
+                    }}>
+                        {school.paymentStatus || 'unpaid'}
+                    </span>
+
+                    <button
+                        onClick={handleTogglePayment}
+                        disabled={updating}
+                        className="win-btn"
+                        style={{
+                            color: isPaid ? '#D97706' : '#059669',
+                            borderColor: isPaid ? '#FDE68A' : '#A7F3D0',
+                            backgroundColor: isPaid ? '#FFFBEB' : '#ECFDF5'
+                        }}
+                    >
+                        <CreditCard size={14} />
+                        {isPaid ? 'Mark Unpaid' : 'Mark Paid'}
+                    </button>
+                </div>
+            </div>
+
+            {/* 2. WINDOWS MANAGEMENT CONSOLE CARD */}
+            <div
+                style={{
+                    backgroundColor: '#FFFFFF',
+                    border: '1px solid #CBD5E1',
+                    borderRadius: '8px',
+                    boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05)',
+                    overflow: 'hidden'
+                }}
+            >
+                {/* Console Navigation Tabs */}
+                <div
+                    style={{
+                        display: 'flex',
+                        borderBottom: '1px solid #CBD5E1',
+                        backgroundColor: '#F8FAFC',
+                        overflowX: 'auto'
+                    }}
+                >
+                    <div
+                        onClick={() => setActiveTab('general')}
+                        className={`win-tab ${activeTab === 'general' ? 'win-tab-active' : ''}`}
+                    >
+                        <School size={16} /> 1. Campus Profile & Stats
+                    </div>
+
+                    <div
+                        onClick={() => setActiveTab('principal')}
+                        className={`win-tab ${activeTab === 'principal' ? 'win-tab-active' : ''}`}
+                    >
+                        <Shield size={16} /> 2. Principal Administrative Info
+                    </div>
+
+                    <div
+                        onClick={() => setActiveTab('subscription')}
+                        className={`win-tab ${activeTab === 'subscription' ? 'win-tab-active' : ''}`}
+                    >
+                        <Crown size={16} /> 3. Subscription Tier & Modules
+                    </div>
+
+                    <div
+                        onClick={() => setActiveTab('banking')}
+                        className={`win-tab ${activeTab === 'banking' ? 'win-tab-active' : ''}`}
+                    >
+                        <Landmark size={16} /> 4. Fee Banking Accounts
+                    </div>
+                </div>
+
+                {/* Tab Body Content Area */}
+                <div style={{ padding: '20px' }}>
+                    {/* TAB 1: General Profile & Statistics */}
+                    {activeTab === 'general' && (
+                        <div>
+                            {/* 3 Metric Tiles (Students, Teachers, Parents) */}
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '14px', marginBottom: '20px' }}>
+                                <div style={{
+                                    backgroundColor: '#EFF6FF',
+                                    border: '1px solid #BFDBFE',
+                                    borderRadius: '6px',
+                                    padding: '14px 16px',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'space-between'
+                                }}>
                                     <div>
-                                        <h4 style={{ fontSize: '1.05rem', fontWeight: '800', color: '#ffffff', margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                            <Crown size={19} color="#fbbf24" />
-                                            Subscription Tier
-                                        </h4>
-                                        <p style={{ fontSize: '0.78rem', color: '#94a3b8', margin: '3px 0 0 0', fontWeight: '500' }}>
-                                            School feature access level
-                                        </p>
+                                        <div style={{ fontSize: '11px', fontWeight: '700', color: '#1E40AF', textTransform: 'uppercase' }}>Total Students</div>
+                                        <div style={{ fontSize: '1.65rem', fontWeight: '800', color: '#1E3A8A' }}>
+                                            {typeof stats.total === 'number' ? stats.total.toLocaleString() : (stats.total || '...')}
+                                        </div>
                                     </div>
-                                    <span style={{
-                                        padding: '0.3rem 0.75rem',
-                                        borderRadius: '9999px',
-                                        fontSize: '0.75rem',
-                                        fontWeight: '800',
-                                        textTransform: 'uppercase',
-                                        letterSpacing: '0.05em',
-                                        background: school.package === 'premium' ? 'rgba(245, 158, 11, 0.25)' : 'rgba(99, 102, 241, 0.25)',
-                                        color: school.package === 'premium' ? '#fde047' : '#c7d2fe',
-                                        border: school.package === 'premium' ? '1px solid rgba(245, 158, 11, 0.5)' : '1px solid rgba(99, 102, 241, 0.5)',
-                                        boxShadow: school.package === 'premium' ? '0 0 12px rgba(245, 158, 11, 0.3)' : 'none'
-                                    }}>
-                                        {school.package === 'premium' ? '⭐ Premium Pro' : 'Standard Tier'}
+                                    <div style={{ padding: '10px', borderRadius: '6px', background: '#DBEAFE', color: '#1D4ED8' }}>
+                                        <Users size={22} />
+                                    </div>
+                                </div>
+
+                                <div style={{
+                                    backgroundColor: '#FDF2F8',
+                                    border: '1px solid #FBCFE8',
+                                    borderRadius: '6px',
+                                    padding: '14px 16px',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'space-between'
+                                }}>
+                                    <div>
+                                        <div style={{ fontSize: '11px', fontWeight: '700', color: '#9D174D', textTransform: 'uppercase' }}>Total Teachers</div>
+                                        <div style={{ fontSize: '1.65rem', fontWeight: '800', color: '#831843' }}>
+                                            {typeof stats.teachers === 'number' ? stats.teachers.toLocaleString() : (stats.teachers || '0')}
+                                        </div>
+                                    </div>
+                                    <div style={{ padding: '10px', borderRadius: '6px', background: '#FCE7F3', color: '#BE185D' }}>
+                                        <User size={22} />
+                                    </div>
+                                </div>
+
+                                <div style={{
+                                    backgroundColor: '#FFFBEB',
+                                    border: '1px solid #FDE68A',
+                                    borderRadius: '6px',
+                                    padding: '14px 16px',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'space-between'
+                                }}>
+                                    <div>
+                                        <div style={{ fontSize: '11px', fontWeight: '700', color: '#92400E', textTransform: 'uppercase' }}>Total Parents</div>
+                                        <div style={{ fontSize: '1.65rem', fontWeight: '800', color: '#78350F' }}>
+                                            {typeof stats.parents === 'number' ? stats.parents.toLocaleString() : (stats.parents || '0')}
+                                        </div>
+                                    </div>
+                                    <div style={{ padding: '10px', borderRadius: '6px', background: '#FEF3C7', color: '#B45309' }}>
+                                        <Users size={22} />
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Campus Details Fieldset */}
+                            <fieldset className="win-fieldset">
+                                <legend className="win-legend">Campus Profile & Geographic Location</legend>
+                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '16px' }}>
+                                    <SimpleInfoItem label="School Name" value={school.name || school.schoolName || 'N/A'} icon={School} />
+                                    <SimpleInfoItem label="School ID (Firestore)" value={school.id} icon={Hash} isCode />
+                                    <SimpleInfoItem label="State / Province" value={school.state || 'Not Specified'} icon={Landmark} />
+                                    <SimpleInfoItem label="District" value={school.district || 'Not Specified'} icon={Building2} />
+                                    <SimpleInfoItem label="City / Tehsil" value={school.city || 'Not Specified'} icon={MapPin} />
+                                    <SimpleInfoItem label="Official Phone" value={school.contact || 'Not Provided'} icon={Phone} />
+                                    <SimpleInfoItem
+                                        label="Registered Date"
+                                        value={school.createdAt?.toDate ? school.createdAt.toDate().toLocaleDateString() : 'N/A'}
+                                        icon={Calendar}
+                                    />
+                                    <SimpleInfoItem
+                                        label="System Access Status"
+                                        value={isSuspended ? 'Suspended (Locked)' : 'Active (Operational)'}
+                                        icon={isSuspended ? XCircle : CheckCircle}
+                                        valueColor={isSuspended ? '#DC2626' : '#16A34A'}
+                                    />
+                                </div>
+
+                                <div style={{ marginTop: '14px', paddingTop: '12px', borderTop: '1px solid #F1F5F9' }}>
+                                    <span style={{ fontSize: '11px', fontWeight: '700', color: '#64748B', textTransform: 'uppercase', display: 'block', marginBottom: '3px' }}>
+                                        Full Physical Campus Address
+                                    </span>
+                                    <span style={{ fontSize: '13px', color: '#1E293B', fontWeight: '500' }}>
+                                        {school.address || 'No physical address provided.'}
                                     </span>
                                 </div>
+                            </fieldset>
+                        </div>
+                    )}
 
-                                {/* Modern Animated Tier Switch Buttons */}
-                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.65rem', marginBottom: '1.1rem' }}>
-                                    <button
-                                        type="button"
-                                        onClick={() => handlePackageUpdate('standard')}
-                                        disabled={updating || school.package !== 'premium'}
-                                        style={{
-                                            padding: '0.75rem 0.6rem',
-                                            fontSize: '0.85rem',
-                                            fontWeight: '800',
-                                            borderRadius: '12px',
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            justifyContent: 'center',
-                                            gap: '0.5rem',
-                                            cursor: school.package !== 'premium' ? 'default' : 'pointer',
-                                            transition: 'all 0.25s ease',
-                                            background: school.package !== 'premium'
-                                                ? 'linear-gradient(135deg, #4f46e5 0%, #3730a3 100%)'
-                                                : 'rgba(30, 41, 59, 0.8)',
-                                            border: school.package !== 'premium'
-                                                ? '2px solid #818cf8'
-                                                : '1px solid rgba(255, 255, 255, 0.1)',
-                                            color: '#ffffff',
-                                            boxShadow: school.package !== 'premium'
-                                                ? '0 6px 16px -2px rgba(79, 70, 229, 0.5)'
-                                                : 'none',
-                                            opacity: updating ? 0.7 : 1
-                                        }}
-                                    >
-                                        <Sparkles size={16} color={school.package !== 'premium' ? '#ffffff' : '#94a3b8'} />
-                                        Standard
-                                    </button>
-
-                                    <button
-                                        type="button"
-                                        onClick={() => handlePackageUpdate('premium')}
-                                        disabled={updating || school.package === 'premium'}
-                                        style={{
-                                            padding: '0.75rem 0.6rem',
-                                            fontSize: '0.85rem',
-                                            fontWeight: '800',
-                                            borderRadius: '12px',
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            justifyContent: 'center',
-                                            gap: '0.5rem',
-                                            cursor: school.package === 'premium' ? 'default' : 'pointer',
-                                            transition: 'all 0.25s ease',
-                                            background: school.package === 'premium'
-                                                ? 'linear-gradient(135deg, #d97706 0%, #92400e 100%)'
-                                                : 'rgba(30, 41, 59, 0.8)',
-                                            border: school.package === 'premium'
-                                                ? '2px solid #fbbf24'
-                                                : '1px solid rgba(255, 255, 255, 0.1)',
-                                            color: '#ffffff',
-                                            boxShadow: school.package === 'premium'
-                                                ? '0 6px 16px -2px rgba(217, 119, 6, 0.5)'
-                                                : 'none',
-                                            opacity: updating ? 0.7 : 1
-                                        }}
-                                    >
-                                        <Crown size={16} color={school.package === 'premium' ? '#fde047' : '#94a3b8'} />
-                                        Premium Pro
-                                    </button>
+                    {/* TAB 2: Principal Administrator */}
+                    {activeTab === 'principal' && (
+                        <div>
+                            <fieldset className="win-fieldset">
+                                <legend className="win-legend">School Administrator & Contact Details</legend>
+                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '16px' }}>
+                                    <SimpleInfoItem label="Principal Name" value={principal?.name || school.principalName || 'Not Set'} icon={User} />
+                                    <SimpleInfoItem label="Official Email Address" value={principal?.email || school.principalEmail || 'N/A'} icon={Mail} />
+                                    <SimpleInfoItem label="Principal Mobile" value={principal?.contact || school.principalContact || 'Not Provided'} icon={Phone} />
+                                    <SimpleInfoItem label="Vice Principal Contact" value={school.vicePrincipalContact || 'Not Provided'} icon={Phone} />
+                                    <SimpleInfoItem label="Campus Landline" value={school.landline || 'Not Provided'} icon={Phone} />
+                                    <SimpleInfoItem label="Principal UID" value={school.principalId || 'N/A'} icon={Hash} isCode />
+                                    <SimpleInfoItem
+                                        label="Profile Last Updated"
+                                        value={school.updatedAt?.toDate ? school.updatedAt.toDate().toLocaleDateString() : 'N/A'}
+                                        icon={Calendar}
+                                    />
                                 </div>
+                            </fieldset>
+                        </div>
+                    )}
 
-                                {/* Granular Module Switches with Custom Modern Toggle Switches */}
-                                <div style={{
-                                    background: 'rgba(15, 23, 42, 0.75)',
-                                    borderRadius: '14px',
-                                    padding: '0.85rem',
-                                    border: '1px solid rgba(255, 255, 255, 0.08)',
-                                    display: 'flex',
-                                    flexDirection: 'column',
-                                    gap: '0.65rem'
-                                }}>
-                                    <div style={{ fontSize: '0.72rem', fontWeight: '800', textTransform: 'uppercase', color: '#94a3b8', letterSpacing: '0.06em' }}>
-                                        Active Add-on Modules:
+                    {/* TAB 3: Subscription & Modules */}
+                    {activeTab === 'subscription' && (
+                        <div>
+                            {/* Tier Selection */}
+                            <fieldset className="win-fieldset">
+                                <legend className="win-legend">SaaS Deployment Tier</legend>
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
+                                    {/* Standard Tier */}
+                                    <div
+                                        onClick={() => !updating && handlePackageUpdate('standard')}
+                                        style={{
+                                            border: school.package !== 'premium' ? '2px solid #2563EB' : '1px solid #CBD5E1',
+                                            backgroundColor: school.package !== 'premium' ? '#EFF6FF' : '#FFFFFF',
+                                            borderRadius: '6px',
+                                            padding: '12px 16px',
+                                            cursor: updating ? 'not-allowed' : 'pointer'
+                                        }}
+                                    >
+                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
+                                            <span style={{ fontSize: '13.5px', fontWeight: '800', color: '#1E3A8A' }}>Standard Tier</span>
+                                            <Sparkles size={16} color="#2563EB" />
+                                        </div>
+                                        <p style={{ margin: 0, fontSize: '12px', color: '#475569' }}>
+                                            Core Student LMS, Fee Management, Attendance, Timetable & Notices.
+                                        </p>
                                     </div>
 
-                                    {/* Transport Toggle */}
+                                    {/* Premium Pro Tier */}
+                                    <div
+                                        onClick={() => !updating && handlePackageUpdate('premium')}
+                                        style={{
+                                            border: school.package === 'premium' ? '2px solid #D97706' : '1px solid #CBD5E1',
+                                            backgroundColor: school.package === 'premium' ? '#FFFBEB' : '#FFFFFF',
+                                            borderRadius: '6px',
+                                            padding: '12px 16px',
+                                            cursor: updating ? 'not-allowed' : 'pointer'
+                                        }}
+                                    >
+                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
+                                            <span style={{ fontSize: '13.5px', fontWeight: '800', color: '#92400E' }}>Premium Pro ⭐</span>
+                                            <Crown size={16} color="#D97706" />
+                                        </div>
+                                        <p style={{ margin: 0, fontSize: '12px', color: '#475569' }}>
+                                            All Core Features + Real-time Fleet GPS Van Tracking + Live CCTV Streams.
+                                        </p>
+                                    </div>
+                                </div>
+                            </fieldset>
+
+                            {/* Add-on Module Switches */}
+                            <fieldset className="win-fieldset">
+                                <legend className="win-legend">Hardware & IoT Modules</legend>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                                    {/* Transport Module */}
                                     <div
                                         onClick={() => !updating && handleModuleToggle('transport')}
                                         style={{
                                             display: 'flex',
-                                            justifyContent: 'space-between',
                                             alignItems: 'center',
-                                            padding: '0.55rem 0.7rem',
-                                            borderRadius: '10px',
-                                            background: (school.modules?.transport ?? (school.package === 'premium')) ? 'rgba(245, 158, 11, 0.12)' : 'rgba(30, 41, 59, 0.5)',
-                                            border: (school.modules?.transport ?? (school.package === 'premium')) ? '1px solid rgba(245, 158, 11, 0.3)' : '1px solid rgba(255, 255, 255, 0.05)',
-                                            cursor: updating ? 'not-allowed' : 'pointer',
-                                            transition: 'all 0.2s ease'
+                                            justifyContent: 'space-between',
+                                            padding: '10px 14px',
+                                            backgroundColor: (school.modules?.transport ?? (school.package === 'premium')) ? '#F0FDF4' : '#F8FAFC',
+                                            border: (school.modules?.transport ?? (school.package === 'premium')) ? '1px solid #86EFAC' : '1px solid #CBD5E1',
+                                            borderRadius: '4px',
+                                            cursor: updating ? 'not-allowed' : 'pointer'
                                         }}
                                     >
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-                                            <div style={{
-                                                width: '30px',
-                                                height: '30px',
-                                                borderRadius: '8px',
-                                                background: 'rgba(245, 158, 11, 0.2)',
-                                                display: 'flex',
-                                                alignItems: 'center',
-                                                justifyContent: 'center'
-                                            }}>
-                                                <Bus size={17} color="#fbbf24" />
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                            <div style={{ padding: '6px', borderRadius: '4px', background: '#FEF3C7', color: '#D97706' }}>
+                                                <Bus size={17} />
                                             </div>
                                             <div>
-                                                <div style={{ color: '#ffffff', fontSize: '0.86rem', fontWeight: '700' }}>Transport & Fleet Hub</div>
-                                                <div style={{ color: '#94a3b8', fontSize: '0.7rem' }}>Live GPS tracking & routes</div>
+                                                <div style={{ fontSize: '13px', fontWeight: '700', color: '#1F2937' }}>Transport & Van Fleet GPS Hub</div>
+                                                <div style={{ fontSize: '11.5px', color: '#6B7280' }}>Real-time school bus tracking and parent route notifications</div>
                                             </div>
                                         </div>
-
-                                        {/* Custom Modern Switch */}
-                                        <div style={{
-                                            width: '42px',
-                                            height: '23px',
-                                            borderRadius: '9999px',
-                                            background: (school.modules?.transport ?? (school.package === 'premium')) ? '#10b981' : '#334155',
-                                            padding: '2px',
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            justifyContent: (school.modules?.transport ?? (school.package === 'premium')) ? 'flex-end' : 'flex-start',
-                                            transition: 'all 0.25s ease',
-                                            boxShadow: (school.modules?.transport ?? (school.package === 'premium')) ? '0 0 10px rgba(16, 185, 129, 0.5)' : 'none'
-                                        }}>
-                                            <div style={{
-                                                width: '19px',
-                                                height: '19px',
-                                                borderRadius: '50%',
-                                                background: '#ffffff',
-                                                boxShadow: '0 2px 4px rgba(0,0,0,0.3)'
-                                            }} />
-                                        </div>
+                                        <input
+                                            type="checkbox"
+                                            checked={!!(school.modules?.transport ?? (school.package === 'premium'))}
+                                            onChange={() => {}}
+                                            style={{ width: '17px', height: '17px', cursor: 'pointer', accentColor: '#16A34A' }}
+                                        />
                                     </div>
 
-                                    {/* Surveillance Toggle */}
+                                    {/* CCTV Module */}
                                     <div
                                         onClick={() => !updating && handleModuleToggle('surveillance')}
                                         style={{
                                             display: 'flex',
-                                            justifyContent: 'space-between',
                                             alignItems: 'center',
-                                            padding: '0.55rem 0.7rem',
-                                            borderRadius: '10px',
-                                            background: (school.modules?.surveillance ?? (school.package === 'premium')) ? 'rgba(99, 102, 241, 0.15)' : 'rgba(30, 41, 59, 0.5)',
-                                            border: (school.modules?.surveillance ?? (school.package === 'premium')) ? '1px solid rgba(99, 102, 241, 0.35)' : '1px solid rgba(255, 255, 255, 0.05)',
-                                            cursor: updating ? 'not-allowed' : 'pointer',
-                                            transition: 'all 0.2s ease'
+                                            justifyContent: 'space-between',
+                                            padding: '10px 14px',
+                                            backgroundColor: (school.modules?.surveillance ?? (school.package === 'premium')) ? '#F0FDF4' : '#F8FAFC',
+                                            border: (school.modules?.surveillance ?? (school.package === 'premium')) ? '1px solid #86EFAC' : '1px solid #CBD5E1',
+                                            borderRadius: '4px',
+                                            cursor: updating ? 'not-allowed' : 'pointer'
                                         }}
                                     >
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-                                            <div style={{
-                                                width: '30px',
-                                                height: '30px',
-                                                borderRadius: '8px',
-                                                background: 'rgba(99, 102, 241, 0.2)',
-                                                display: 'flex',
-                                                alignItems: 'center',
-                                                justifyContent: 'center'
-                                            }}>
-                                                <Tv size={17} color="#818cf8" />
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                            <div style={{ padding: '6px', borderRadius: '4px', background: '#E0E7FF', color: '#4F46E5' }}>
+                                                <Tv size={17} />
                                             </div>
                                             <div>
-                                                <div style={{ color: '#ffffff', fontSize: '0.86rem', fontWeight: '700' }}>Live CCTV Surveillance</div>
-                                                <div style={{ color: '#94a3b8', fontSize: '0.7rem' }}>Multi-camera live streams</div>
+                                                <div style={{ fontSize: '13px', fontWeight: '700', color: '#1F2937' }}>Live CCTV Campus Surveillance</div>
+                                                <div style={{ fontSize: '11.5px', color: '#6B7280' }}>Multi-camera live classroom and entry gate streams</div>
                                             </div>
                                         </div>
-
-                                        {/* Custom Modern Switch */}
-                                        <div style={{
-                                            width: '42px',
-                                            height: '23px',
-                                            borderRadius: '9999px',
-                                            background: (school.modules?.surveillance ?? (school.package === 'premium')) ? '#10b981' : '#334155',
-                                            padding: '2px',
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            justifyContent: (school.modules?.surveillance ?? (school.package === 'premium')) ? 'flex-end' : 'flex-start',
-                                            transition: 'all 0.25s ease',
-                                            boxShadow: (school.modules?.surveillance ?? (school.package === 'premium')) ? '0 0 10px rgba(16, 185, 129, 0.5)' : 'none'
-                                        }}>
-                                            <div style={{
-                                                width: '19px',
-                                                height: '19px',
-                                                borderRadius: '50%',
-                                                background: '#ffffff',
-                                                boxShadow: '0 2px 4px rgba(0,0,0,0.3)'
-                                            }} />
-                                        </div>
+                                        <input
+                                            type="checkbox"
+                                            checked={!!(school.modules?.surveillance ?? (school.package === 'premium'))}
+                                            onChange={() => {}}
+                                            style={{ width: '17px', height: '17px', cursor: 'pointer', accentColor: '#16A34A' }}
+                                        />
                                     </div>
                                 </div>
-                            </div>
+                            </fieldset>
 
-                            {/* Subscription Pricing & Billing Status Card */}
-                            <div style={{ padding: '1.25rem', borderRadius: '16px', background: 'var(--card-inner-bg)', border: '1px solid var(--glass-border)', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            {/* Subscription Pricing Rates Editor */}
+                            <fieldset className="win-fieldset">
+                                <legend className="win-legend">Subscription Billing Rates & Cycle</legend>
+                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '14px', marginBottom: '14px' }}>
                                     <div>
-                                        <p style={{ fontSize: '0.875rem', fontWeight: '700', margin: 0, color: 'white' }}>Subscription Pricing & Status</p>
-                                        <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', margin: '2px 0 0 0' }}>School billing terms</p>
-                                    </div>
-                                    <span style={{
-                                        padding: '0.25rem 0.6rem',
-                                        borderRadius: '12px',
-                                        fontSize: '0.7rem',
-                                        fontWeight: '700',
-                                        textTransform: 'uppercase',
-                                        background: school.paymentStatus === 'paid' ? 'rgba(16, 185, 129, 0.15)' : 'rgba(245, 158, 11, 0.15)',
-                                        color: school.paymentStatus === 'paid' ? '#34d399' : '#fbbf24',
-                                        border: school.paymentStatus === 'paid' ? '1px solid rgba(16, 185, 129, 0.3)' : '1px solid rgba(245, 158, 11, 0.3)'
-                                    }}>
-                                        {school.paymentStatus || 'unpaid'}
-                                    </span>
-                                </div>
-
-                                {/* Billing Cycle Choice */}
-                                <div>
-                                    <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '600', color: 'var(--text-muted)', marginBottom: '0.4rem' }}>
-                                        Active Billing Cycle
-                                    </label>
-                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
-                                        <button
-                                            type="button"
-                                            onClick={() => setBillingCycle('monthly')}
-                                            style={{
-                                                padding: '0.5rem',
-                                                fontSize: '0.78rem',
-                                                fontWeight: '700',
-                                                borderRadius: '8px',
-                                                border: billingCycle === 'monthly' ? '2px solid #6366f1' : '1px solid var(--glass-border)',
-                                                background: billingCycle === 'monthly' ? 'rgba(99, 102, 241, 0.2)' : 'rgba(255, 255, 255, 0.03)',
-                                                color: billingCycle === 'monthly' ? '#818cf8' : 'var(--text-muted)',
-                                                cursor: 'pointer'
-                                            }}
+                                        <label style={{ display: 'block', fontSize: '11.5px', fontWeight: '700', color: '#374151', marginBottom: '4px' }}>
+                                            Active Billing Cycle
+                                        </label>
+                                        <select
+                                            className="win-input"
+                                            value={billingCycle}
+                                            onChange={(e) => setBillingCycle(e.target.value)}
                                         >
-                                            📅 Monthly
-                                        </button>
-                                        <button
-                                            type="button"
-                                            onClick={() => setBillingCycle('yearly')}
-                                            style={{
-                                                padding: '0.5rem',
-                                                fontSize: '0.78rem',
-                                                fontWeight: '700',
-                                                borderRadius: '8px',
-                                                border: billingCycle === 'yearly' ? '2px solid #f59e0b' : '1px solid var(--glass-border)',
-                                                background: billingCycle === 'yearly' ? 'rgba(245, 158, 11, 0.2)' : 'rgba(255, 255, 255, 0.03)',
-                                                color: billingCycle === 'yearly' ? '#fbbf24' : 'var(--text-muted)',
-                                                cursor: 'pointer'
-                                            }}
-                                        >
-                                            ⭐ Yearly
-                                        </button>
+                                            <option value="monthly">Monthly Cycle</option>
+                                            <option value="yearly">Yearly Cycle</option>
+                                        </select>
                                     </div>
-                                </div>
 
-                                {/* Monthly & Yearly Rates Grid */}
-                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
                                     <div>
-                                        <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: '600', color: 'var(--text-muted)', marginBottom: '0.3rem' }}>
+                                        <label style={{ display: 'block', fontSize: '11.5px', fontWeight: '700', color: '#374151', marginBottom: '4px' }}>
                                             Monthly Fee (Rs)
                                         </label>
                                         <input
                                             type="number"
-                                            className="input"
-                                            style={{ width: '100%', fontSize: '0.85rem', padding: '0.45rem 0.6rem' }}
-                                            placeholder="5000"
+                                            className="win-input"
                                             value={monthlyFee}
                                             onChange={(e) => setMonthlyFee(e.target.value)}
+                                            placeholder="5000"
                                         />
                                     </div>
+
                                     <div>
-                                        <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: '600', color: 'var(--text-muted)', marginBottom: '0.3rem' }}>
+                                        <label style={{ display: 'block', fontSize: '11.5px', fontWeight: '700', color: '#374151', marginBottom: '4px' }}>
                                             Yearly Fee (Rs)
                                         </label>
                                         <input
                                             type="number"
-                                            className="input"
-                                            style={{ width: '100%', fontSize: '0.85rem', padding: '0.45rem 0.6rem' }}
-                                            placeholder="50000"
+                                            className="win-input"
                                             value={yearlyFee}
                                             onChange={(e) => setYearlyFee(e.target.value)}
+                                            placeholder="50000"
                                         />
                                     </div>
                                 </div>
 
-                                {/* Save Pricing Button */}
                                 <button
                                     type="button"
                                     onClick={handleSaveSubscriptionPricing}
                                     disabled={savingPricing}
-                                    className="btn btn-primary"
-                                    style={{ width: '100%', justifyContent: 'center', fontSize: '0.8rem', padding: '0.5rem' }}
-                                >
-                                    {savingPricing ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />} Save Pricing Rates
-                                </button>
-
-                                {/* Toggle Paid / Unpaid */}
-                                <button
-                                    onClick={handleTogglePayment}
-                                    disabled={updating}
-                                    className="btn"
+                                    className="win-btn"
                                     style={{
-                                        width: '100%',
-                                        justifyContent: 'center',
-                                        fontSize: '0.8rem',
-                                        padding: '0.5rem',
-                                        background: school.paymentStatus === 'paid' ? 'rgba(245, 158, 11, 0.1)' : 'rgba(16, 185, 129, 0.1)',
-                                        color: school.paymentStatus === 'paid' ? '#fbbf24' : '#34d399',
-                                        borderColor: school.paymentStatus === 'paid' ? 'rgba(245, 158, 11, 0.2)' : 'rgba(16, 185, 129, 0.2)'
+                                        backgroundColor: '#2563EB',
+                                        color: '#FFFFFF',
+                                        borderColor: '#1D4ED8'
                                     }}
                                 >
-                                    {updating ? <Loader2 className="animate-spin" size={16} /> : (
-                                        <>
-                                            <CreditCard size={16} />
-                                            Mark as {school.paymentStatus === 'paid' ? 'Unpaid' : 'Paid'}
-                                        </>
-                                    )}
+                                    {savingPricing ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+                                    Save Pricing Rates
                                 </button>
-                            </div>
-
-                            {/* System Status Toggle (Start/Stop) */}
-                            <div style={{ padding: '1.25rem', borderRadius: '16px', background: isSuspended ? 'rgba(239, 68, 68, 0.05)' : 'rgba(16, 185, 129, 0.05)', border: '1px solid var(--glass-border)' }}>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-                                    <div>
-                                        <p style={{ fontSize: '0.875rem', fontWeight: '600' }}>System Access</p>
-                                        <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Principal, Teacher & Parent Apps</p>
-                                    </div>
-                                    <div style={{
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        gap: '0.5rem',
-                                        color: isSuspended ? '#f87171' : '#34d399',
-                                        fontSize: '0.75rem',
-                                        fontWeight: '700'
-                                    }}>
-                                        <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: 'currentColor', boxShadow: '0 0 8px currentColor' }}></div>
-                                        {isSuspended ? 'OFF' : 'ON'}
-                                    </div>
-                                </div>
-                                <button
-                                    onClick={handleToggleSystemStatus}
-                                    disabled={updating}
-                                    className="btn"
-                                    style={{
-                                        width: '100%',
-                                        justifyContent: 'center',
-                                        background: isSuspended ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)',
-                                        color: isSuspended ? '#34d399' : '#f87171',
-                                        borderColor: isSuspended ? 'rgba(16, 185, 129, 0.2)' : 'rgba(239, 68, 68, 0.2)'
-                                    }}
-                                >
-                                    {updating ? <Loader2 className="animate-spin" size={18} /> : (
-                                        <>
-                                            <Power size={18} />
-                                            {isSuspended ? 'Start System' : 'Stop System'}
-                                        </>
-                                    )}
-                                </button>
-                                <p style={{ fontSize: '0.65rem', color: 'var(--text-muted)', marginTop: '0.75rem', textAlign: 'center' }}>
-                                    {isSuspended
-                                        ? "System is currently offline for this school. All apps are locked."
-                                        : "System is active. All apps (Principal, Teacher, Parent) are accessible."}
-                                </p>
-                            </div>
+                            </fieldset>
                         </div>
-                    </div>
+                    )}
+
+                    {/* TAB 4: Fee Banking Accounts */}
+                    {activeTab === 'banking' && (
+                        <div>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px', flexWrap: 'wrap', gap: '8px' }}>
+                                <div>
+                                    <h4 style={{ margin: 0, fontSize: '14px', fontWeight: '800', color: '#1E293B' }}>Parent App Fee Payment Methods</h4>
+                                    <p style={{ margin: '2px 0 0 0', fontSize: '12px', color: '#64748B' }}>
+                                        These accounts appear when parents click "Pay Fee" inside the mobile app.
+                                    </p>
+                                </div>
+                                <div style={{ display: 'flex', gap: '8px' }}>
+                                    <button
+                                        type="button"
+                                        onClick={addBankAccount}
+                                        className="win-btn"
+                                    >
+                                        <Plus size={14} /> Add Method
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={handleSaveBanking}
+                                        disabled={savingBanking}
+                                        className="win-btn"
+                                        style={{ backgroundColor: '#2563EB', color: '#FFFFFF', borderColor: '#1D4ED8' }}
+                                    >
+                                        {savingBanking ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />} Save Accounts
+                                    </button>
+                                </div>
+                            </div>
+
+                            {bankAccounts.length === 0 ? (
+                                <div style={{ textAlign: 'center', padding: '2rem', border: '1px dashed #CBD5E1', borderRadius: '6px', color: '#64748B', fontSize: '13px' }}>
+                                    No payment accounts configured yet. Click "+ Add Method" to add EasyPaisa, JazzCash, or Bank accounts.
+                                </div>
+                            ) : (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                                    {bankAccounts.map((acc, index) => (
+                                        <div
+                                            key={index}
+                                            style={{
+                                                backgroundColor: '#F8FAFC',
+                                                border: '1px solid #CBD5E1',
+                                                borderRadius: '6px',
+                                                padding: '12px 14px',
+                                                display: 'grid',
+                                                gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr)) 40px',
+                                                gap: '10px',
+                                                alignItems: 'center'
+                                            }}
+                                        >
+                                            <div>
+                                                <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: '#475569', marginBottom: '3px' }}>
+                                                    Method / Bank Name
+                                                </label>
+                                                <input
+                                                    type="text"
+                                                    className="win-input"
+                                                    value={acc.bankName || ''}
+                                                    onChange={(e) => handleBankChange(index, 'bankName', e.target.value)}
+                                                    placeholder="e.g. EasyPaisa, JazzCash, Meezan Bank"
+                                                />
+                                            </div>
+
+                                            <div>
+                                                <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: '#475569', marginBottom: '3px' }}>
+                                                    Account Title
+                                                </label>
+                                                <input
+                                                    type="text"
+                                                    className="win-input"
+                                                    value={acc.accountTitle || ''}
+                                                    onChange={(e) => handleBankChange(index, 'accountTitle', e.target.value)}
+                                                    placeholder="e.g. Springfield High School"
+                                                />
+                                            </div>
+
+                                            <div>
+                                                <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: '#475569', marginBottom: '3px' }}>
+                                                    Account / Phone Number
+                                                </label>
+                                                <input
+                                                    type="text"
+                                                    className="win-input"
+                                                    value={acc.accountNumber || ''}
+                                                    onChange={(e) => handleBankChange(index, 'accountNumber', e.target.value)}
+                                                    placeholder="e.g. 03001234567"
+                                                />
+                                            </div>
+
+                                            <div>
+                                                <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: '#475569', marginBottom: '3px' }}>
+                                                    IBAN / Details (Optional)
+                                                </label>
+                                                <input
+                                                    type="text"
+                                                    className="win-input"
+                                                    value={acc.iban || ''}
+                                                    onChange={(e) => handleBankChange(index, 'iban', e.target.value)}
+                                                    placeholder="PK00..."
+                                                />
+                                            </div>
+
+                                            <div style={{ display: 'flex', justifyContent: 'center' }}>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => removeBankAccount(index)}
+                                                    title="Delete Method"
+                                                    style={{
+                                                        padding: '6px',
+                                                        borderRadius: '4px',
+                                                        border: '1px solid #FECACA',
+                                                        backgroundColor: '#FEF2F2',
+                                                        color: '#DC2626',
+                                                        cursor: 'pointer'
+                                                    }}
+                                                >
+                                                    <Trash2 size={15} />
+                                                </button>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    )}
                 </div>
             </div>
         </div>
     );
 };
 
-const InfoItem = ({ icon: Icon, label, value, color }) => (
-    <div style={{ display: 'flex', gap: '1rem', alignItems: 'flex-start' }}>
-        <div style={{
-            marginTop: '0.25rem',
-            padding: '0.6rem',
-            borderRadius: '10px',
-            background: 'var(--card-inner-bg)',
-            color: color || 'var(--text-muted)'
-        }}>
-            <Icon size={18} />
+const SimpleInfoItem = ({ label, value, icon: Icon, isCode, valueColor }) => (
+    <div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '11px', fontWeight: '700', color: '#64748B', textTransform: 'uppercase', marginBottom: '3px' }}>
+            {Icon && <Icon size={13} style={{ color: '#2563EB' }} />}
+            <span>{label}</span>
         </div>
-        <div>
-            <p style={{ fontSize: '0.75rem', fontWeight: '600', color: 'var(--text-muted)', marginBottom: '0.25rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                {label}
-            </p>
-            <p style={{ fontSize: '1rem', fontWeight: '700', color: color || 'var(--text-main)' }}>
+        {isCode ? (
+            <code style={{ fontSize: '12px', fontWeight: '700', color: '#1E40AF', background: '#F1F5F9', padding: '2px 6px', borderRadius: '3px' }}>
                 {value}
-            </p>
-        </div>
+            </code>
+        ) : (
+            <div style={{ fontSize: '13px', fontWeight: '700', color: valueColor || '#1E293B' }}>
+                {value}
+            </div>
+        )}
     </div>
 );
 

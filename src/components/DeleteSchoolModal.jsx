@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { X, Trash2, ShieldAlert, Loader2, AlertTriangle } from 'lucide-react';
+import { createPortal } from 'react-dom';
+import { X, ShieldAlert, Loader2, AlertTriangle, ArrowRight } from 'lucide-react';
 import { functions } from '../firebase';
 import { httpsCallable } from 'firebase/functions';
 
@@ -8,6 +9,8 @@ const DeleteSchoolModal = ({ school, onClose, onSuccess }) => {
     const [confirmId, setConfirmId] = useState('');
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
+
+    const schoolTitle = school?.name || school?.schoolName || school?.id || 'School';
 
     const handleDelete = async () => {
         if (confirmId !== `DELETE ${school.id}`) {
@@ -22,7 +25,7 @@ const DeleteSchoolModal = ({ school, onClose, onSuccess }) => {
             const deleteSchoolFn = httpsCallable(functions, 'deleteSchool');
             await deleteSchoolFn({ schoolId: school.id });
 
-            alert(`Deleted! All data for ${school.name || school.schoolName || school.id} has been removed.`);
+            alert(`Deleted! All data for ${schoolTitle} has been removed.`);
             onSuccess();
         } catch (err) {
             console.error("Deletion error:", err);
@@ -32,129 +35,258 @@ const DeleteSchoolModal = ({ school, onClose, onSuccess }) => {
         }
     };
 
-    return (
+    const modalContent = (
         <div style={{
             position: 'fixed',
             inset: 0,
-            background: 'rgba(0,0,0,0.85)',
-            backdropFilter: 'blur(10px)',
+            background: 'rgba(0, 0, 0, 0.75)',
+            backdropFilter: 'blur(5px)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            zIndex: 2000,
-            padding: '1rem'
+            zIndex: 99999,
+            padding: '16px'
         }}>
-            <div className="card glass animate-in zoom-in duration-300" style={{
+            <div style={{
                 width: '100%',
-                maxWidth: '450px',
-                padding: '2.5rem',
-                position: 'relative',
-                border: '1px solid rgba(239, 68, 68, 0.2)'
+                maxWidth: '520px',
+                background: '#ECE9D8',
+                border: '2px solid #0055EA',
+                borderRadius: '8px 8px 4px 4px',
+                boxShadow: '0 20px 45px rgba(0,0,0,0.5)',
+                fontFamily: 'Tahoma, "Segoe UI", sans-serif',
+                overflow: 'hidden'
             }}>
-                <button
-                    onClick={onClose}
-                    style={{ position: 'absolute', right: '1.5rem', top: '1.5rem', background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}
-                >
-                    <X size={24} />
-                </button>
-
-                <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
-                    <div style={{
-                        width: '64px',
-                        height: '64px',
-                        borderRadius: '20px',
-                        background: 'rgba(239, 68, 68, 0.1)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        margin: '0 auto 1.5rem',
-                        color: '#f87171'
-                    }}>
-                        <ShieldAlert size={32} />
+                {/* Windows XP / 7 Style Titlebar */}
+                <div style={{
+                    background: 'linear-gradient(180deg, #c53030 0%, #9b2c2c 100%)',
+                    padding: '6px 10px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    color: '#fff',
+                    borderBottom: '1px solid #742a2a'
+                }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <ShieldAlert size={16} color="#fff" />
+                        <span style={{ fontSize: '12px', fontWeight: 'bold', textShadow: '1px 1px 1px rgba(0,0,0,0.5)' }}>
+                            System Warning: Confirm School Purge
+                        </span>
                     </div>
-                    <h2 style={{ fontSize: '1.5rem', fontWeight: '800', color: 'var(--text-main)' }}>Dangerous Action</h2>
-                    <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginTop: '0.5rem' }}>
-                        Deleting <strong style={{ color: 'var(--text-main)' }}>{school.name || school.schoolName || school.id}</strong>
-                    </p>
+                    <div style={{ display: 'flex', gap: '4px' }}>
+                        <button
+                            type="button"
+                            onClick={onClose}
+                            style={{
+                                width: '22px',
+                                height: '20px',
+                                background: '#c53030',
+                                border: '1px solid #fff',
+                                borderRadius: '3px',
+                                color: '#fff',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                cursor: 'pointer',
+                                fontWeight: 'bold'
+                            }}
+                            title="Close"
+                        >
+                            ✕
+                        </button>
+                    </div>
                 </div>
 
-                {error && (
-                    <div style={{
-                        padding: '0.75rem',
-                        borderRadius: '12px',
-                        background: 'rgba(239, 68, 68, 0.1)',
-                        border: '1px solid rgba(239, 68, 68, 0.2)',
-                        color: '#f87171',
-                        fontSize: '0.8rem',
-                        marginBottom: '1.5rem',
-                        textAlign: 'center'
-                    }}>
-                        {error}
-                    </div>
-                )}
-
-                {step === 1 && (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-                        <div style={{ background: 'rgba(245, 158, 11, 0.05)', padding: '1rem', borderRadius: '12px', border: '1px solid rgba(245, 158, 11, 0.1)' }}>
-                            <p style={{ fontSize: '0.85rem', color: '#fbbf24', lineHeight: '1.5', display: 'flex', gap: '0.5rem' }}>
-                                <AlertTriangle size={16} style={{ flexShrink: 0 }} />
-                                This will permanently remove all students, teachers, results, and settings for this school. This action cannot be undone.
-                            </p>
+                {/* Body Area */}
+                <div style={{ padding: '16px' }}>
+                    {error && (
+                        <div style={{
+                            background: '#FEE2E2',
+                            border: '1px solid #EF4444',
+                            borderRadius: '4px',
+                            padding: '8px 12px',
+                            marginBottom: '12px',
+                            color: '#991B1B',
+                            fontSize: '12px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '8px'
+                        }}>
+                            <AlertTriangle size={16} style={{ flexShrink: 0 }} />
+                            <span>{error}</span>
                         </div>
-                        <button
-                            onClick={() => setStep(2)}
-                            className="btn"
-                            style={{
-                                background: '#dc2626',
-                                color: 'white',
-                                width: '100%',
-                                justifyContent: 'center',
-                                padding: '1rem',
-                                fontWeight: '700'
-                            }}
-                        >
-                            I Understand, Proceed
-                        </button>
-                    </div>
-                )}
+                    )}
 
-                {step === 2 && (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-                        <div className="input-group">
-                            <label className="input-label" style={{ fontSize: '0.85rem', marginBottom: '0.5rem', display: 'block' }}>
-                                Type <span style={{ color: '#ef4444', fontWeight: 'bold' }}>DELETE {school.id}</span> to confirm:
-                            </label>
+                    {step === 1 ? (
+                        <fieldset style={{
+                            border: '1px solid #D0D0BF',
+                            borderRadius: '4px',
+                            padding: '14px',
+                            margin: 0,
+                            background: '#FFFFFF'
+                        }}>
+                            <legend style={{ fontSize: '11px', fontWeight: 'bold', color: '#991B1B', padding: '0 6px' }}>
+                                ⚠ Irreversible Database Action
+                            </legend>
+
+                            <div style={{ display: 'flex', gap: '14px', alignItems: 'flex-start' }}>
+                                <div style={{
+                                    width: '46px',
+                                    height: '46px',
+                                    borderRadius: '50%',
+                                    background: '#FEE2E2',
+                                    border: '1px solid #FCA5A5',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    flexShrink: 0
+                                }}>
+                                    <AlertTriangle size={26} color="#DC2626" />
+                                </div>
+                                <div style={{ fontSize: '12px', color: '#333', lineHeight: '1.5' }}>
+                                    <p style={{ margin: '0 0 8px 0' }}>
+                                        You are about to completely purge the school instance:
+                                    </p>
+                                    <div style={{
+                                        background: '#F8FAFC',
+                                        border: '1px solid #CBD5E1',
+                                        padding: '6px 10px',
+                                        borderRadius: '3px',
+                                        fontWeight: 'bold',
+                                        color: '#0F172A',
+                                        marginBottom: '10px'
+                                    }}>
+                                        {schoolTitle} (ID: {school.id})
+                                    </div>
+                                    <p style={{ margin: '0 0 4px 0', fontSize: '11px', color: '#64748B' }}>
+                                        Executing this deletion will irrevocably erase:
+                                    </p>
+                                    <ul style={{ margin: '4px 0 0 16px', padding: 0, fontSize: '11px', color: '#475569' }}>
+                                        <li>All student profiles, enrollments, and academic transcripts</li>
+                                        <li>All staff profiles, teacher accounts, and credentials</li>
+                                        <li>Fee voucher ledgers and financial history</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </fieldset>
+                    ) : (
+                        <fieldset style={{
+                            border: '1px solid #D0D0BF',
+                            borderRadius: '4px',
+                            padding: '14px',
+                            margin: 0,
+                            background: '#FFFFFF'
+                        }}>
+                            <legend style={{ fontSize: '11px', fontWeight: 'bold', color: '#003399', padding: '0 6px' }}>
+                                Security Clearance: Enter Target School ID
+                            </legend>
+
+                            <p style={{ fontSize: '12px', color: '#333', margin: '0 0 10px 0' }}>
+                                To prevent accidental deletion, please type <strong style={{ color: '#DC2626', fontFamily: 'monospace' }}>DELETE {school.id}</strong> into the field below:
+                            </p>
+
                             <input
                                 type="text"
-                                className="input-field"
-                                placeholder={`DELETE ${school.id}`}
                                 value={confirmId}
                                 onChange={(e) => setConfirmId(e.target.value)}
-                                style={{ borderColor: confirmId === `DELETE ${school.id}` ? '#34d399' : 'rgba(239, 68, 68, 0.4)' }}
+                                placeholder={`DELETE ${school.id}`}
                                 autoFocus
+                                style={{
+                                    width: '100%',
+                                    padding: '7px 10px',
+                                    fontSize: '13px',
+                                    fontFamily: 'monospace',
+                                    background: '#fff',
+                                    border: confirmId === `DELETE ${school.id}` ? '2px solid #16A34A' : '2px solid #EF4444',
+                                    borderRadius: '3px',
+                                    outline: 'none',
+                                    boxSizing: 'border-box'
+                                }}
                             />
-                        </div>
+                        </fieldset>
+                    )}
+                </div>
+
+                {/* Footer Bar with Classic Push Buttons */}
+                <div style={{
+                    background: '#F0F0F0',
+                    borderTop: '1px solid #D0D0D0',
+                    padding: '10px 16px',
+                    display: 'flex',
+                    justifyContent: 'flex-end',
+                    gap: '8px'
+                }}>
+                    <button
+                        type="button"
+                        onClick={onClose}
+                        disabled={loading}
+                        style={{
+                            padding: '5px 16px',
+                            fontSize: '12px',
+                            fontFamily: 'Tahoma, sans-serif',
+                            background: 'linear-gradient(180deg, #FFFFFF 0%, #ECE9D8 100%)',
+                            border: '1px solid #7F9DB9',
+                            borderRadius: '3px',
+                            cursor: 'pointer',
+                            color: '#000'
+                        }}
+                    >
+                        Cancel
+                    </button>
+
+                    {step === 1 ? (
                         <button
-                            onClick={handleDelete}
-                            disabled={loading || confirmId !== `DELETE ${school.id}`}
-                            className="btn"
+                            type="button"
+                            onClick={() => setStep(2)}
                             style={{
-                                background: confirmId === `DELETE ${school.id}` ? '#dc2626' : 'var(--card-inner-bg)',
-                                color: confirmId === `DELETE ${school.id}` ? 'white' : 'var(--text-muted)',
-                                width: '100%',
-                                justifyContent: 'center',
-                                opacity: loading ? 0.7 : 1,
-                                fontWeight: '700',
-                                padding: '0.9rem'
+                                padding: '5px 18px',
+                                fontSize: '12px',
+                                fontFamily: 'Tahoma, sans-serif',
+                                fontWeight: 'bold',
+                                background: 'linear-gradient(180deg, #DC2626 0%, #B91C1C 100%)',
+                                border: '1px solid #991B1B',
+                                borderRadius: '3px',
+                                cursor: 'pointer',
+                                color: '#FFF',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '6px'
                             }}
                         >
-                            {loading ? <Loader2 className="animate-spin" size={20} /> : "PERMANENTLY DELETE SCHOOL"}
+                            I Understand, Proceed <ArrowRight size={14} />
                         </button>
-                    </div>
-                )}
+                    ) : (
+                        <button
+                            type="button"
+                            onClick={handleDelete}
+                            disabled={loading || confirmId !== `DELETE ${school.id}`}
+                            style={{
+                                padding: '5px 18px',
+                                fontSize: '12px',
+                                fontFamily: 'Tahoma, sans-serif',
+                                fontWeight: 'bold',
+                                background: confirmId === `DELETE ${school.id}`
+                                    ? 'linear-gradient(180deg, #DC2626 0%, #B91C1C 100%)'
+                                    : 'linear-gradient(180deg, #E2E8F0 0%, #CBD5E1 100%)',
+                                border: confirmId === `DELETE ${school.id}` ? '1px solid #991B1B' : '1px solid #94A3B8',
+                                borderRadius: '3px',
+                                cursor: confirmId === `DELETE ${school.id}` && !loading ? 'pointer' : 'not-allowed',
+                                color: confirmId === `DELETE ${school.id}` ? '#FFF' : '#64748B',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '6px'
+                            }}
+                        >
+                            {loading ? <Loader2 size={14} className="animate-spin" /> : null}
+                            PERMANENTLY PURGE SCHOOL
+                        </button>
+                    )}
+                </div>
             </div>
         </div>
     );
+
+    return createPortal(modalContent, document.body);
 };
 
 export default DeleteSchoolModal;

@@ -1,12 +1,15 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { School, Users, Activity, Plus, Search, Filter, MoreVertical, GraduationCap, DollarSign, Play, Square, Eye, CheckCircle, XCircle, PlayCircle, StopCircle, CreditCard, ArrowRight } from 'lucide-react';
+import { 
+    School, Users, Activity, Plus, Search, Filter, MoreVertical, GraduationCap, 
+    DollarSign, Play, Square, Eye, CheckCircle, XCircle, PlayCircle, StopCircle, 
+    CreditCard, ArrowRight, TrendingUp, RefreshCw, AlertCircle
+} from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import CreateSchoolModal from '../components/CreateSchoolModal';
-import { db } from '../firebase';
-import { collection, query, orderBy, limit, onSnapshot, getDocs, getCountFromServer, collectionGroup, doc, updateDoc, serverTimestamp, setDoc } from 'firebase/firestore';
+import { db, auth } from '../firebase';
+import { collection, query, orderBy, limit, onSnapshot, getDocs, getCountFromServer, doc, updateDoc, serverTimestamp, setDoc } from 'firebase/firestore';
 import { calculateTrialDays } from '../utils/dateUtils';
 import { useTheme } from '../contexts/ThemeContext';
-import { seedDummySchools } from '../utils/seedSchools';
 
 const Dashboard = () => {
     const { isDark } = useTheme();
@@ -22,12 +25,12 @@ const Dashboard = () => {
     const [pendingSlips, setPendingSlips] = useState(0);
 
     const [stats, setStats] = useState([
-        { label: 'Total Schools', value: '0', icon: School, color: '#6366f1' },
-        { label: 'Total Students', value: '0', icon: Activity, color: '#8b5cf6' },
-        { label: 'Total Teachers', value: '0', icon: GraduationCap, color: '#ec4899' },
-        { label: 'Total Parents', value: '0', icon: Users, color: '#14b8a6' },
-        { label: 'Paid Schools', value: '0', icon: Users, color: '#10b981' },
-        { label: 'Unpaid Schools', value: '0', icon: Users, color: '#f59e0b' },
+        { label: 'Total Schools', value: '0', icon: School, color: '#2563EB', bg: '#EFF6FF' },
+        { label: 'Total Students', value: '0', icon: Activity, color: '#7C3AED', bg: '#F5F3FF' },
+        { label: 'Total Teachers', value: '0', icon: GraduationCap, color: '#DB2777', bg: '#FDF2F8' },
+        { label: 'Total Parents', value: '0', icon: Users, color: '#0D9488', bg: '#F0FDFA' },
+        { label: 'Paid Schools', value: '0', icon: CheckCircle, color: '#16A34A', bg: '#F0FDF4' },
+        { label: 'Unpaid Schools', value: '0', icon: AlertCircle, color: '#D97706', bg: '#FFFBEB' },
     ]);
 
     // Listen for pending verification slips
@@ -55,8 +58,6 @@ const Dashboard = () => {
 
             querySnapshot.forEach((doc) => {
                 const data = doc.data();
-
-                // Calculate Trial Info based on trialStartDate
                 const trialInfo = calculateTrialDays(data.trialStartDate);
 
                 schoolsArray.push({
@@ -80,31 +81,20 @@ const Dashboard = () => {
             setUnpaidSchoolsCount(unpaidCount);
             setTotalPaidRevenue(calculatedRevenue);
 
-            // Sort logic requested by user:
-            // 1. Expired trials (0 days left) above all
-            // 2. Active Trials sorted by less days left (ascending)
-            // 3. Not Started trials at the bottom
+            // Sort logic: Expired trials first, then ascending days left, then not started
             schoolsArray.sort((a, b) => {
-                // If one is "Not Started", it goes to the bottom
                 if (a.trialInfo.notStarted && !b.trialInfo.notStarted) return 1;
                 if (!a.trialInfo.notStarted && b.trialInfo.notStarted) return -1;
-
-                // If one is expired and other is not, expired comes first
                 if (a.trialInfo.isExpired && !b.trialInfo.isExpired) return -1;
                 if (!a.trialInfo.isExpired && b.trialInfo.isExpired) return 1;
-
-                // If both are active, sort ascending by days left (fewer days first)
                 if (!a.trialInfo.isExpired && !b.trialInfo.isExpired && !a.trialInfo.notStarted && !b.trialInfo.notStarted) {
                     return a.trialInfo.daysLeft - b.trialInfo.daysLeft;
                 }
-
-                // If both are expired, retain original sorting (newest first)
                 return 0;
             });
 
-            setAllSchools(schoolsArray); // Store all fetched schools
+            setAllSchools(schoolsArray);
 
-            // Update Stats Grid using functional update to preserve other metrics
             setStats(prev => {
                 const newStats = [...prev];
                 newStats[0] = { ...newStats[0], value: schoolsArray.length.toString() };
@@ -114,14 +104,9 @@ const Dashboard = () => {
             });
         }, (error) => {
             console.error("Dashboard Fetch Error:", error);
-            if (error.code === 'permission-denied') {
-                const uid = auth.currentUser ? auth.currentUser.uid : 'UNKNOWN';
-                alert(`ACCESS DENIED: Admin Document Missing.\n\nYour UID is:\n${uid}\n\nPlease create a document in 'users' collection with this ID and role: 'admin'.`);
-            }
         });
 
         const handleClickOutside = (event) => {
-            // Only close if the click is truly outside the menu AND not on a trigger button
             if (menuRef.current && !menuRef.current.contains(event.target) && !event.target.closest('.menu-trigger')) {
                 setOpenMenuId(null);
             }
@@ -140,7 +125,6 @@ const Dashboard = () => {
                     return newStats;
                 });
             } else {
-                // Auto-Backfill if doc doesn't exist
                 (async () => {
                     try {
                         const schoolsSnap = await getDocs(query(collection(db, "schools")));
@@ -230,228 +214,275 @@ const Dashboard = () => {
                 ? allSchools.filter(s => s.status === 'suspended' || s.status === 'stop')
                 : allSchools.filter(s => s.status === 'active');
 
+    const fontFamily = "'Segoe UI', Tahoma, Verdana, sans-serif";
+
     return (
-        <div className="animate-in fade-in duration-700">
-            <style>
-                {`
-                .custom-blue-scrollbar::-webkit-scrollbar {
-                    width: 6px;
-                    height: 6px;
+        <div className="animate-in fade-in duration-300" style={{ fontFamily: fontFamily }}>
+            <style>{`
+                .win-card {
+                    background-color: #FFFFFF;
+                    border: 1px solid #CBD5E1;
+                    border-radius: 6px;
+                    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.04);
                 }
-                .custom-blue-scrollbar::-webkit-scrollbar-track {
-                    background: transparent;
+                .win-btn {
+                    font-family: inherit;
+                    font-size: 12.5px;
+                    font-weight: 600;
+                    padding: 6px 14px;
+                    border-radius: 4px;
+                    cursor: pointer;
+                    display: inline-flex;
+                    align-items: center;
+                    gap: 6px;
+                    border: 1px solid #CBD5E1;
+                    background: #FFFFFF;
+                    color: #334155;
+                    transition: all 0.15s ease;
                 }
-                .custom-blue-scrollbar::-webkit-scrollbar-thumb {
-                    background-color: ${!isDark ? 'rgba(255,255,255,0.3)' : '#3b82f6'};
-                    border-radius: 10px;
+                .win-btn:hover {
+                    background: #F1F5F9;
+                    border-color: #94A3B8;
                 }
-                .custom-blue-scrollbar::-webkit-scrollbar-thumb:hover {
-                    background-color: ${!isDark ? 'rgba(255,255,255,0.5)' : '#2563eb'};
+                .win-btn-primary {
+                    border: 1px solid #1D4ED8;
+                    background: linear-gradient(180deg, #3B82F6 0%, #2563EB 50%, #1D4ED8 100%);
+                    color: #FFFFFF;
+                    box-shadow: 0 1px 2px rgba(37, 99, 235, 0.3);
                 }
-                .sticky-header th {
-                    position: sticky;
-                    top: 0;
-                    z-index: 10;
-                    backdrop-filter: blur(12px);
-                    -webkit-backdrop-filter: blur(12px);
+                .win-btn-primary:hover {
+                    background: linear-gradient(180deg, #60A5FA 0%, #3B82F6 50%, #2563EB 100%);
                 }
-                .tab-btn-3d {
-                    transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+                .win-tab-header {
+                    padding: 8px 14px;
+                    font-size: 12.5px;
+                    font-weight: 700;
+                    cursor: pointer;
+                    display: inline-flex;
+                    align-items: center;
+                    gap: 6px;
+                    border-radius: 4px;
+                    border: 1px solid transparent;
+                    color: #64748B;
+                    transition: all 0.12s ease;
+                    user-select: none;
                 }
-                .tab-btn-3d:hover {
-                    transform: translateY(-2px);
-                    filter: brightness(1.1);
+                .win-tab-header-active {
+                    color: #1D4ED8;
+                    background-color: #EFF6FF;
+                    border-color: #BFDBFE;
                 }
-                .tab-btn-3d:active {
-                    transform: translateY(1px) scale(0.97);
-                    filter: brightness(0.95);
+                .win-table th {
+                    background: linear-gradient(180deg, #F8FAFC 0%, #E2E8F0 100%);
+                    border-bottom: 2px solid #CBD5E1;
+                    color: #334155;
+                    font-weight: 700;
+                    padding: 10px 14px;
+                    font-size: 12px;
+                    text-transform: uppercase;
+                    letter-spacing: 0.04em;
                 }
-                .hover-bg:hover {
-                    background: ${isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.02)'} !important;
+                .win-table td {
+                    padding: 10px 14px;
+                    border-bottom: 1px solid #E2E8F0;
+                    font-size: 12.5px;
+                    vertical-align: middle;
                 }
-                @keyframes fadeIn {
-                    from { opacity: 0; transform: translateY(-10px); }
-                    to { opacity: 1; transform: translateY(0); }
+                .win-table tr:hover td {
+                    background-color: #EFF6FF !important;
                 }
-                `}
-            </style>
+            `}</style>
+
             {showCreateModal && (
                 <CreateSchoolModal
                     onClose={() => setShowCreateModal(false)}
                     onSuccess={handleSuccess}
                 />
             )}
-            <header className="page-header">
-                <div>
-                    <h2 style={{ fontSize: '2rem', marginBottom: '0.25rem' }} className="text-gradient">System Overview</h2>
-                    <p style={{ color: 'var(--text-muted)' }}>Real-time monitoring of all registered schools.</p>
-                </div>
-                <div style={{ display: 'flex', gap: '1rem' }}>
 
+            {/* 1. TOP HEADER & COMMAND TOOLBAR */}
+            <div
+                style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    marginBottom: '1.25rem',
+                    flexWrap: 'wrap',
+                    gap: '12px'
+                }}
+            >
+                <div>
+                    <h2 style={{ fontSize: '1.6rem', fontWeight: '800', color: '#0F172A', margin: 0 }}>
+                        System Overview & Performance
+                    </h2>
+                    <p style={{ color: '#64748B', fontSize: '0.85rem', margin: '2px 0 0 0' }}>
+                        Real-time status monitoring, institutional metrics, and global SaaS management.
+                    </p>
+                </div>
+
+                <div style={{ display: 'flex', gap: '8px' }}>
                     <button
-                        className="btn btn-primary"
+                        className="win-btn win-btn-primary"
                         onClick={() => setShowCreateModal(true)}
+                        style={{ padding: '7px 16px' }}
                     >
-                        <Plus size={20} />
-                        Register New School
+                        <Plus size={16} /> Register New School
                     </button>
                 </div>
-            </header>
+            </div>
 
-            {/* SaaS Revenue & Billing Summary Card */}
-            <div style={{
-                marginBottom: '1.5rem',
-                padding: '1.25rem 1.75rem',
-                borderRadius: '20px',
-                background: 'linear-gradient(135deg, #1e1b4b 0%, #0f172a 100%)',
-                border: '1px solid rgba(99, 102, 241, 0.35)',
-                boxShadow: '0 10px 25px -5px rgba(15, 23, 42, 0.4)',
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                flexWrap: 'wrap',
-                gap: '1.25rem'
-            }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem' }}>
+            {/* 2. FINANCIAL REVENUE PANEL (Windows 7 Resource Strip) */}
+            <div
+                className="win-card"
+                style={{
+                    padding: '14px 18px',
+                    marginBottom: '1.25rem',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    flexWrap: 'wrap',
+                    gap: '14px',
+                    backgroundColor: '#FFFFFF',
+                    borderLeft: '4px solid #16A34A'
+                }}
+            >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
                     <div style={{
-                        width: '56px',
-                        height: '56px',
-                        borderRadius: '16px',
-                        background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                        width: '44px',
+                        height: '44px',
+                        borderRadius: '6px',
+                        background: 'linear-gradient(135deg, #16A34A, #15803D)',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
-                        boxShadow: '0 8px 16px rgba(16, 185, 129, 0.25)',
-                        color: 'white'
+                        color: '#FFFFFF',
+                        flexShrink: 0
                     }}>
-                        <CreditCard size={28} />
+                        <CreditCard size={22} />
                     </div>
                     <div>
-                        <div style={{ fontSize: '0.75rem', fontWeight: '800', textTransform: 'uppercase', color: '#a7f3d0', letterSpacing: '0.05em' }}>
-                            Total Subscription Revenue (Paid Schools)
+                        <div style={{ fontSize: '11px', fontWeight: '700', textTransform: 'uppercase', color: '#16A34A', letterSpacing: '0.04em' }}>
+                            Total Subscription Revenue (Active Paid Schools)
                         </div>
-                        <div style={{ fontSize: '1.85rem', fontWeight: '800', color: '#ffffff', letterSpacing: '-0.02em' }}>
+                        <div style={{ fontSize: '1.65rem', fontWeight: '800', color: '#0F172A', lineHeight: 1.2 }}>
                             ₨ {totalPaidRevenue.toLocaleString()}
                         </div>
-                        <div style={{ fontSize: '0.8rem', color: '#94a3b8' }}>
-                            Active paid schools: <strong style={{ color: '#34d399' }}>{paidSchoolsCount} schools</strong> • Unpaid: <strong style={{ color: '#fbbf24' }}>{unpaidSchoolsCount} schools</strong>
+                        <div style={{ fontSize: '12px', color: '#64748B', marginTop: '2px' }}>
+                            Paid: <strong style={{ color: '#16A34A' }}>{paidSchoolsCount} schools</strong> • Unpaid / Due: <strong style={{ color: '#D97706' }}>{unpaidSchoolsCount} schools</strong>
                         </div>
                     </div>
                 </div>
 
-                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
                     {pendingSlips > 0 && (
                         <button
                             onClick={() => navigate('/billing-subscriptions')}
-                            className="btn"
+                            className="win-btn"
                             style={{
-                                padding: '0.65rem 1.25rem',
-                                borderRadius: '12px',
-                                background: 'rgba(245, 158, 11, 0.15)',
-                                border: '1px solid rgba(245, 158, 11, 0.4)',
-                                color: '#fbbf24',
-                                fontSize: '0.85rem',
-                                fontWeight: '700',
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '0.5rem',
-                                cursor: 'pointer'
+                                backgroundColor: '#FFFBEB',
+                                borderColor: '#FDE68A',
+                                color: '#B45309',
+                                fontWeight: '700'
                             }}
                         >
-                            <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#f59e0b', boxShadow: '0 0 8px #f59e0b' }} />
+                            <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#D97706' }} />
                             {pendingSlips} New Slip{pendingSlips > 1 ? 's' : ''} to Review
                         </button>
                     )}
                     <button
                         onClick={() => navigate('/billing-subscriptions')}
-                        className="btn btn-primary"
-                        style={{ padding: '0.65rem 1.25rem', fontSize: '0.85rem', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '0.4rem' }}
+                        className="win-btn"
                     >
-                        Manage Subscriptions <ArrowRight size={15} />
+                        Billing & Invoices <ArrowRight size={14} />
                     </button>
                 </div>
             </div>
 
-            {/* Stats Grid */}
-            <div style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
-                gap: '1.5rem',
-                marginBottom: '2rem'
-            }}>
-                {stats.map((stat, index) => (
-                    <div key={index} className="card glass" style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '1.5rem',
-                        background: !isDark ? stat.color : undefined,
-                        boxShadow: !isDark ? '0 10px 25px -5px rgba(0, 0, 0, 0.15), 0 8px 10px -6px rgba(0, 0, 0, 0.1)' : undefined,
-                        border: !isDark ? 'none' : undefined
-                    }}>
-                        <div style={{
-                            padding: '1rem',
-                            borderRadius: '16px',
-                            background: !isDark ? 'rgba(255, 255, 255, 0.25)' : `${stat.color}15`,
-                            color: !isDark ? '#ffffff' : stat.color,
-                            boxShadow: !isDark ? 'none' : `inset 0 0 12px ${stat.color}10`
-                        }}>
-                            <stat.icon size={28} />
+            {/* 3. SYSTEM STATS TILES (Windows 7 Performance Monitor Style) */}
+            <div
+                style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+                    gap: '12px',
+                    marginBottom: '1.25rem'
+                }}
+            >
+                {stats.map((stat, index) => {
+                    const IconComponent = stat.icon;
+                    return (
+                        <div
+                            key={index}
+                            className="win-card"
+                            style={{
+                                padding: '12px 14px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '12px'
+                            }}
+                        >
+                            <div style={{
+                                width: '38px',
+                                height: '38px',
+                                borderRadius: '5px',
+                                backgroundColor: stat.bg,
+                                color: stat.color,
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                flexShrink: 0
+                            }}>
+                                <IconComponent size={20} />
+                            </div>
+                            <div style={{ overflow: 'hidden' }}>
+                                <div style={{ fontSize: '11px', fontWeight: '600', color: '#64748B', textTransform: 'uppercase' }}>
+                                    {stat.label}
+                                </div>
+                                <div style={{ fontSize: '1.35rem', fontWeight: '800', color: '#0F172A', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                    {stat.value}
+                                </div>
+                            </div>
                         </div>
-                        <div>
-                            <p style={{ color: !isDark ? 'rgba(255, 255, 255, 0.9)' : 'var(--text-muted)', fontSize: '0.875rem', fontWeight: '500' }}>{stat.label}</p>
-                            <h3 style={{ color: !isDark ? '#ffffff' : undefined, fontSize: '1.75rem', fontWeight: '700', letterSpacing: '-0.02em' }}>{stat.value}</h3>
-                        </div>
-                    </div>
-                ))}
+                    );
+                })}
             </div>
 
-            {/* Recent Schools Section */}
-            <div className="card glass" style={{ padding: '0', overflow: 'hidden', background: !isDark ? 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)' : undefined, border: !isDark ? 'none' : undefined, boxShadow: !isDark ? '0 10px 30px -5px rgba(99, 102, 241, 0.4)' : undefined }}>
-                <div style={{ padding: '1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: !isDark ? '1px solid rgba(255,255,255,0.15)' : '1px solid var(--glass-border)', flexWrap: 'wrap', gap: '1.5rem' }}>
-                    <div style={{ display: 'flex', gap: '1.25rem', alignItems: 'center', flexWrap: 'wrap' }}>
+            {/* 4. SCHOOLS MONITOR CONSOLE TABLE */}
+            <div className="win-card" style={{ overflow: 'hidden' }}>
+                {/* Console Tab Bar */}
+                <div
+                    style={{
+                        padding: '10px 14px',
+                        borderBottom: '1px solid #CBD5E1',
+                        backgroundColor: '#F8FAFC',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        flexWrap: 'wrap',
+                        gap: '8px'
+                    }}
+                >
+                    <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
                         {[
-                            { id: 'recent', label: 'Recently Registered Schools', count: totalRecent },
-                            { id: 'active', label: 'Active Schools', count: totalActive },
-                            { id: 'unpaid', label: 'Unpaid Schools', count: totalUnpaid },
-                            { id: 'suspended', label: 'Suspended Schools', count: totalSuspended },
+                            { id: 'recent', label: 'All Schools', count: totalRecent },
+                            { id: 'active', label: 'Active', count: totalActive },
+                            { id: 'unpaid', label: 'Unpaid', count: totalUnpaid },
+                            { id: 'suspended', label: 'Suspended', count: totalSuspended },
                         ].map(tab => {
                             const isActive = activeTab === tab.id;
-
-                            let activeColor = '#4f46e5';
-                            if (tab.id === 'recent') activeColor = '#3b82f6'; // Blue
-                            if (tab.id === 'active') activeColor = '#10b981'; // Emerald
-                            if (tab.id === 'unpaid') activeColor = '#f59e0b'; // Amber
-                            if (tab.id === 'suspended') activeColor = '#ef4444'; // Red
-
                             return (
                                 <button
                                     key={tab.id}
-                                    className="tab-btn-3d"
                                     onClick={() => setActiveTab(tab.id)}
-                                    style={{
-                                        background: isActive ? activeColor : (!isDark ? 'rgba(255,255,255,0.15)' : 'rgba(255,255,255,0.05)'),
-                                        border: isActive ? `1px solid ${activeColor}` : (!isDark ? '1px solid rgba(255,255,255,0.3)' : '1px solid transparent'),
-                                        cursor: 'pointer',
-                                        fontSize: '0.9rem',
-                                        fontWeight: isActive ? '700' : '600',
-                                        color: '#ffffff',
-                                        borderRadius: '24px',
-                                        padding: '0.6rem 1.4rem',
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        gap: '0.6rem',
-                                        boxShadow: isActive ? `0 6px 16px -4px ${activeColor}` : (!isDark ? '0 4px 6px -1px rgba(0,0,0,0.05)' : 'none')
-                                    }}
+                                    className={`win-tab-header ${isActive ? 'win-tab-header-active' : ''}`}
                                 >
-                                    {tab.label}
+                                    <span>{tab.label}</span>
                                     <span style={{
-                                        background: '#ef4444',
-                                        color: '#ffffff',
-                                        padding: '0.15rem 0.6rem',
-                                        borderRadius: '12px',
-                                        fontSize: '0.75rem',
-                                        fontWeight: 'bold',
-                                        boxShadow: '0 2px 4px rgba(239, 68, 68, 0.4)'
+                                        fontSize: '11px',
+                                        padding: '1px 6px',
+                                        borderRadius: '999px',
+                                        backgroundColor: isActive ? '#2563EB' : '#E2E8F0',
+                                        color: isActive ? '#FFFFFF' : '#475569',
+                                        fontWeight: '700'
                                     }}>
                                         {tab.count}
                                     </span>
@@ -459,196 +490,233 @@ const Dashboard = () => {
                             );
                         })}
                     </div>
-                    <div style={{ display: 'flex', gap: '0.75rem' }}>
-                        <button className="btn" style={{ background: !isDark ? 'rgba(255,255,255,0.1)' : 'var(--card-inner-bg)', border: !isDark ? '1px solid rgba(255,255,255,0.2)' : 'none', borderRadius: '50%', color: !isDark ? '#ffffff' : undefined, padding: '0.6rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Filter size={18} /></button>
-                        <button className="btn" style={{ background: !isDark ? 'rgba(255,255,255,0.1)' : 'var(--card-inner-bg)', border: !isDark ? '1px solid rgba(255,255,255,0.2)' : 'none', borderRadius: '50%', color: !isDark ? '#ffffff' : undefined, padding: '0.6rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Search size={18} /></button>
-                    </div>
+
+                    <button
+                        onClick={() => navigate('/schools')}
+                        className="win-btn"
+                        style={{ fontSize: '12px' }}
+                    >
+                        View Full Directory <ArrowRight size={13} />
+                    </button>
                 </div>
 
-                <div className="custom-blue-scrollbar" style={{ overflowX: 'auto', overflowY: 'auto', maxHeight: '720px', background: !isDark ? '#f0f9ff' : undefined }}>
-                    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                        <thead className="sticky-header">
-                            <tr style={{ textAlign: 'left', background: isDark ? 'rgba(0,0,0,0.6)' : '#ffffff', borderBottom: !isDark ? '1px solid #e2e8f0' : 'none' }}>
-                                <th style={{ padding: '1.25rem', color: !isDark ? '#1e293b' : 'var(--text-muted)', fontWeight: '600', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>School Name</th>
-                                <th style={{ padding: '1.25rem', color: !isDark ? '#1e293b' : 'var(--text-muted)', fontWeight: '600', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>ID</th>
-                                <th style={{ padding: '1.25rem', color: !isDark ? '#1e293b' : 'var(--text-muted)', fontWeight: '600', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Subscription</th>
-                                <th style={{ padding: '1.25rem', color: !isDark ? '#1e293b' : 'var(--text-muted)', fontWeight: '600', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Trial Status</th>
-                                <th style={{ padding: '1.25rem', color: !isDark ? '#1e293b' : 'var(--text-muted)', fontWeight: '600', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Status</th>
-                                <th style={{ padding: '1.25rem' }}></th>
+                {/* Table Content */}
+                <div style={{ overflowX: 'auto', maxHeight: '520px' }}>
+                    <table className="win-table" style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+                        <thead>
+                            <tr>
+                                <th style={{ width: '30%' }}>School Profile</th>
+                                <th style={{ width: '18%' }}>School ID</th>
+                                <th style={{ width: '14%' }}>Payment Status</th>
+                                <th style={{ width: '15%' }}>7-Day Trial</th>
+                                <th style={{ width: '13%' }}>System Status</th>
+                                <th style={{ width: '10%', textAlign: 'right' }}>Actions</th>
                             </tr>
                         </thead>
                         <tbody>
                             {displayedSchools.length === 0 ? (
                                 <tr>
-                                    <td colSpan="6" style={{ padding: '3rem', textAlign: 'center', color: !isDark ? '#475569' : 'var(--text-muted)' }}>
-                                        {activeTab === 'recent'
-                                            ? "No schools registered yet."
-                                            : activeTab === 'unpaid'
-                                                ? "No unpaid schools found."
-                                                : activeTab === 'suspended'
-                                                    ? "No suspended schools found."
-                                                    : "No active schools found."}
+                                    <td colSpan="6" style={{ padding: '2.5rem', textAlign: 'center', color: '#64748B' }}>
+                                        No schools found under this category.
                                     </td>
                                 </tr>
-                            ) : displayedSchools.map((school) => (
-                                <tr key={school.id} style={{ borderBottom: !isDark ? '1px solid #bae6fd' : '1px solid var(--glass-border)', transition: 'var(--transition)' }} className="table-row-hover">
-                                    <td style={{ padding: '1.25rem' }}>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                                            <div style={{
-                                                width: '40px',
-                                                height: '40px',
-                                                borderRadius: '12px',
-                                                background: !isDark ? '#ffffff' : 'linear-gradient(135deg, #1e293b, #334155)',
-                                                display: 'flex',
-                                                alignItems: 'center',
-                                                justifyContent: 'center',
-                                                border: !isDark ? '1px solid #bae6fd' : '1px solid rgba(255,255,255,0.05)',
-                                                boxShadow: !isDark ? '0 2px 4px rgba(0,0,0,0.03)' : 'none'
-                                            }}>
-                                                <School size={20} color={!isDark ? '#3b82f6' : 'var(--primary)'} />
-                                            </div>
-                                            <div>
-                                                <div style={{ fontWeight: '600', color: !isDark ? '#0f172a' : 'var(--text-main)' }}>{school.name}</div>
-                                                <div style={{ fontSize: '0.75rem', color: !isDark ? '#475569' : 'var(--text-muted)' }}>{school.address}</div>
-                                            </div>
-                                        </div>
-                                    </td>
-                                    <td style={{ padding: '1.25rem' }}>
-                                        <code style={{ background: !isDark ? '#dbeafe' : 'rgba(99, 102, 241, 0.1)', color: !isDark ? '#2563eb' : 'var(--primary)', padding: '0.2rem 0.5rem', borderRadius: '4px', fontSize: '0.85rem' }}>
-                                            {school.id}
-                                        </code>
-                                    </td>
-                                    <td style={{ padding: '1.25rem' }}>
-                                        <span style={{
-                                            padding: '0.4rem 0.8rem',
-                                            borderRadius: '20px',
-                                            fontSize: '0.75rem',
-                                            fontWeight: '600',
-                                            background: school.paymentStatus === 'paid' ? 'rgba(16, 185, 129, 0.15)' : 'rgba(245, 158, 11, 0.15)',
-                                            color: school.paymentStatus === 'paid' ? (!isDark ? '#059669' : '#34d399') : (!isDark ? '#d97706' : '#fbbf24'),
-                                            border: school.paymentStatus === 'paid' ? (!isDark ? '1px solid rgba(16, 185, 129, 0.3)' : '1px solid rgba(16, 185, 129, 0.2)') : (!isDark ? '1px solid rgba(245, 158, 11, 0.3)' : '1px solid rgba(245, 158, 11, 0.2)')
-                                        }}>{school.paymentStatus || 'unpaid'}</span>
-                                    </td>
-                                    <td style={{ padding: '1.25rem' }}>
-                                        {school.trialInfo?.notStarted ? (
-                                            <button
-                                                onClick={() => handleStartTrial(school.id)}
-                                                className="btn"
-                                                style={{
-                                                    padding: '0.4rem 0.8rem',
-                                                    borderRadius: '8px',
-                                                    fontSize: '0.75rem',
-                                                    fontWeight: '600',
-                                                    background: !isDark ? '#ffffff' : 'var(--card-inner-bg)',
-                                                    color: !isDark ? '#0f172a' : 'var(--text-main)',
-                                                    border: !isDark ? '1px solid #bae6fd' : '1px dashed var(--glass-border)',
-                                                    cursor: 'pointer'
-                                                }}>
-                                                Start Trial
-                                            </button>
-                                        ) : (
-                                            <span style={{
-                                                padding: '0.4rem 0.8rem',
-                                                borderRadius: '20px',
-                                                fontSize: '0.75rem',
-                                                fontWeight: '600',
-                                                background: school.trialInfo?.isExpired ? 'rgba(239, 68, 68, 0.15)' : (!isDark ? '#e0e7ff' : 'rgba(99, 102, 241, 0.15)'),
-                                                color: school.trialInfo?.isExpired ? (!isDark ? '#dc2626' : '#f87171') : (!isDark ? '#4f46e5' : 'var(--primary)'),
-                                                border: school.trialInfo?.isExpired ? (!isDark ? '1px solid rgba(239, 68, 68, 0.3)' : '1px solid rgba(239, 68, 68, 0.2)') : (!isDark ? '1px solid #c7d2fe' : '1px solid rgba(99, 102, 241, 0.2)'),
-                                                display: 'inline-flex',
-                                                alignItems: 'center',
-                                                gap: '0.4rem'
-                                            }}>
-                                                {school.trialInfo?.isExpired ? 'Trial Ended' : `${school.trialInfo?.daysLeft} Days Left`}
-                                            </span>
-                                        )}
-                                    </td>
-                                    <td style={{ padding: '1.25rem' }}>
-                                        <span style={{
-                                            padding: '0.4rem 0.8rem',
-                                            borderRadius: '20px',
-                                            fontSize: '0.75rem',
-                                            fontWeight: '600',
-                                            background: school.status === 'active' ? 'rgba(16, 185, 129, 0.15)' : 'rgba(239, 68, 68, 0.15)',
-                                            color: school.status === 'active' ? (!isDark ? '#059669' : '#34d399') : (!isDark ? '#dc2626' : '#f87171'),
-                                            border: school.status === 'active' ? (!isDark ? '1px solid rgba(16, 185, 129, 0.3)' : '1px solid rgba(16, 185, 129, 0.2)') : (!isDark ? '1px solid rgba(239, 68, 68, 0.3)' : '1px solid rgba(239, 68, 68, 0.2)')
-                                        }}>
-                                            {school.status === 'active' ? 'Active' : (school.status === 'stop' ? 'Stopped' : 'Suspended')}
-                                        </span>
-                                    </td>
-                                    <td style={{ padding: '1.25rem', position: 'relative' }}>
-                                        {openMenuId !== school.id && (
-                                            <button
-                                                className="menu-trigger"
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    setOpenMenuId(school.id);
-                                                }}
-                                                style={{
-                                                    background: 'transparent',
-                                                    border: 'none',
-                                                    color: !isDark ? '#64748b' : 'var(--text-muted)',
-                                                    cursor: 'pointer'
-                                                }}
-                                            >
-                                                <MoreVertical size={20} />
-                                            </button>
-                                        )}
+                            ) : displayedSchools.map((school, index) => {
+                                const isPaid = school.paymentStatus === 'paid';
+                                const isActive = school.status === 'active';
 
-                                        {openMenuId === school.id && (
-                                            <div
-                                                ref={menuRef}
-                                                style={{
-                                                    position: 'absolute',
-                                                    right: '1.25rem',
-                                                    top: '1.25rem',
-                                                    background: isDark ? '#1e293b' : '#ffffff',
-                                                    border: '1px solid var(--glass-border)',
-                                                    borderRadius: '12px',
-                                                    boxShadow: '0 15px 30px -10px rgba(0, 0, 0, 0.3), 0 10px 15px -5px rgba(0, 0, 0, 0.2)',
-                                                    zIndex: 9999,
-                                                    width: '200px',
-                                                    overflow: 'hidden',
-                                                    animation: 'fadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1)'
-                                                }}
-                                            >
-                                                <button
-                                                    onClick={() => {
-                                                        setOpenMenuId(null);
-                                                        navigate(`/schools/${school.id}`);
-                                                    }}
-                                                    style={{ width: '100%', padding: '0.85rem 1rem', display: 'flex', alignItems: 'center', gap: '0.75rem', border: 'none', background: 'transparent', cursor: 'pointer', color: 'var(--text-main)', fontSize: '0.875rem', textAlign: 'left' }}
-                                                    className="hover-bg"
-                                                >
-                                                    <Eye size={18} className="text-primary" /> View School
-                                                </button>
-                                                <button
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        togglePaymentStatus(school.id, school.paymentStatus);
-                                                    }}
-                                                    style={{ width: '100%', padding: '0.85rem 1rem', display: 'flex', alignItems: 'center', gap: '0.75rem', border: 'none', background: 'transparent', cursor: 'pointer', color: 'var(--text-main)', fontSize: '0.875rem', textAlign: 'left' }}
-                                                    className="hover-bg"
-                                                >
-                                                    {school.paymentStatus === 'paid' ? <XCircle size={18} className="text-danger" /> : <CheckCircle size={18} className="text-success" />}
-                                                    Mark as {school.paymentStatus === 'paid' ? 'Unpaid' : 'Paid'}
-                                                </button>
-                                                <button
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        toggleSchoolStatus(school.id, school.status);
-                                                    }}
-                                                    style={{ width: '100%', padding: '0.85rem 1rem', display: 'flex', alignItems: 'center', gap: '0.75rem', border: 'none', background: 'transparent', cursor: 'pointer', color: 'var(--text-main)', fontSize: '0.875rem', textAlign: 'left' }}
-                                                    className="hover-bg"
-                                                >
-                                                    {school.status === 'active' ? <StopCircle size={18} className="text-danger" /> : <PlayCircle size={18} className="text-success" />}
-                                                    {school.status === 'active' ? 'Stop School' : 'Start School'}
-                                                </button>
+                                return (
+                                    <tr
+                                        key={school.id}
+                                        onClick={() => navigate(`/schools/${school.id}`)}
+                                        style={{
+                                            backgroundColor: index % 2 === 0 ? '#FFFFFF' : '#F8FAFC',
+                                            cursor: 'pointer'
+                                        }}
+                                    >
+                                        <td>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                                <div style={{
+                                                    width: '32px',
+                                                    height: '32px',
+                                                    borderRadius: '5px',
+                                                    background: '#EFF6FF',
+                                                    color: '#2563EB',
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    justifyContent: 'center',
+                                                    flexShrink: 0
+                                                }}>
+                                                    <School size={16} />
+                                                </div>
+                                                <div>
+                                                    <div style={{ fontWeight: '700', color: '#1E3A8A' }}>
+                                                        {school.name || school.schoolName || 'Unnamed School'}
+                                                    </div>
+                                                    <div style={{ fontSize: '11px', color: '#64748B' }}>
+                                                        {school.city || school.district || 'Location N/A'}
+                                                    </div>
+                                                </div>
                                             </div>
-                                        )}
-                                    </td>
-                                </tr>
-                            ))}
+                                        </td>
+
+                                        <td>
+                                            <code style={{ fontSize: '11px', color: '#1E40AF', backgroundColor: '#F1F5F9', padding: '2px 6px', borderRadius: '3px' }}>
+                                                {school.id}
+                                            </code>
+                                        </td>
+
+                                        <td>
+                                            <span style={{
+                                                padding: '2px 7px',
+                                                borderRadius: '3px',
+                                                fontSize: '11px',
+                                                fontWeight: '700',
+                                                textTransform: 'uppercase',
+                                                backgroundColor: isPaid ? '#DEF7EC' : '#FEF08A',
+                                                color: isPaid ? '#03543F' : '#854D0E',
+                                                border: isPaid ? '1px solid #84E1BC' : '1px solid #FDE047'
+                                            }}>
+                                                {school.paymentStatus || 'unpaid'}
+                                            </span>
+                                        </td>
+
+                                        <td>
+                                            {school.trialInfo?.notStarted ? (
+                                                <button
+                                                    onClick={(e) => { e.stopPropagation(); handleStartTrial(school.id); }}
+                                                    className="win-btn"
+                                                    style={{ padding: '2px 8px', fontSize: '11px' }}
+                                                >
+                                                    Start Trial
+                                                </button>
+                                            ) : (
+                                                <span style={{
+                                                    padding: '2px 7px',
+                                                    borderRadius: '3px',
+                                                    fontSize: '11px',
+                                                    fontWeight: '700',
+                                                    backgroundColor: school.trialInfo?.isExpired ? '#FEE2E2' : '#EFF6FF',
+                                                    color: school.trialInfo?.isExpired ? '#991B1B' : '#1D4ED8'
+                                                }}>
+                                                    {school.trialInfo?.isExpired ? 'Trial Ended' : `${school.trialInfo?.daysLeft}d Left`}
+                                                </span>
+                                            )}
+                                        </td>
+
+                                        <td>
+                                            <span style={{
+                                                padding: '2px 7px',
+                                                borderRadius: '3px',
+                                                fontSize: '11px',
+                                                fontWeight: '700',
+                                                textTransform: 'uppercase',
+                                                backgroundColor: isActive ? '#DEF7EC' : '#FDE8E8',
+                                                color: isActive ? '#03543F' : '#9B1C1C',
+                                                border: isActive ? '1px solid #84E1BC' : '1px solid #F8B4B4'
+                                            }}>
+                                                {school.status === 'active' ? 'Active' : (school.status === 'stop' ? 'Stopped' : 'Suspended')}
+                                            </span>
+                                        </td>
+
+                                        <td style={{ textAlign: 'right', position: 'relative' }} onClick={(e) => e.stopPropagation()}>
+                                            <button
+                                                className="menu-trigger win-btn"
+                                                onClick={() => setOpenMenuId(openMenuId === school.id ? null : school.id)}
+                                                style={{ padding: '4px 6px' }}
+                                                title="Options"
+                                            >
+                                                <MoreVertical size={14} />
+                                            </button>
+
+                                            {openMenuId === school.id && (
+                                                <div
+                                                    ref={menuRef}
+                                                    style={{
+                                                        position: 'absolute',
+                                                        right: '10px',
+                                                        top: '36px',
+                                                        backgroundColor: '#FFFFFF',
+                                                        border: '1px solid #CBD5E1',
+                                                        borderRadius: '5px',
+                                                        boxShadow: '0 10px 25px rgba(0, 0, 0, 0.15)',
+                                                        zIndex: 9999,
+                                                        width: '180px',
+                                                        overflow: 'hidden'
+                                                    }}
+                                                >
+                                                    <button
+                                                        onClick={() => {
+                                                            setOpenMenuId(null);
+                                                            navigate(`/schools/${school.id}`);
+                                                        }}
+                                                        style={{
+                                                            width: '100%',
+                                                            padding: '8px 12px',
+                                                            display: 'flex',
+                                                            alignItems: 'center',
+                                                            gap: '8px',
+                                                            border: 'none',
+                                                            background: 'transparent',
+                                                            cursor: 'pointer',
+                                                            color: '#1E293B',
+                                                            fontSize: '12px',
+                                                            textAlign: 'left'
+                                                        }}
+                                                        onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#EFF6FF'}
+                                                        onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                                                    >
+                                                        <Eye size={14} color="#2563EB" /> View Details
+                                                    </button>
+
+                                                    <button
+                                                        onClick={() => togglePaymentStatus(school.id, school.paymentStatus)}
+                                                        style={{
+                                                            width: '100%',
+                                                            padding: '8px 12px',
+                                                            display: 'flex',
+                                                            alignItems: 'center',
+                                                            gap: '8px',
+                                                            border: 'none',
+                                                            background: 'transparent',
+                                                            cursor: 'pointer',
+                                                            color: '#1E293B',
+                                                            fontSize: '12px',
+                                                            textAlign: 'left'
+                                                        }}
+                                                        onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#EFF6FF'}
+                                                        onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                                                    >
+                                                        <CreditCard size={14} color={isPaid ? '#D97706' : '#16A34A'} />
+                                                        Mark as {isPaid ? 'Unpaid' : 'Paid'}
+                                                    </button>
+
+                                                    <button
+                                                        onClick={() => toggleSchoolStatus(school.id, school.status)}
+                                                        style={{
+                                                            width: '100%',
+                                                            padding: '8px 12px',
+                                                            display: 'flex',
+                                                            alignItems: 'center',
+                                                            gap: '8px',
+                                                            border: 'none',
+                                                            background: 'transparent',
+                                                            cursor: 'pointer',
+                                                            color: '#1E293B',
+                                                            fontSize: '12px',
+                                                            textAlign: 'left'
+                                                        }}
+                                                        onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#EFF6FF'}
+                                                        onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                                                    >
+                                                        <PlayCircle size={14} color={isActive ? '#DC2626' : '#16A34A'} />
+                                                        {isActive ? 'Stop School' : 'Start School'}
+                                                    </button>
+                                                </div>
+                                            )}
+                                        </td>
+                                    </tr>
+                                );
+                            })}
                         </tbody>
                     </table>
                 </div>

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import {
     Shield,
     ShieldCheck,
@@ -16,7 +17,8 @@ import {
     Building,
     CreditCard,
     Power,
-    Users as UsersIcon
+    Users as UsersIcon,
+    AlertCircle
 } from 'lucide-react';
 import { db, auth, functions } from '../firebase';
 import {
@@ -39,35 +41,35 @@ const PERMISSION_CONFIG = [
         label: 'Manage Schools',
         desc: 'Create, edit profile & manage school details',
         icon: Building,
-        color: '#3b82f6'
+        color: '#2563EB'
     },
     {
         key: 'deleteSchool',
         label: 'Delete School',
         desc: 'Permanently remove schools and all their data',
         icon: Trash2,
-        color: '#ef4444'
+        color: '#DC2626'
     },
     {
         key: 'manageBilling',
         label: 'Billing & Payments',
         desc: 'View and toggle Paid / Unpaid status of schools',
         icon: CreditCard,
-        color: '#f59e0b'
+        color: '#D97706'
     },
     {
         key: 'systemControl',
         label: 'System Control (Start/Stop)',
         desc: 'Activate or suspend/stop school operations',
         icon: Power,
-        color: '#10b981'
+        color: '#16A34A'
     },
     {
         key: 'manageAdmins',
         label: 'Manage Office Admins',
         desc: 'Create and configure other office admin accounts',
         icon: ShieldCheck,
-        color: '#8b5cf6'
+        color: '#7C3AED'
     }
 ];
 
@@ -121,180 +123,180 @@ const AddAdminModal = ({ onClose, onSuccess }) => {
         }
     };
 
-    return (
-        <div style={{
-            position: 'fixed',
-            inset: 0,
-            background: 'rgba(0,0,0,0.85)',
-            backdropFilter: 'blur(8px)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 1100,
-            padding: '1rem'
-        }}>
-            <div className="card glass animate-in zoom-in duration-300" style={{
-                width: '100%',
-                maxWidth: '560px',
-                padding: '2.5rem',
-                position: 'relative',
-                background: 'var(--bg-card)',
-                border: '1px solid var(--glass-border)',
-                maxHeight: '90vh',
-                overflowY: 'auto'
-            }}>
-                <button onClick={onClose} style={{ position: 'absolute', right: '1.5rem', top: '1.5rem', background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}>
-                    <X size={24} />
-                </button>
-
-                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '2rem' }}>
-                    <div style={{ width: '48px', height: '48px', borderRadius: '12px', background: 'linear-gradient(135deg, var(--primary), #8b5cf6)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                        <UserPlus color="white" size={24} />
-                    </div>
-                    <div>
-                        <h2 style={{ fontSize: '1.5rem', fontWeight: '700' }}>Add Office Admin</h2>
-                        <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>Create an office staff account with custom permissions.</p>
-                    </div>
+    return createPortal(
+        <div
+            onClick={onClose}
+            style={{
+                position: 'fixed',
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                width: '100vw',
+                height: '100vh',
+                backgroundColor: 'rgba(0, 0, 0, 0.75)',
+                backdropFilter: 'blur(5px)',
+                zIndex: 9999999,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: '16px',
+                boxSizing: 'border-box',
+                fontFamily: "'Segoe UI', Tahoma, Verdana, sans-serif"
+            }}
+        >
+            <div
+                onClick={(e) => e.stopPropagation()}
+                style={{
+                    width: '100%',
+                    maxWidth: '560px',
+                    backgroundColor: '#ECE9D8',
+                    border: '3px solid #0055ea',
+                    borderRadius: '8px 8px 4px 4px',
+                    boxShadow: '0 25px 60px rgba(0, 0, 0, 0.85)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    overflow: 'hidden',
+                    margin: 'auto'
+                }}
+            >
+                {/* Title Bar */}
+                <div
+                    style={{
+                        height: '34px',
+                        background: 'linear-gradient(180deg, #2b70f0 0%, #1e56cb 12%, #0042b3 88%, #0036a1 100%)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        padding: '0 8px 0 12px',
+                        userSelect: 'none'
+                    }}
+                >
+                    <span style={{ color: '#FFFFFF', fontSize: '13px', fontWeight: '700' }}>
+                        Create New Office Administrator
+                    </span>
+                    <button
+                        type="button"
+                        onClick={onClose}
+                        style={{
+                            width: '21px',
+                            height: '21px',
+                            borderRadius: '3px',
+                            border: '1px solid #781010',
+                            background: 'linear-gradient(180deg, #E66453 0%, #D83B26 50%, #B81907 100%)',
+                            color: '#FFFFFF',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            cursor: 'pointer'
+                        }}
+                    >
+                        <X size={13} strokeWidth={3} />
+                    </button>
                 </div>
 
-                {error && (
-                    <div style={{ padding: '1rem', borderRadius: '12px', marginBottom: '1.5rem', background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.2)', color: '#f87171', fontSize: '0.875rem' }}>
-                        {error}
-                    </div>
-                )}
-
-                <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-                    <div className="input-group">
-                        <label className="label">Full Name</label>
-                        <input
-                            type="text"
-                            required
-                            className="input-field"
-                            placeholder="e.g. Ali Ahmed"
-                            value={formData.name}
-                            onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                        />
-                    </div>
-
-                    <div className="input-group">
-                        <label className="label">Email Address (Login ID)</label>
-                        <div style={{ position: 'relative' }}>
-                            <Mail size={18} style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
-                            <input
-                                type="email"
-                                required
-                                className="input-field"
-                                style={{ paddingLeft: '3rem' }}
-                                placeholder="staff@superadmin.com"
-                                value={formData.email}
-                                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                            />
-                        </div>
-                    </div>
-
-                    <div className="input-group">
-                        <label className="label">Login Password</label>
-                        <div style={{ position: 'relative' }}>
-                            <Lock size={18} style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
-                            <input
-                                type="password"
-                                required
-                                minLength={6}
-                                className="input-field"
-                                style={{ paddingLeft: '3rem' }}
-                                placeholder="••••••••"
-                                value={formData.password}
-                                onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                            />
-                        </div>
-                    </div>
-
-                    <div style={{ marginTop: '0.5rem' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
-                            <label className="label" style={{ margin: 0, fontWeight: '700' }}>Admin Permissions</label>
-                            <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Toggle granted features</span>
-                        </div>
-
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
-                            {PERMISSION_CONFIG.map((perm) => {
-                                const isChecked = formData.permissions[perm.key];
-                                const Icon = perm.icon;
-                                return (
-                                    <div
-                                        key={perm.key}
-                                        onClick={() => togglePermission(perm.key)}
-                                        style={{
-                                            padding: '0.75rem 1rem',
-                                            borderRadius: '12px',
-                                            background: isChecked ? 'rgba(99, 102, 241, 0.1)' : 'var(--card-inner-bg)',
-                                            border: `1px solid ${isChecked ? 'var(--primary)' : 'var(--glass-border)'}`,
-                                            cursor: 'pointer',
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            justifyContent: 'space-between',
-                                            gap: '0.75rem',
-                                            transition: 'all 0.2s ease'
-                                        }}
-                                    >
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                                            <div style={{
-                                                padding: '0.4rem',
-                                                borderRadius: '8px',
-                                                background: isChecked ? 'rgba(99, 102, 241, 0.2)' : 'rgba(255,255,255,0.05)',
-                                                color: perm.color
-                                            }}>
-                                                <Icon size={16} />
-                                            </div>
-                                            <div>
-                                                <div style={{ fontSize: '0.85rem', fontWeight: '600', color: isChecked ? 'var(--text-main)' : 'var(--text-muted)' }}>
-                                                    {perm.label}
-                                                </div>
-                                                <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
-                                                    {perm.desc}
-                                                </div>
-                                            </div>
-                                        </div>
-
-                                        <div style={{
-                                            width: '22px',
-                                            height: '22px',
-                                            borderRadius: '6px',
-                                            border: `1.5px solid ${isChecked ? 'var(--primary)' : 'var(--text-muted)'}`,
-                                            background: isChecked ? 'var(--primary)' : 'transparent',
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            justifyContent: 'center',
-                                            color: 'white',
-                                            flexShrink: 0
-                                        }}>
-                                            {isChecked && <Check size={14} strokeWidth={3} />}
-                                        </div>
-                                    </div>
-                                );
-                            })}
-                        </div>
-                    </div>
-
-                    <button
-                        type="submit"
-                        disabled={loading}
-                        className="btn btn-primary"
-                        style={{ width: '100%', marginTop: '1.5rem', justifyContent: 'center', height: '48px', fontWeight: '700' }}
-                    >
-                        {loading ? <Loader2 className="animate-spin" size={20} /> : (
-                            <>
-                                <Save size={18} />
-                                Create Admin Account
-                            </>
+                {/* Form Content */}
+                <form onSubmit={handleSubmit} style={{ margin: 0, display: 'flex', flexDirection: 'column' }}>
+                    <div style={{ padding: '16px', maxHeight: '65vh', overflowY: 'auto', backgroundColor: '#ECE9D8' }}>
+                        {error && (
+                            <div style={{ padding: '8px 12px', borderRadius: '4px', marginBottom: '12px', background: '#FEF2F2', border: '1px solid #FCA5A5', color: '#991B1B', fontSize: '12px' }}>
+                                {error}
+                            </div>
                         )}
-                    </button>
+
+                        <fieldset style={{ border: '1px solid #C5C0B8', borderRadius: '4px', padding: '12px 14px', marginBottom: '12px', backgroundColor: '#F4F2E8' }}>
+                            <legend style={{ fontSize: '11px', fontWeight: '700', color: '#003399', padding: '0 6px', textTransform: 'uppercase' }}>Administrator Profile</legend>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                <div>
+                                    <label style={{ display: 'block', fontSize: '11.5px', fontWeight: '700', color: '#374151', marginBottom: '3px' }}>Full Name *</label>
+                                    <input
+                                        type="text"
+                                        required
+                                        placeholder="e.g. Asad Khan"
+                                        value={formData.name}
+                                        onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                                        style={{ width: '100%', boxSizing: 'border-box', padding: '6px 9px', borderRadius: '2px', border: '1px solid #7F9DB9', fontSize: '13px', background: '#FFFFFF' }}
+                                    />
+                                </div>
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                                    <div>
+                                        <label style={{ display: 'block', fontSize: '11.5px', fontWeight: '700', color: '#374151', marginBottom: '3px' }}>Email Address *</label>
+                                        <input
+                                            type="email"
+                                            required
+                                            placeholder="admin@school.com"
+                                            value={formData.email}
+                                            onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                                            style={{ width: '100%', boxSizing: 'border-box', padding: '6px 9px', borderRadius: '2px', border: '1px solid #7F9DB9', fontSize: '13px', background: '#FFFFFF' }}
+                                        />
+                                    </div>
+                                    <div>
+                                        <label style={{ display: 'block', fontSize: '11.5px', fontWeight: '700', color: '#374151', marginBottom: '3px' }}>Login Password *</label>
+                                        <input
+                                            type="password"
+                                            required
+                                            placeholder="Min. 6 chars"
+                                            value={formData.password}
+                                            onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                                            style={{ width: '100%', boxSizing: 'border-box', padding: '6px 9px', borderRadius: '2px', border: '1px solid #7F9DB9', fontSize: '13px', background: '#FFFFFF' }}
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+                        </fieldset>
+
+                        <fieldset style={{ border: '1px solid #C5C0B8', borderRadius: '4px', padding: '12px 14px', backgroundColor: '#F4F2E8' }}>
+                            <legend style={{ fontSize: '11px', fontWeight: '700', color: '#003399', padding: '0 6px', textTransform: 'uppercase' }}>Operational Permissions</legend>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                                {PERMISSION_CONFIG.map((perm) => {
+                                    const isChecked = formData.permissions[perm.key];
+                                    return (
+                                        <div
+                                            key={perm.key}
+                                            onClick={() => togglePermission(perm.key)}
+                                            style={{
+                                                padding: '7px 10px',
+                                                borderRadius: '3px',
+                                                background: isChecked ? '#E1ECFA' : '#FFFFFF',
+                                                border: `1px solid ${isChecked ? '#0055EA' : '#CBD5E1'}`,
+                                                cursor: 'pointer',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'space-between'
+                                            }}
+                                        >
+                                            <div>
+                                                <div style={{ fontSize: '12px', fontWeight: '700', color: '#1F2937' }}>{perm.label}</div>
+                                                <div style={{ fontSize: '11px', color: '#64748B' }}>{perm.desc}</div>
+                                            </div>
+                                            <input
+                                                type="checkbox"
+                                                checked={!!isChecked}
+                                                onChange={() => {}}
+                                                style={{ width: '16px', height: '16px', cursor: 'pointer', accentColor: '#2563EB' }}
+                                            />
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </fieldset>
+                    </div>
+
+                    {/* Footer */}
+                    <div style={{ padding: '10px 16px', backgroundColor: '#ECE9D8', borderTop: '1px solid #999', display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
+                        <button type="button" onClick={onClose} className="win-btn" disabled={loading}>Cancel</button>
+                        <button type="submit" disabled={loading} className="win-btn win-btn-primary">
+                            {loading ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />} Create Administrator
+                        </button>
+                    </div>
                 </form>
             </div>
-        </div>
+        </div>,
+        document.body
     );
 };
 
-const EditAdminModal = ({ adminUser, onClose, onSuccess }) => {
+const EditPermissionsModal = ({ adminUser, onClose, onSuccess }) => {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
     const [permissions, setPermissions] = useState({
@@ -336,167 +338,167 @@ const EditAdminModal = ({ adminUser, onClose, onSuccess }) => {
         }
     };
 
-    return (
-        <div style={{
-            position: 'fixed',
-            inset: 0,
-            background: 'rgba(0,0,0,0.85)',
-            backdropFilter: 'blur(8px)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 1100,
-            padding: '1rem'
-        }}>
-            <div className="card glass animate-in zoom-in duration-300" style={{
-                width: '100%',
-                maxWidth: '560px',
-                padding: '2.5rem',
-                position: 'relative',
-                background: 'var(--bg-card)',
-                border: '1px solid var(--glass-border)',
-                maxHeight: '90vh',
-                overflowY: 'auto'
-            }}>
-                <button onClick={onClose} style={{ position: 'absolute', right: '1.5rem', top: '1.5rem', background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}>
-                    <X size={24} />
-                </button>
-
-                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1.5rem' }}>
-                    <div style={{ width: '48px', height: '48px', borderRadius: '12px', background: 'linear-gradient(135deg, #3b82f6, #6366f1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                        <ShieldCheck color="white" size={24} />
-                    </div>
-                    <div>
-                        <h2 style={{ fontSize: '1.4rem', fontWeight: '700' }}>Edit Admin Permissions</h2>
-                        <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>{adminUser.name} ({adminUser.email})</p>
-                    </div>
+    return createPortal(
+        <div
+            onClick={onClose}
+            style={{
+                position: 'fixed',
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                width: '100vw',
+                height: '100vh',
+                backgroundColor: 'rgba(0, 0, 0, 0.75)',
+                backdropFilter: 'blur(5px)',
+                zIndex: 9999999,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: '16px',
+                boxSizing: 'border-box',
+                fontFamily: "'Segoe UI', Tahoma, Verdana, sans-serif"
+            }}
+        >
+            <div
+                onClick={(e) => e.stopPropagation()}
+                style={{
+                    width: '100%',
+                    maxWidth: '560px',
+                    backgroundColor: '#ECE9D8',
+                    border: '3px solid #0055ea',
+                    borderRadius: '8px 8px 4px 4px',
+                    boxShadow: '0 25px 60px rgba(0, 0, 0, 0.85)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    overflow: 'hidden',
+                    margin: 'auto'
+                }}
+            >
+                {/* Title Bar */}
+                <div
+                    style={{
+                        height: '34px',
+                        background: 'linear-gradient(180deg, #2b70f0 0%, #1e56cb 12%, #0042b3 88%, #0036a1 100%)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        padding: '0 8px 0 12px',
+                        userSelect: 'none'
+                    }}
+                >
+                    <span style={{ color: '#FFFFFF', fontSize: '13px', fontWeight: '700' }}>
+                        Edit Permissions — {adminUser.name}
+                    </span>
+                    <button
+                        type="button"
+                        onClick={onClose}
+                        style={{
+                            width: '21px',
+                            height: '21px',
+                            borderRadius: '3px',
+                            border: '1px solid #781010',
+                            background: 'linear-gradient(180deg, #E66453 0%, #D83B26 50%, #B81907 100%)',
+                            color: '#FFFFFF',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            cursor: 'pointer'
+                        }}
+                    >
+                        <X size={13} strokeWidth={3} />
+                    </button>
                 </div>
 
-                {error && (
-                    <div style={{ padding: '0.75rem', borderRadius: '12px', marginBottom: '1.25rem', background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.2)', color: '#f87171', fontSize: '0.85rem' }}>
-                        {error}
-                    </div>
-                )}
-
-                <form onSubmit={handleSave} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-                    <div className="input-group">
-                        <label className="label">Account Status</label>
-                        <div style={{ display: 'flex', gap: '1rem' }}>
-                            <button
-                                type="button"
-                                onClick={() => setStatus('active')}
-                                style={{
-                                    flex: 1,
-                                    padding: '0.6rem',
-                                    borderRadius: '10px',
-                                    border: status === 'active' ? '2px solid #10b981' : '1px solid var(--glass-border)',
-                                    background: status === 'active' ? 'rgba(16, 185, 129, 0.15)' : 'var(--card-inner-bg)',
-                                    color: status === 'active' ? '#10b981' : 'var(--text-muted)',
-                                    fontWeight: '700',
-                                    cursor: 'pointer'
-                                }}
-                            >
-                                Active
-                            </button>
-                            <button
-                                type="button"
-                                onClick={() => setStatus('disabled')}
-                                style={{
-                                    flex: 1,
-                                    padding: '0.6rem',
-                                    borderRadius: '10px',
-                                    border: status === 'disabled' ? '2px solid #ef4444' : '1px solid var(--glass-border)',
-                                    background: status === 'disabled' ? 'rgba(239, 68, 68, 0.15)' : 'var(--card-inner-bg)',
-                                    color: status === 'disabled' ? '#ef4444' : 'var(--text-muted)',
-                                    fontWeight: '700',
-                                    cursor: 'pointer'
-                                }}
-                            >
-                                Disabled / Suspended
-                            </button>
-                        </div>
-                    </div>
-
-                    <div>
-                        <label className="label" style={{ marginBottom: '0.75rem', display: 'block', fontWeight: '700' }}>
-                            Assigned Permissions
-                        </label>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
-                            {PERMISSION_CONFIG.map((perm) => {
-                                const isChecked = permissions[perm.key];
-                                const Icon = perm.icon;
-                                return (
-                                    <div
-                                        key={perm.key}
-                                        onClick={() => togglePermission(perm.key)}
-                                        style={{
-                                            padding: '0.75rem 1rem',
-                                            borderRadius: '12px',
-                                            background: isChecked ? 'rgba(99, 102, 241, 0.1)' : 'var(--card-inner-bg)',
-                                            border: `1px solid ${isChecked ? 'var(--primary)' : 'var(--glass-border)'}`,
-                                            cursor: 'pointer',
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            justifyContent: 'space-between',
-                                            gap: '0.75rem',
-                                            transition: 'all 0.2s ease'
-                                        }}
-                                    >
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                                            <div style={{
-                                                padding: '0.4rem',
-                                                borderRadius: '8px',
-                                                background: isChecked ? 'rgba(99, 102, 241, 0.2)' : 'rgba(255,255,255,0.05)',
-                                                color: perm.color
-                                            }}>
-                                                <Icon size={16} />
-                                            </div>
-                                            <div>
-                                                <div style={{ fontSize: '0.85rem', fontWeight: '600', color: isChecked ? 'var(--text-main)' : 'var(--text-muted)' }}>
-                                                    {perm.label}
-                                                </div>
-                                                <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
-                                                    {perm.desc}
-                                                </div>
-                                            </div>
-                                        </div>
-
-                                        <div style={{
-                                            width: '22px',
-                                            height: '22px',
-                                            borderRadius: '6px',
-                                            border: `1.5px solid ${isChecked ? 'var(--primary)' : 'var(--text-muted)'}`,
-                                            background: isChecked ? 'var(--primary)' : 'transparent',
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            justifyContent: 'center',
-                                            color: 'white',
-                                            flexShrink: 0
-                                        }}>
-                                            {isChecked && <Check size={14} strokeWidth={3} />}
-                                        </div>
-                                    </div>
-                                );
-                            })}
-                        </div>
-                    </div>
-
-                    <button
-                        type="submit"
-                        disabled={loading}
-                        className="btn btn-primary"
-                        style={{ width: '100%', marginTop: '1.25rem', justifyContent: 'center', height: '48px', fontWeight: '700' }}
-                    >
-                        {loading ? <Loader2 className="animate-spin" size={20} /> : (
-                            <>
-                                <Save size={18} />
-                                Update Permissions
-                            </>
+                <form onSubmit={handleSave} style={{ margin: 0, display: 'flex', flexDirection: 'column' }}>
+                    <div style={{ padding: '16px', maxHeight: '65vh', overflowY: 'auto', backgroundColor: '#ECE9D8' }}>
+                        {error && (
+                            <div style={{ padding: '8px 12px', borderRadius: '4px', marginBottom: '12px', background: '#FEF2F2', border: '1px solid #FCA5A5', color: '#991B1B', fontSize: '12px' }}>
+                                {error}
+                            </div>
                         )}
-                    </button>
+
+                        <div style={{ marginBottom: '12px' }}>
+                            <label style={{ display: 'block', fontSize: '11.5px', fontWeight: '700', color: '#374151', marginBottom: '4px' }}>Account Status</label>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                                <button
+                                    type="button"
+                                    onClick={() => setStatus('active')}
+                                    className="win-btn"
+                                    style={{
+                                        backgroundColor: status === 'active' ? '#DEF7EC' : '#FFFFFF',
+                                        color: status === 'active' ? '#03543F' : '#64748B',
+                                        borderColor: status === 'active' ? '#84E1BC' : '#CBD5E1',
+                                        justifyContent: 'center',
+                                        fontWeight: '700'
+                                    }}
+                                >
+                                    Active Access
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setStatus('disabled')}
+                                    className="win-btn"
+                                    style={{
+                                        backgroundColor: status === 'disabled' ? '#FEE2E2' : '#FFFFFF',
+                                        color: status === 'disabled' ? '#991B1B' : '#64748B',
+                                        borderColor: status === 'disabled' ? '#FCA5A5' : '#CBD5E1',
+                                        justifyContent: 'center',
+                                        fontWeight: '700'
+                                    }}
+                                >
+                                    Disabled / Suspended
+                                </button>
+                            </div>
+                        </div>
+
+                        <fieldset style={{ border: '1px solid #C5C0B8', borderRadius: '4px', padding: '12px 14px', backgroundColor: '#F4F2E8' }}>
+                            <legend style={{ fontSize: '11px', fontWeight: '700', color: '#003399', padding: '0 6px', textTransform: 'uppercase' }}>Assigned Permissions</legend>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                                {PERMISSION_CONFIG.map((perm) => {
+                                    const isChecked = permissions[perm.key];
+                                    return (
+                                        <div
+                                            key={perm.key}
+                                            onClick={() => togglePermission(perm.key)}
+                                            style={{
+                                                padding: '7px 10px',
+                                                borderRadius: '3px',
+                                                background: isChecked ? '#E1ECFA' : '#FFFFFF',
+                                                border: `1px solid ${isChecked ? '#0055EA' : '#CBD5E1'}`,
+                                                cursor: 'pointer',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'space-between'
+                                            }}
+                                        >
+                                            <div>
+                                                <div style={{ fontSize: '12px', fontWeight: '700', color: '#1F2937' }}>{perm.label}</div>
+                                                <div style={{ fontSize: '11px', color: '#64748B' }}>{perm.desc}</div>
+                                            </div>
+                                            <input
+                                                type="checkbox"
+                                                checked={!!isChecked}
+                                                onChange={() => {}}
+                                                style={{ width: '16px', height: '16px', cursor: 'pointer', accentColor: '#2563EB' }}
+                                            />
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </fieldset>
+                    </div>
+
+                    <div style={{ padding: '10px 16px', backgroundColor: '#ECE9D8', borderTop: '1px solid #999', display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
+                        <button type="button" onClick={onClose} className="win-btn" disabled={loading}>Cancel</button>
+                        <button type="submit" disabled={loading} className="win-btn win-btn-primary">
+                            {loading ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />} Save Changes
+                        </button>
+                    </div>
                 </form>
             </div>
-        </div>
+        </div>,
+        document.body
     );
 };
 
@@ -510,8 +512,6 @@ const Admins = () => {
     const [searchTerm, setSearchTerm] = useState('');
 
     useEffect(() => {
-        // Query only users whose role is 'super-admin' or 'admin'
-        // This strictly prevents school teachers and parents from showing up!
         const q = query(
             collection(db, "global_users"),
             where("role", "in", ["super-admin", "admin"])
@@ -533,7 +533,6 @@ const Admins = () => {
             setLoading(false);
         }, (error) => {
             console.error("Super Admin fetch error:", error);
-            // Fallback: If 'in' query fails or lacks index, query all and filter locally
             const fallbackUnsub = onSnapshot(collection(db, "global_users"), (snap) => {
                 const list = [];
                 snap.forEach((docSnap) => {
@@ -602,80 +601,116 @@ const Admins = () => {
         (admin.email || '').toLowerCase().includes(searchTerm.toLowerCase())
     );
 
+    const fontFamily = "'Segoe UI', Tahoma, Verdana, sans-serif";
+
     return (
-        <div className="animate-in fade-in duration-500">
-            {/* Header with Prominent Add Admin Button */}
-            <header className="page-header" style={{ marginBottom: '2rem' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
-                    <div>
-                        <h1 style={{ fontSize: '2rem', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                            <Shield className="text-primary" size={32} />
-                            Office Admins Management
-                        </h1>
-                        <p style={{ color: 'var(--text-muted)' }}>
-                            Manage central office team accounts, control roles and assign granular operational permissions.
-                        </p>
-                    </div>
+        <div className="animate-in fade-in duration-300" style={{ fontFamily: fontFamily }}>
+            <style>{`
+                .win-btn {
+                    font-family: inherit;
+                    font-size: 12.5px;
+                    font-weight: 600;
+                    padding: 6px 14px;
+                    border-radius: 4px;
+                    cursor: pointer;
+                    display: inline-flex;
+                    align-items: center;
+                    gap: 6px;
+                    border: 1px solid #CBD5E1;
+                    background: #FFFFFF;
+                    color: #334155;
+                    transition: all 0.15s ease;
+                }
+                .win-btn:hover {
+                    background: #F1F5F9;
+                    border-color: #94A3B8;
+                }
+                .win-btn-primary {
+                    border: 1px solid #1D4ED8;
+                    background: linear-gradient(180deg, #3B82F6 0%, #2563EB 50%, #1D4ED8 100%);
+                    color: #FFFFFF;
+                    box-shadow: 0 1px 2px rgba(37, 99, 235, 0.3);
+                }
+                .win-btn-primary:hover {
+                    background: linear-gradient(180deg, #60A5FA 0%, #3B82F6 50%, #2563EB 100%);
+                }
+            `}</style>
 
-                    <button
-                        onClick={() => setShowAddModal(true)}
-                        className="btn btn-primary"
-                        style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '0.6rem',
-                            padding: '0.85rem 1.6rem',
-                            fontWeight: '700',
-                            fontSize: '0.95rem',
-                            boxShadow: '0 4px 14px rgba(99, 102, 241, 0.4)'
-                        }}
-                    >
-                        <UserPlus size={20} />
-                        Add New Office Admin
-                    </button>
+            {showAddModal && (
+                <AddAdminModal
+                    onClose={() => setShowAddModal(false)}
+                    onSuccess={() => showAlert({ title: "Success", message: "New office admin created.", type: "success" })}
+                />
+            )}
+
+            {selectedAdminForEdit && (
+                <EditPermissionsModal
+                    adminUser={selectedAdminForEdit}
+                    onClose={() => setSelectedAdminForEdit(null)}
+                    onSuccess={() => showAlert({ title: "Updated", message: "Permissions successfully saved.", type: "success" })}
+                />
+            )}
+
+            {/* Header */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.25rem', flexWrap: 'wrap', gap: '12px' }}>
+                <div>
+                    <h2 style={{ fontSize: '1.6rem', fontWeight: '800', color: '#0F172A', margin: 0 }}>
+                        Office Administrators & Permissions
+                    </h2>
+                    <p style={{ color: '#64748B', fontSize: '0.85rem', margin: '2px 0 0 0' }}>
+                        Manage central office staff, define operator roles, and assign security privileges.
+                    </p>
                 </div>
-            </header>
 
-            {/* Quick Stats */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1.25rem', marginBottom: '2rem' }}>
-                <div className="card glass" style={{ padding: '1.25rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                    <div style={{ width: '48px', height: '48px', borderRadius: '12px', background: 'rgba(99, 102, 241, 0.1)', color: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                        <UsersIcon size={24} />
+                <button
+                    onClick={() => setShowAddModal(true)}
+                    className="win-btn win-btn-primary"
+                    style={{ padding: '7px 16px' }}
+                >
+                    <UserPlus size={16} /> Add New Admin
+                </button>
+            </div>
+
+            {/* Metric Tiles */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px', marginBottom: '1.25rem' }}>
+                <div style={{ backgroundColor: '#FFFFFF', border: '1px solid #CBD5E1', borderRadius: '6px', padding: '12px 14px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <div style={{ width: '38px', height: '38px', borderRadius: '5px', background: '#EFF6FF', color: '#2563EB', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <UsersIcon size={20} />
                     </div>
                     <div>
-                        <div style={{ fontSize: '0.75rem', fontWeight: '700', textTransform: 'uppercase', color: 'var(--text-muted)' }}>Total Office Admins</div>
-                        <div style={{ fontSize: '1.75rem', fontWeight: '800' }}>{admins.length}</div>
+                        <div style={{ fontSize: '11px', fontWeight: '700', color: '#64748B', textTransform: 'uppercase' }}>Total Office Staff</div>
+                        <div style={{ fontSize: '1.4rem', fontWeight: '800', color: '#0F172A' }}>{admins.length}</div>
                     </div>
                 </div>
 
-                <div className="card glass" style={{ padding: '1.25rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                    <div style={{ width: '48px', height: '48px', borderRadius: '12px', background: 'rgba(16, 185, 129, 0.1)', color: '#10b981', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                        <ShieldCheck size={24} />
+                <div style={{ backgroundColor: '#FFFFFF', border: '1px solid #CBD5E1', borderRadius: '6px', padding: '12px 14px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <div style={{ width: '38px', height: '38px', borderRadius: '5px', background: '#F0FDF4', color: '#16A34A', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <ShieldCheck size={20} />
                     </div>
                     <div>
-                        <div style={{ fontSize: '0.75rem', fontWeight: '700', textTransform: 'uppercase', color: 'var(--text-muted)' }}>Active Staff</div>
-                        <div style={{ fontSize: '1.75rem', fontWeight: '800' }}>
+                        <div style={{ fontSize: '11px', fontWeight: '700', color: '#64748B', textTransform: 'uppercase' }}>Active Staff</div>
+                        <div style={{ fontSize: '1.4rem', fontWeight: '800', color: '#0F172A' }}>
                             {admins.filter(a => a.status !== 'disabled').length}
                         </div>
                     </div>
                 </div>
 
-                <div className="card glass" style={{ padding: '1.25rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                    <div style={{ width: '48px', height: '48px', borderRadius: '12px', background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                        <Trash2 size={24} />
+                <div style={{ backgroundColor: '#FFFFFF', border: '1px solid #CBD5E1', borderRadius: '6px', padding: '12px 14px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <div style={{ width: '38px', height: '38px', borderRadius: '5px', background: '#FEF2F2', color: '#DC2626', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <Trash2 size={20} />
                     </div>
                     <div>
-                        <div style={{ fontSize: '0.75rem', fontWeight: '700', textTransform: 'uppercase', color: 'var(--text-muted)' }}>Delete School Permission</div>
-                        <div style={{ fontSize: '1.75rem', fontWeight: '800' }}>
+                        <div style={{ fontSize: '11px', fontWeight: '700', color: '#64748B', textTransform: 'uppercase' }}>Delete School Privilege</div>
+                        <div style={{ fontSize: '1.4rem', fontWeight: '800', color: '#0F172A' }}>
                             {admins.filter(a => a.permissions?.deleteSchool === true || (!a.permissions && a.role === 'super-admin')).length}
                         </div>
                     </div>
                 </div>
             </div>
 
-            {/* Filter & Search Bar */}
-            <div className="card glass" style={{ padding: '1rem 1.5rem', marginBottom: '2rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                <Search size={20} style={{ color: 'var(--text-muted)' }} />
+            {/* Search Input */}
+            <div style={{ backgroundColor: '#FFFFFF', border: '1px solid #CBD5E1', borderRadius: '6px', padding: '8px 12px', marginBottom: '1.25rem', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <Search size={16} color="#64748B" />
                 <input
                     type="text"
                     placeholder="Search office admins by name or email..."
@@ -684,38 +719,34 @@ const Admins = () => {
                     style={{
                         background: 'transparent',
                         border: 'none',
-                        color: 'var(--text-main)',
-                        fontSize: '0.95rem',
+                        color: '#1E293B',
+                        fontSize: '13px',
                         width: '100%',
-                        outline: 'none'
+                        outline: 'none',
+                        fontFamily: 'inherit'
                     }}
                 />
             </div>
 
             {/* Admins Grid */}
             {loading ? (
-                <div style={{ padding: '4rem', textAlign: 'center' }}>
-                    <Loader2 className="animate-spin" size={40} color="var(--primary)" style={{ margin: '0 auto' }} />
-                    <p style={{ marginTop: '1rem', color: 'var(--text-muted)' }}>Loading Office Admins...</p>
+                <div style={{ padding: '3rem', textAlign: 'center' }}>
+                    <Loader2 className="animate-spin" size={36} color="#2563EB" style={{ margin: '0 auto 8px' }} />
+                    <span style={{ fontSize: '13px', color: '#64748B' }}>Loading Office Admins...</span>
                 </div>
             ) : filteredAdmins.length === 0 ? (
-                <div className="card glass" style={{ padding: '4rem', textAlign: 'center' }}>
-                    <ShieldAlert size={48} color="var(--text-muted)" style={{ margin: '0 auto 1rem' }} />
-                    <h3 style={{ fontSize: '1.25rem', fontWeight: '700' }}>No Office Admins Found</h3>
-                    <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginTop: '0.5rem', marginBottom: '1.5rem' }}>
+                <div style={{ backgroundColor: '#FFFFFF', border: '1px solid #CBD5E1', borderRadius: '6px', padding: '3rem 1rem', textAlign: 'center' }}>
+                    <ShieldAlert size={40} color="#94A3B8" style={{ margin: '0 auto 8px' }} />
+                    <h3 style={{ fontSize: '14px', fontWeight: '700', color: '#1E293B' }}>No Office Admins Found</h3>
+                    <p style={{ color: '#64748B', fontSize: '12px', margin: '4px 0 14px 0' }}>
                         {searchTerm ? 'No admins match your search term.' : 'Click below to create your first office admin account.'}
                     </p>
-                    <button
-                        onClick={() => setShowAddModal(true)}
-                        className="btn btn-primary"
-                        style={{ margin: '0 auto', display: 'inline-flex', alignItems: 'center', gap: '0.5rem' }}
-                    >
-                        <UserPlus size={18} />
-                        Add New Office Admin
+                    <button onClick={() => setShowAddModal(true)} className="win-btn win-btn-primary">
+                        <UserPlus size={14} /> Add New Office Admin
                     </button>
                 </div>
             ) : (
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(360px, 1fr))', gap: '1.5rem' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '12px' }}>
                     {filteredAdmins.map((adminUser) => {
                         const isSelf = adminUser.id === auth.currentUser?.uid;
                         const isDisabled = adminUser.status === 'disabled';
@@ -725,200 +756,137 @@ const Admins = () => {
                         return (
                             <div
                                 key={adminUser.id}
-                                className="card glass"
                                 style={{
-                                    padding: '1.75rem',
+                                    backgroundColor: '#FFFFFF',
+                                    border: isSelf ? '2px solid #2563EB' : '1px solid #CBD5E1',
+                                    borderRadius: '6px',
+                                    padding: '14px 16px',
                                     display: 'flex',
                                     flexDirection: 'column',
                                     justifyContent: 'space-between',
-                                    position: 'relative',
-                                    border: isSelf ? '1px solid var(--primary)' : '1px solid var(--glass-border)',
+                                    gap: '12px',
                                     opacity: isDisabled ? 0.75 : 1
                                 }}
                             >
                                 <div>
                                     {/* Top Row: Info & Status */}
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1.25rem' }}>
-                                        <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '10px' }}>
+                                        <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
                                             <div style={{
-                                                width: '48px',
-                                                height: '48px',
-                                                borderRadius: '12px',
+                                                width: '38px',
+                                                height: '38px',
+                                                borderRadius: '5px',
                                                 background: isMaster
-                                                    ? 'linear-gradient(135deg, #6366f1, #ec4899)'
-                                                    : 'linear-gradient(135deg, #3b82f6, #10b981)',
+                                                    ? 'linear-gradient(135deg, #2563EB, #7C3AED)'
+                                                    : 'linear-gradient(135deg, #059669, #10B981)',
                                                 display: 'flex',
                                                 alignItems: 'center',
                                                 justifyContent: 'center',
+                                                color: '#FFFFFF',
                                                 fontWeight: '800',
-                                                fontSize: '1.25rem',
-                                                color: 'white'
+                                                fontSize: '15px',
+                                                flexShrink: 0
                                             }}>
                                                 {(adminUser.name || 'A')[0].toUpperCase()}
                                             </div>
                                             <div>
-                                                <h3 style={{ fontSize: '1.1rem', fontWeight: '700', margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                                <div style={{ fontSize: '13.5px', fontWeight: '700', color: '#0F172A' }}>
                                                     {adminUser.name || 'Admin User'}
                                                     {isSelf && (
-                                                        <span style={{ fontSize: '0.65rem', padding: '0.15rem 0.4rem', borderRadius: '6px', background: 'var(--primary)', color: 'white' }}>
-                                                            YOU
+                                                        <span style={{ marginLeft: '6px', fontSize: '10.5px', backgroundColor: '#EFF6FF', color: '#1D4ED8', padding: '1px 5px', borderRadius: '3px', fontWeight: '700' }}>
+                                                            You
                                                         </span>
                                                     )}
-                                                </h3>
-                                                <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', margin: 0 }}>
+                                                </div>
+                                                <div style={{ fontSize: '11.5px', color: '#64748B' }}>
                                                     {adminUser.email}
-                                                </p>
+                                                </div>
                                             </div>
                                         </div>
 
                                         <span style={{
-                                            fontSize: '0.7rem',
+                                            padding: '2px 7px',
+                                            borderRadius: '3px',
+                                            fontSize: '10.5px',
                                             fontWeight: '700',
-                                            padding: '0.25rem 0.6rem',
-                                            borderRadius: '8px',
                                             textTransform: 'uppercase',
-                                            background: isDisabled ? 'rgba(239, 68, 68, 0.15)' : 'rgba(16, 185, 129, 0.15)',
-                                            color: isDisabled ? '#ef4444' : '#10b981',
-                                            border: `1px solid ${isDisabled ? 'rgba(239, 68, 68, 0.2)' : 'rgba(16, 185, 129, 0.2)'}`
+                                            backgroundColor: isDisabled ? '#FEE2E2' : '#DEF7EC',
+                                            color: isDisabled ? '#991B1B' : '#03543F'
                                         }}>
                                             {isDisabled ? 'Disabled' : 'Active'}
                                         </span>
                                     </div>
 
-                                    {/* Permissions Badges */}
-                                    <div style={{ marginBottom: '1.5rem' }}>
-                                        <div style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '0.6rem' }}>
-                                            Assigned Permissions:
-                                        </div>
-                                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>
-                                            {isMaster ? (
-                                                <span style={{
-                                                    fontSize: '0.75rem',
-                                                    padding: '0.3rem 0.6rem',
-                                                    borderRadius: '8px',
-                                                    background: 'rgba(99, 102, 241, 0.15)',
-                                                    color: 'var(--primary)',
-                                                    border: '1px solid rgba(99, 102, 241, 0.3)',
-                                                    fontWeight: '700'
-                                                }}>
-                                                    ⭐ Full Super Admin (All Permissions)
-                                                </span>
-                                            ) : (
-                                                PERMISSION_CONFIG.map((perm) => {
-                                                    const hasP = perms[perm.key];
-                                                    const Icon = perm.icon;
-                                                    return (
-                                                        <span
-                                                            key={perm.key}
-                                                            style={{
-                                                                fontSize: '0.72rem',
-                                                                padding: '0.25rem 0.5rem',
-                                                                borderRadius: '8px',
-                                                                background: hasP ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.02)',
-                                                                color: hasP ? perm.color : 'rgba(255,255,255,0.3)',
-                                                                border: `1px solid ${hasP ? perm.color + '40' : 'rgba(255,255,255,0.05)'}`,
-                                                                display: 'inline-flex',
-                                                                alignItems: 'center',
-                                                                gap: '0.35rem',
-                                                                textDecoration: hasP ? 'none' : 'line-through'
-                                                            }}
-                                                        >
-                                                            <Icon size={12} />
-                                                            {perm.label}
-                                                        </span>
-                                                    );
-                                                })
-                                            )}
-                                        </div>
+                                    {/* Role Badge */}
+                                    <div style={{ marginBottom: '10px' }}>
+                                        <span style={{
+                                            padding: '2px 8px',
+                                            borderRadius: '3px',
+                                            fontSize: '11px',
+                                            fontWeight: '700',
+                                            backgroundColor: isMaster ? '#EFF6FF' : '#F1F5F9',
+                                            color: isMaster ? '#1D4ED8' : '#334155',
+                                            border: isMaster ? '1px solid #BFDBFE' : '1px solid #CBD5E1'
+                                        }}>
+                                            {isMaster ? '⭐ Master Administrator' : 'Office Staff Operator'}
+                                        </span>
                                     </div>
-                                </div>
 
-                                {/* Actions Footer */}
-                                <div style={{
-                                    paddingTop: '1rem',
-                                    borderTop: '1px solid var(--glass-border)',
-                                    display: 'flex',
-                                    justifyContent: 'space-between',
-                                    alignItems: 'center',
-                                    gap: '0.5rem'
-                                }}>
-                                    <button
-                                        onClick={() => handleToggleStatus(adminUser)}
-                                        disabled={isSelf}
-                                        className="btn"
-                                        style={{
-                                            fontSize: '0.75rem',
-                                            padding: '0.4rem 0.8rem',
-                                            background: 'var(--card-inner-bg)',
-                                            color: isDisabled ? '#10b981' : '#ef4444',
-                                            opacity: isSelf ? 0.4 : 1
-                                        }}
-                                        title={isSelf ? "You cannot disable your own account" : "Toggle account status"}
-                                    >
-                                        <Power size={14} />
-                                        {isDisabled ? 'Activate' : 'Disable'}
-                                    </button>
-
-                                    <div style={{ display: 'flex', gap: '0.5rem' }}>
-                                        <button
-                                            onClick={() => setSelectedAdminForEdit(adminUser)}
-                                            className="btn btn-primary"
-                                            style={{ fontSize: '0.75rem', padding: '0.4rem 0.8rem' }}
-                                        >
-                                            <Edit2 size={14} />
-                                            Permissions
-                                        </button>
-
-                                        {!isSelf && (
-                                            <button
-                                                onClick={() => handleDeleteAdmin(adminUser)}
-                                                className="btn"
-                                                style={{
-                                                    fontSize: '0.75rem',
-                                                    padding: '0.4rem 0.6rem',
-                                                    background: 'rgba(239, 68, 68, 0.1)',
-                                                    color: '#ef4444',
-                                                    borderColor: 'rgba(239, 68, 68, 0.2)'
-                                                }}
-                                                title="Delete Admin Account"
-                                            >
-                                                <Trash2 size={14} />
-                                            </button>
+                                    {/* Permission Pills */}
+                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+                                        {isMaster ? (
+                                            <span style={{ fontSize: '11px', color: '#16A34A', fontWeight: '600' }}>
+                                                ✓ Full Master Privileges (Unrestricted)
+                                            </span>
+                                        ) : (
+                                            PERMISSION_CONFIG.map(p => {
+                                                const hasIt = perms[p.key] === true;
+                                                return (
+                                                    <span
+                                                        key={p.key}
+                                                        style={{
+                                                            fontSize: '10.5px',
+                                                            padding: '2px 6px',
+                                                            borderRadius: '3px',
+                                                            backgroundColor: hasIt ? '#EFF6FF' : '#F8FAFC',
+                                                            color: hasIt ? '#1D4ED8' : '#94A3B8',
+                                                            border: `1px solid ${hasIt ? '#BFDBFE' : '#E2E8F0'}`,
+                                                            fontWeight: hasIt ? '600' : '500'
+                                                        }}
+                                                    >
+                                                        {hasIt ? '✓' : '✗'} {p.label}
+                                                    </span>
+                                                );
+                                            })
                                         )}
                                     </div>
                                 </div>
+
+                                {/* Bottom Actions */}
+                                {!isMaster && (
+                                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '6px', paddingTop: '8px', borderTop: '1px solid #F1F5F9' }}>
+                                        <button
+                                            onClick={() => setSelectedAdminForEdit(adminUser)}
+                                            className="win-btn"
+                                            style={{ padding: '3px 8px', fontSize: '11.5px' }}
+                                        >
+                                            <Edit2 size={12} /> Edit Permissions
+                                        </button>
+                                        {!isSelf && (
+                                            <button
+                                                onClick={() => handleDeleteAdmin(adminUser)}
+                                                className="win-btn"
+                                                style={{ padding: '3px 8px', fontSize: '11.5px', color: '#DC2626', borderColor: '#FECACA', backgroundColor: '#FEF2F2' }}
+                                            >
+                                                <Trash2 size={12} /> Delete
+                                            </button>
+                                        )}
+                                    </div>
+                                )}
                             </div>
                         );
                     })}
                 </div>
-            )}
-
-            {/* Modals */}
-            {showAddModal && (
-                <AddAdminModal
-                    onClose={() => setShowAddModal(false)}
-                    onSuccess={() => {
-                        showAlert({
-                            title: "Admin Created",
-                            message: "New office admin account has been created successfully.",
-                            type: "success"
-                        });
-                    }}
-                />
-            )}
-
-            {selectedAdminForEdit && (
-                <EditAdminModal
-                    adminUser={selectedAdminForEdit}
-                    onClose={() => setSelectedAdminForEdit(null)}
-                    onSuccess={() => {
-                        showAlert({
-                            title: "Updated",
-                            message: "Admin permissions and settings updated successfully.",
-                            type: "success"
-                        });
-                    }}
-                />
             )}
         </div>
     );
