@@ -1,16 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import { X, Save, Shield, Loader2, Key, RefreshCw, Copy, Check, ArrowRight, ArrowLeft, Eye, EyeOff } from 'lucide-react';
-import { db, functions } from '../firebase';
+import { X, Save, Shield, Loader2, Key, RefreshCw, Copy, Check, ArrowRight, ArrowLeft, Eye, EyeOff, Mail } from 'lucide-react';
+import { db, functions, auth } from '../firebase';
 import { doc, updateDoc, getDoc, setDoc } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
+import { sendPasswordResetEmail } from 'firebase/auth';
 
 const InlineEditSchool = ({ school, onClose, onSuccess, displayId }) => {
     const [page, setPage] = useState(1);
     const [loading, setLoading] = useState(false);
     const [passwordLoading, setPasswordLoading] = useState(false);
     const [message, setMessage] = useState({ type: '', text: '' });
-    const [showPassword, setShowPassword] = useState(false);
-    const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
     const [formData, setFormData] = useState({
         schoolName: school.name || '',
@@ -22,9 +21,7 @@ const InlineEditSchool = ({ school, onClose, onSuccess, displayId }) => {
         schoolContact: school.contact || '',
         principalContact: '',
         vicePrincipalContact: school.vicePrincipalContact || '',
-        landline: school.landline || '',
-        newPassword: '',
-        confirmPassword: ''
+        landline: school.landline || ''
     });
 
     const [initialEmail, setInitialEmail] = useState('');
@@ -56,19 +53,27 @@ const InlineEditSchool = ({ school, onClose, onSuccess, displayId }) => {
         fetchPrincipalEmail();
     }, [school.principalId, school.id]);
 
+    const handleSendResetEmail = async () => {
+        const targetEmail = (formData.principalEmail || initialEmail || '').trim();
+        if (!targetEmail) {
+            setMessage({ type: 'error', text: 'Principal email is missing.' });
+            return;
+        }
+        setPasswordLoading(true);
+        setMessage({ type: '', text: '' });
+        try {
+            await sendPasswordResetEmail(auth, targetEmail);
+            setMessage({ type: 'success', text: `Password reset link sent to ${targetEmail}. The principal can reset their own private password.` });
+        } catch (err) {
+            console.error("Reset email error:", err);
+            setMessage({ type: 'error', text: 'Failed to send reset email: ' + err.message });
+        } finally {
+            setPasswordLoading(false);
+        }
+    };
+
     const handleSubmit = async (e) => {
         if (e) e.preventDefault();
-
-        if (formData.newPassword || formData.confirmPassword) {
-            if (formData.newPassword !== formData.confirmPassword) {
-                setMessage({ type: 'error', text: 'Passwords do not match.' });
-                return;
-            }
-            if (formData.newPassword.length < 6) {
-                setMessage({ type: 'error', text: 'Password must be at least 6 characters.' });
-                return;
-            }
-        }
 
         setLoading(true);
         setMessage({ type: '', text: '' });
@@ -89,25 +94,19 @@ const InlineEditSchool = ({ school, onClose, onSuccess, displayId }) => {
 
             const normalizedEmail = (formData.principalEmail || '').toLowerCase().trim();
             const emailChanged = normalizedEmail && (normalizedEmail !== initialEmail.toLowerCase().trim());
-            const passwordChanged = !!formData.newPassword;
 
-            if (passwordChanged || emailChanged) {
+            if (emailChanged) {
                 if (!school.principalId) {
-                    setMessage({ type: 'error', text: 'Cannot update credentials: No Principal Account is linked to this school.' });
+                    setMessage({ type: 'error', text: 'Cannot update email: No Principal Account is linked to this school.' });
                     setLoading(false);
                     return;
                 }
                 const updateSchoolUserPassword = httpsCallable(functions, 'updateSchoolUserPassword');
                 const authPayload = {
                     targetUid: school.principalId,
-                    schoolId: school.id
+                    schoolId: school.id,
+                    newEmail: normalizedEmail
                 };
-                if (passwordChanged) {
-                    authPayload.newPassword = formData.newPassword;
-                }
-                if (normalizedEmail) {
-                    authPayload.newEmail = normalizedEmail;
-                }
                 await updateSchoolUserPassword(authPayload);
             }
 
@@ -296,44 +295,39 @@ const InlineEditSchool = ({ school, onClose, onSuccess, displayId }) => {
                             />
                         </div>
 
-                        <div style={{ padding: '0.75rem', background: 'rgba(255,255,255,0.4)', borderRadius: '12px', border: '1px dashed #93c5fd', marginTop: '0.5rem' }}>
-                            <label style={{ fontSize: '0.75rem', color: '#1e3a8a', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '0.25rem', marginBottom: '0.5rem' }}>
-                                <Key size={14} /> Update Password
-                            </label>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                                <div style={{ position: 'relative' }}>
-                                    <input
-                                        type={showPassword ? "text" : "password"}
-                                        placeholder="New Password (optional)"
-                                        style={{ width: '100%', padding: '0.5rem', paddingRight: '2.5rem', borderRadius: '8px', border: '1px solid #93c5fd', background: 'white', color: '#1e293b', fontSize: '0.875rem' }}
-                                        value={formData.newPassword}
-                                        onChange={(e) => setFormData({ ...formData, newPassword: e.target.value })}
-                                    />
-                                    <button
-                                        type="button"
-                                        onClick={() => setShowPassword(!showPassword)}
-                                        style={{ position: 'absolute', right: '0.5rem', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center' }}
-                                    >
-                                        {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                                    </button>
-                                </div>
-                                <div style={{ position: 'relative' }}>
-                                    <input
-                                        type={showConfirmPassword ? "text" : "password"}
-                                        placeholder="Re-confirm Password"
-                                        style={{ width: '100%', padding: '0.5rem', paddingRight: '2.5rem', borderRadius: '8px', border: '1px solid #93c5fd', background: 'white', color: '#1e293b', fontSize: '0.875rem' }}
-                                        value={formData.confirmPassword}
-                                        onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
-                                    />
-                                    <button
-                                        type="button"
-                                        onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                                        style={{ position: 'absolute', right: '0.5rem', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center' }}
-                                    >
-                                        {showConfirmPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                                    </button>
-                                </div>
+                        <div style={{ padding: '0.85rem', background: 'rgba(255,255,255,0.6)', borderRadius: '12px', border: '1px solid #bfdbfe', marginTop: '0.5rem' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.35rem' }}>
+                                <Shield size={16} color="#1d4ed8" />
+                                <span style={{ fontSize: '0.8rem', color: '#1e3a8a', fontWeight: 'bold' }}>
+                                    Principal Privacy & Password Control
+                                </span>
                             </div>
+                            <p style={{ fontSize: '0.75rem', color: '#475569', margin: '0 0 0.75rem 0', lineHeight: 1.4 }}>
+                                Principals manage their own private password in their Settings. Super Admin cannot view or overwrite their password directly. If the principal is locked out, send them an official reset link.
+                            </p>
+                            <button
+                                type="button"
+                                onClick={handleSendResetEmail}
+                                disabled={passwordLoading}
+                                style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    gap: '0.4rem',
+                                    padding: '0.5rem 0.85rem',
+                                    borderRadius: '8px',
+                                    background: '#2563eb',
+                                    color: 'white',
+                                    border: 'none',
+                                    fontSize: '0.78rem',
+                                    fontWeight: '600',
+                                    cursor: passwordLoading ? 'not-allowed' : 'pointer',
+                                    width: '100%'
+                                }}
+                            >
+                                {passwordLoading ? <Loader2 size={14} className="animate-spin" /> : <Mail size={14} />}
+                                {passwordLoading ? 'Sending Reset Link...' : 'Send Password Reset Link to Principal Email'}
+                            </button>
                         </div>
 
                         <div style={{ display: 'flex', gap: '0.5rem', marginTop: '1rem' }}>

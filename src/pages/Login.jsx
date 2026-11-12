@@ -248,7 +248,7 @@ const Login = () => {
                                     email: 'admin@system.local',
                                     displayName: 'Super Administrator'
                                 }));
-                                window.location.href = '/board-blueprints';
+                                window.location.href = '/';
                             }}
                             style={{
                                 width: '100%',

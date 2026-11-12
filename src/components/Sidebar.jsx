@@ -1,4 +1,4 @@
-import { LayoutDashboard, School, Settings, LogOut, Shield, ShieldCheck, Sun, Moon, BookOpen, CreditCard } from 'lucide-react';
+import { LayoutDashboard, School, Settings, LogOut, Shield, ShieldCheck, Sun, Moon, CreditCard } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import { signOut } from 'firebase/auth';
 import { auth } from '../firebase';
@@ -14,7 +14,6 @@ const Sidebar = () => {
         { icon: LayoutDashboard, label: 'Dashboard', path: '/' },
         { icon: School, label: 'Schools', path: '/schools' },
         { icon: CreditCard, label: 'Billing & Subscriptions', path: '/billing-subscriptions', permission: 'manageBilling' },
-        { icon: BookOpen, label: 'Board Blueprints', path: '/board-blueprints' },
         { icon: ShieldCheck, label: 'Admins', path: '/admins', permission: 'manageAdmins' },
         { icon: Settings, label: 'Settings', path: '/settings' },
     ];
