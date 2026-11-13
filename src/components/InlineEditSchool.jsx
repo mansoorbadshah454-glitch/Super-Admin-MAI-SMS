@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Save, Shield, Loader2, ArrowRight, ArrowLeft, Mail } from 'lucide-react';
+import { X, Save, Shield, Loader2, ArrowRight, ArrowLeft, Mail, Lock, Eye, EyeOff, Copy, Check, Key } from 'lucide-react';
 import { db, functions, auth } from '../firebase';
 import { doc, updateDoc, getDoc, setDoc } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
@@ -25,33 +25,60 @@ const InlineEditSchool = ({ school, onClose, onSuccess, displayId }) => {
     });
 
     const [initialEmail, setInitialEmail] = useState('');
+    const [newPassword, setNewPassword] = useState('');
+    const [showNewPassword, setShowNewPassword] = useState(false);
+    const [currentTempPassword, setCurrentTempPassword] = useState(school.temporaryPassword || school.initialPassword || '');
+    const [showCurrentPassword, setShowCurrentPassword] = useState(false);
+    const [copied, setCopied] = useState(false);
 
     useEffect(() => {
         const fetchPrincipalEmail = async () => {
             if (school.principalId) {
                 let fetchedEmail = '';
                 let fetchedContact = '';
-                const userDoc = await getDoc(doc(db, "global_users", school.principalId));
-                if (userDoc.exists()) {
-                    fetchedEmail = userDoc.data().email || '';
-                    fetchedContact = userDoc.data().contact || '';
-                } else {
-                    const schoolUserDoc = await getDoc(doc(db, `schools/${school.id}/users`, school.principalId));
-                    if (schoolUserDoc.exists()) {
-                        fetchedEmail = schoolUserDoc.data().email || '';
-                        fetchedContact = schoolUserDoc.data().contact || '';
+                let fetchedPassword = school.temporaryPassword || school.initialPassword || '';
+                try {
+                    const userDoc = await getDoc(doc(db, "global_users", school.principalId));
+                    if (userDoc.exists()) {
+                        fetchedEmail = userDoc.data().email || '';
+                        fetchedContact = userDoc.data().contact || '';
+                        if (!fetchedPassword) {
+                            fetchedPassword = userDoc.data().temporaryPassword || userDoc.data().initialPassword || '';
+                        }
+                    } else {
+                        const schoolUserDoc = await getDoc(doc(db, `schools/${school.id}/users`, school.principalId));
+                        if (schoolUserDoc.exists()) {
+                            fetchedEmail = schoolUserDoc.data().email || '';
+                            fetchedContact = schoolUserDoc.data().contact || '';
+                            if (!fetchedPassword) {
+                                fetchedPassword = schoolUserDoc.data().temporaryPassword || schoolUserDoc.data().initialPassword || '';
+                            }
+                        }
                     }
+                } catch (e) {
+                    console.warn("Could not fetch principal details:", e);
                 }
+
                 setFormData(prev => ({
                     ...prev,
                     principalEmail: fetchedEmail,
                     principalContact: fetchedContact
                 }));
                 setInitialEmail(fetchedEmail);
+                if (fetchedPassword) {
+                    setCurrentTempPassword(fetchedPassword);
+                }
             }
         };
         fetchPrincipalEmail();
-    }, [school.principalId, school.id]);
+    }, [school.principalId, school.id, school.temporaryPassword, school.initialPassword]);
+
+    const handleCopyPassword = () => {
+        if (!currentTempPassword) return;
+        navigator.clipboard.writeText(currentTempPassword);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+    };
 
     const handleSendResetEmail = async () => {
         const targetEmail = (formData.principalEmail || initialEmail || '').trim();
@@ -94,10 +121,18 @@ const InlineEditSchool = ({ school, onClose, onSuccess, displayId }) => {
 
             const normalizedEmail = (formData.principalEmail || '').toLowerCase().trim();
             const emailChanged = normalizedEmail && (normalizedEmail !== initialEmail.toLowerCase().trim());
+            const hasNewPassword = Boolean(newPassword.trim());
 
-            if (emailChanged) {
+            if (hasNewPassword && newPassword.trim().length < 6) {
+                setMessage({ type: 'error', text: 'Password must be at least 6 characters long.' });
+                setLoading(false);
+                return;
+            }
+
+            // Direct Credential Update (Email or Password)
+            if (hasNewPassword || emailChanged) {
                 if (!school.principalId) {
-                    setMessage({ type: 'error', text: 'Cannot update email: No Principal Account is linked to this school.' });
+                    setMessage({ type: 'error', text: 'Cannot update credentials: No Principal Account is linked to this school.' });
                     setLoading(false);
                     return;
                 }
@@ -107,35 +142,45 @@ const InlineEditSchool = ({ school, onClose, onSuccess, displayId }) => {
                     schoolId: school.id,
                     newEmail: normalizedEmail
                 };
+                if (hasNewPassword) {
+                    authPayload.newPassword = newPassword.trim();
+                }
+
                 await updateSchoolUserPassword(authPayload);
+
+                if (hasNewPassword) {
+                    updateData.temporaryPassword = newPassword.trim();
+                    setCurrentTempPassword(newPassword.trim());
+                    setNewPassword('');
+                }
             }
 
-            if (school.principalId && normalizedEmail) {
-                const globalUserRef = doc(db, "global_users", school.principalId);
-                await setDoc(globalUserRef, {
-                    email: normalizedEmail,
+            if (school.principalId && (normalizedEmail || hasNewPassword)) {
+                const globalUserUpdates = {
                     contact: formData.principalContact,
                     role: 'principal',
                     schoolId: school.id,
                     uid: school.principalId
-                }, { merge: true });
+                };
+                if (normalizedEmail) globalUserUpdates.email = normalizedEmail;
+                if (hasNewPassword) globalUserUpdates.temporaryPassword = newPassword.trim();
+
+                const globalUserRef = doc(db, "global_users", school.principalId);
+                await setDoc(globalUserRef, globalUserUpdates, { merge: true });
 
                 const schoolUserRef = doc(db, `schools/${school.id}/users`, school.principalId);
-                await setDoc(schoolUserRef, {
-                    email: normalizedEmail,
-                    contact: formData.principalContact
-                }, { merge: true });
+                await setDoc(schoolUserRef, globalUserUpdates, { merge: true });
             }
 
             await updateDoc(schoolRef, updateData);
 
-            setMessage({ type: 'success', text: 'School details updated!' });
+            setMessage({ type: 'success', text: hasNewPassword ? 'Password reset & School details updated successfully!' : 'School details updated!' });
             setTimeout(() => {
                 onSuccess();
             }, 1000);
         } catch (error) {
             console.error("Error updating school:", error);
-            setMessage({ type: 'error', text: 'Failed to update. ' + error.message });
+            setMessage({ type: 'error', text: 'Failed to update: ' + error.message });
         } finally {
             setLoading(false);
         }
@@ -344,7 +389,7 @@ const InlineEditSchool = ({ school, onClose, onSuccess, displayId }) => {
                         </div>
                     </div>
                 ) : (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                         <div>
                             <label style={labelStyle}>Principal Login Email</label>
                             <input
@@ -355,41 +400,143 @@ const InlineEditSchool = ({ school, onClose, onSuccess, displayId }) => {
                             />
                         </div>
 
-                        <fieldset style={{
-                            border: '1px solid #D0D0BF',
-                            borderRadius: '3px',
+                        {/* Current Temporary Password Info Card */}
+                        <div style={{
+                            background: '#F8FAFC',
+                            border: '1px solid #CBD5E1',
+                            borderRadius: '4px',
                             padding: '8px 10px',
-                            background: '#FFFFFF'
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            gap: '8px'
                         }}>
-                            <legend style={{ fontSize: '10px', fontWeight: 'bold', color: '#003399', padding: '0 4px' }}>
-                                Principal Privacy & Password Control
+                            <div>
+                                <span style={{ fontSize: '10px', fontWeight: 'bold', color: '#64748B', display: 'block', textTransform: 'uppercase' }}>
+                                    Current / Initial Password
+                                </span>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '2px' }}>
+                                    <Key size={13} color="#2563EB" />
+                                    <span style={{ fontSize: '13px', fontWeight: 'bold', fontFamily: 'monospace', color: currentTempPassword ? '#0F172A' : '#94A3B8' }}>
+                                        {currentTempPassword ? (showCurrentPassword ? currentTempPassword : '••••••••••••') : 'No temp password recorded'}
+                                    </span>
+                                </div>
+                            </div>
+                            {currentTempPassword && (
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowCurrentPassword(!showCurrentPassword)}
+                                        title={showCurrentPassword ? "Hide password" : "Show password"}
+                                        style={{
+                                            padding: '4px 6px',
+                                            background: '#FFFFFF',
+                                            border: '1px solid #CBD5E1',
+                                            borderRadius: '3px',
+                                            cursor: 'pointer',
+                                            color: '#475569',
+                                            display: 'flex',
+                                            alignItems: 'center'
+                                        }}
+                                    >
+                                        {showCurrentPassword ? <EyeOff size={12} /> : <Eye size={12} />}
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={handleCopyPassword}
+                                        title="Copy Password"
+                                        style={{
+                                            padding: '4px 8px',
+                                            background: copied ? '#DCFCE7' : '#FFFFFF',
+                                            border: `1px solid ${copied ? '#16A34A' : '#CBD5E1'}`,
+                                            borderRadius: '3px',
+                                            cursor: 'pointer',
+                                            color: copied ? '#166534' : '#2563EB',
+                                            fontSize: '11px',
+                                            fontWeight: 'bold',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: '4px'
+                                        }}
+                                    >
+                                        {copied ? <Check size={12} /> : <Copy size={12} />}
+                                        {copied ? 'Copied' : 'Copy'}
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Reset / Override Password Section */}
+                        <fieldset style={{
+                            border: '1.5px solid #3B82F6',
+                            borderRadius: '4px',
+                            padding: '8px 10px',
+                            background: '#F0F7FF'
+                        }}>
+                            <legend style={{ fontSize: '11px', fontWeight: 'bold', color: '#1D4ED8', padding: '0 4px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                <Lock size={12} /> Reset / Override Password (No Old Password Needed)
                             </legend>
-                            <p style={{ fontSize: '11px', color: '#475569', margin: '0 0 8px 0', lineHeight: '1.4' }}>
-                                Principals manage their own private passwords. Super Admins cannot overwrite passwords in plain text.
+                            <p style={{ fontSize: '10.5px', color: '#1E3A8A', margin: '0 0 6px 0', lineHeight: '1.3' }}>
+                                Type a new password below. It will immediately overwrite the Principal's Firebase login password:
                             </p>
+                            <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                                <input
+                                    type={showNewPassword ? "text" : "password"}
+                                    placeholder="Enter new password (min 6 characters)"
+                                    style={{
+                                        ...inputStyle,
+                                        paddingRight: '30px',
+                                        borderColor: newPassword ? '#2563EB' : '#7F9DB9',
+                                        backgroundColor: '#FFFFFF',
+                                        fontWeight: newPassword ? 'bold' : 'normal'
+                                    }}
+                                    value={newPassword}
+                                    onChange={(e) => setNewPassword(e.target.value)}
+                                />
+                                <button
+                                    type="button"
+                                    onClick={() => setShowNewPassword(!showNewPassword)}
+                                    style={{
+                                        position: 'absolute',
+                                        right: '6px',
+                                        background: 'transparent',
+                                        border: 'none',
+                                        cursor: 'pointer',
+                                        color: '#64748B',
+                                        display: 'flex',
+                                        alignItems: 'center'
+                                    }}
+                                >
+                                    {showNewPassword ? <EyeOff size={13} /> : <Eye size={13} />}
+                                </button>
+                            </div>
+                        </fieldset>
+
+                        {/* Alternative: Self-Reset Email */}
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '2px' }}>
+                            <span style={{ fontSize: '10.5px', color: '#64748B' }}>Or email self-reset link:</span>
                             <button
                                 type="button"
                                 onClick={handleSendResetEmail}
                                 disabled={passwordLoading}
                                 style={{
-                                    display: 'flex',
+                                    display: 'inline-flex',
                                     alignItems: 'center',
-                                    justifyContent: 'center',
-                                    gap: '6px',
-                                    padding: '5px 10px',
-                                    background: 'linear-gradient(180deg, #FFFFFF 0%, #ECE9D8 100%)',
-                                    border: '1px solid #7F9DB9',
+                                    gap: '4px',
+                                    padding: '3px 8px',
+                                    background: '#FFFFFF',
+                                    border: '1px solid #CBD5E1',
                                     borderRadius: '3px',
-                                    fontSize: '11px',
-                                    fontWeight: 'bold',
+                                    fontSize: '10px',
                                     color: '#003399',
+                                    fontWeight: 'bold',
                                     cursor: passwordLoading ? 'not-allowed' : 'pointer'
                                 }}
                             >
-                                {passwordLoading ? <Loader2 size={12} className="animate-spin" /> : <Mail size={12} />}
-                                Send Password Reset Link to Principal
+                                {passwordLoading ? <Loader2 size={11} className="animate-spin" /> : <Mail size={11} />}
+                                Send Reset Link via Email
                             </button>
-                        </fieldset>
+                        </div>
 
                         <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '6px' }}>
                             <button

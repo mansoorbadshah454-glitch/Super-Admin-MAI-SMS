@@ -4,7 +4,7 @@ import {
     School, Search, Filter, Plus, MoreHorizontal, ExternalLink, Trash2, Edit2, 
     Users, MapPin, Power, CreditCard, Megaphone, RotateCcw, X, SlidersHorizontal,
     Table as TableIcon, LayoutGrid, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight,
-    Calendar, CheckCircle, AlertTriangle, ArrowRight
+    Calendar, CheckCircle, AlertTriangle, ArrowRight, Key, Eye, EyeOff, Copy, Check, Lock
 } from 'lucide-react';
 import { db, auth } from '../firebase';
 import { collection, onSnapshot, query, orderBy, getCountFromServer, where, Timestamp, doc, updateDoc, serverTimestamp } from 'firebase/firestore';
@@ -28,6 +28,20 @@ const Schools = () => {
     const [selectedSchool, setSelectedSchool] = useState(null);
     const [schoolToDelete, setSchoolToDelete] = useState(null);
     const [showBroadcastModal, setShowBroadcastModal] = useState(false);
+    const [showPassMap, setShowPassMap] = useState({});
+    const [copiedSchoolId, setCopiedSchoolId] = useState(null);
+
+    const toggleShowPass = (id) => {
+        setShowPassMap(prev => ({ ...prev, [id]: !prev[id] }));
+    };
+
+    const handleCopyPass = (password, id, e) => {
+        if (e) e.stopPropagation();
+        if (!password) return;
+        navigator.clipboard.writeText(password);
+        setCopiedSchoolId(id);
+        setTimeout(() => setCopiedSchoolId(null), 2000);
+    };
     
     // View Mode & Pagination states (Windows 7 / XP Explorer Style)
     const [viewMode, setViewMode] = useState(() => {
@@ -608,8 +622,46 @@ const Schools = () => {
                                                                 </span>
                                                             )}
                                                         </div>
-                                                        <div style={{ fontSize: '11px', color: isDemo ? '#7C3AED' : '#64748B', fontFamily: 'monospace' }}>
-                                                            {displayId}
+                                                        <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '6px', fontSize: '11px', color: isDemo ? '#7C3AED' : '#64748B', fontFamily: 'monospace', marginTop: '2px' }}>
+                                                            <span>{displayId}</span>
+                                                            {(school.temporaryPassword || school.initialPassword) && (
+                                                                <span
+                                                                    onClick={(e) => e.stopPropagation()}
+                                                                    style={{
+                                                                        display: 'inline-flex',
+                                                                        alignItems: 'center',
+                                                                        gap: '3px',
+                                                                        color: '#1E293B',
+                                                                        background: '#F1F5F9',
+                                                                        border: '1px solid #CBD5E1',
+                                                                        padding: '1px 5px',
+                                                                        borderRadius: '3px',
+                                                                        fontSize: '10px'
+                                                                    }}
+                                                                >
+                                                                    <Key size={10} color="#2563EB" />
+                                                                    <span>Pass:</span>
+                                                                    <strong>
+                                                                        {showPassMap[school.id] ? (school.temporaryPassword || school.initialPassword) : '••••'}
+                                                                    </strong>
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => toggleShowPass(school.id)}
+                                                                        style={{ marginLeft: '2px', border: 'none', background: 'transparent', cursor: 'pointer', padding: 0, color: '#64748B', display: 'flex', alignItems: 'center' }}
+                                                                        title="Toggle password view"
+                                                                    >
+                                                                        {showPassMap[school.id] ? <EyeOff size={10} /> : <Eye size={10} />}
+                                                                    </button>
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={(e) => handleCopyPass((school.temporaryPassword || school.initialPassword), school.id, e)}
+                                                                        style={{ marginLeft: '2px', border: 'none', background: 'transparent', cursor: 'pointer', padding: 0, color: copiedSchoolId === school.id ? '#16A34A' : '#2563EB', display: 'flex', alignItems: 'center' }}
+                                                                        title="Copy password"
+                                                                    >
+                                                                        {copiedSchoolId === school.id ? <Check size={10} /> : <Copy size={10} />}
+                                                                    </button>
+                                                                </span>
+                                                            )}
                                                         </div>
                                                     </div>
                                                 </div>
@@ -1093,6 +1145,78 @@ const Schools = () => {
                                                 <span style={{ color: school.trialInfo?.isExpired ? '#DC2626' : '#2563EB', fontWeight: '700' }}>
                                                     {school.trialInfo?.isExpired ? 'Trial End' : `${school.trialInfo?.daysLeft}d left`}
                                                 </span>
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    {/* Temporary / Login Credentials Row */}
+                                    <div
+                                        style={{
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'space-between',
+                                            backgroundColor: (school.temporaryPassword || school.initialPassword) ? '#F0F9FF' : '#F8FAFC',
+                                            padding: '5px 8px',
+                                            borderRadius: '5px',
+                                            fontSize: '11px',
+                                            border: (school.temporaryPassword || school.initialPassword) ? '1px solid #BAE6FD' : '1px dashed #CBD5E1'
+                                        }}
+                                        onClick={(e) => e.stopPropagation()}
+                                    >
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '5px', overflow: 'hidden' }}>
+                                            <Key size={11} color={(school.temporaryPassword || school.initialPassword) ? '#0284C7' : '#94A3B8'} />
+                                            <span style={{ color: '#475569', fontWeight: '600', fontSize: '10.5px' }}>Temp Pass:</span>
+                                            <span style={{
+                                                fontFamily: 'monospace',
+                                                fontWeight: 'bold',
+                                                fontSize: '11px',
+                                                color: (school.temporaryPassword || school.initialPassword) ? '#0369A1' : '#94A3B8'
+                                            }}>
+                                                {(school.temporaryPassword || school.initialPassword)
+                                                    ? (showPassMap[school.id] ? (school.temporaryPassword || school.initialPassword) : '••••••••')
+                                                    : 'Not Set'}
+                                            </span>
+                                        </div>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
+                                            {(school.temporaryPassword || school.initialPassword) && (
+                                                <>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => toggleShowPass(school.id)}
+                                                        title={showPassMap[school.id] ? 'Hide Password' : 'Show Password'}
+                                                        style={{ padding: '2px 4px', border: 'none', background: 'transparent', cursor: 'pointer', color: '#64748B', display: 'flex', alignItems: 'center' }}
+                                                    >
+                                                        {showPassMap[school.id] ? <EyeOff size={11} /> : <Eye size={11} />}
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        onClick={(e) => handleCopyPass((school.temporaryPassword || school.initialPassword), school.id, e)}
+                                                        title="Copy Password"
+                                                        style={{ padding: '2px 4px', border: 'none', background: 'transparent', cursor: 'pointer', color: copiedSchoolId === school.id ? '#16A34A' : '#0284C7', display: 'flex', alignItems: 'center' }}
+                                                    >
+                                                        {copiedSchoolId === school.id ? <Check size={11} /> : <Copy size={11} />}
+                                                    </button>
+                                                </>
+                                            )}
+                                            {(isMasterAdmin || hasPermission('manageSchools')) && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setSelectedSchool(school)}
+                                                    title="Quick Edit / Reset Credentials"
+                                                    style={{
+                                                        padding: '1px 6px',
+                                                        borderRadius: '3px',
+                                                        border: '1px solid #7F9DB9',
+                                                        background: 'linear-gradient(180deg, #FFFFFF 0%, #ECE9D8 100%)',
+                                                        color: '#003399',
+                                                        fontSize: '10px',
+                                                        fontWeight: 'bold',
+                                                        cursor: 'pointer',
+                                                        fontFamily: 'Tahoma, sans-serif'
+                                                    }}
+                                                >
+                                                    Edit Pass
+                                                </button>
                                             )}
                                         </div>
                                     </div>

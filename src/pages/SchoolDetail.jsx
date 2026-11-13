@@ -5,11 +5,13 @@ import {
     CreditCard, Power, Loader2, Save, Calendar,
     MapPin, Hash, CheckCircle, XCircle, Users, Phone,
     Landmark, Building2, Plus, Trash2, Crown, Sparkles, Bus, Tv,
-    DollarSign, SlidersHorizontal, Check, AlertCircle, ArrowLeft
+    DollarSign, SlidersHorizontal, Check, AlertCircle, ArrowLeft,
+    Key, Eye, EyeOff, Copy, Lock, Edit2
 } from 'lucide-react';
 import { db } from '../firebase';
 import { doc, onSnapshot, updateDoc, getDoc, collection, getCountFromServer, setDoc } from 'firebase/firestore';
 import { useAdminAuth } from '../contexts/AdminAuthContext';
+import InlineEditSchool from '../components/InlineEditSchool';
 
 const SchoolDetail = () => {
     const { id } = useParams();
@@ -29,6 +31,16 @@ const SchoolDetail = () => {
     
     // Windows 7 / XP Tab Navigation State
     const [activeTab, setActiveTab] = useState('general'); // 'general' | 'principal' | 'subscription' | 'banking'
+    const [showPass, setShowPass] = useState(false);
+    const [copiedPass, setCopiedPass] = useState(false);
+    const [showEditModal, setShowEditModal] = useState(false);
+
+    const handleCopyPrincipalPassword = (pwd) => {
+        if (!pwd) return;
+        navigator.clipboard.writeText(pwd);
+        setCopiedPass(true);
+        setTimeout(() => setCopiedPass(false), 2000);
+    };
 
     // Listen to School's banking settings
     useEffect(() => {
@@ -637,26 +649,129 @@ const SchoolDetail = () => {
                     )}
 
                     {/* TAB 2: Principal Administrator */}
-                    {activeTab === 'principal' && (
-                        <div>
-                            <fieldset className="win-fieldset">
-                                <legend className="win-legend">School Administrator & Contact Details</legend>
-                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '16px' }}>
-                                    <SimpleInfoItem label="Principal Name" value={principal?.name || school.principalName || 'Not Set'} icon={User} />
-                                    <SimpleInfoItem label="Official Email Address" value={principal?.email || school.principalEmail || 'N/A'} icon={Mail} />
-                                    <SimpleInfoItem label="Principal Mobile" value={principal?.contact || school.principalContact || 'Not Provided'} icon={Phone} />
-                                    <SimpleInfoItem label="Vice Principal Contact" value={school.vicePrincipalContact || 'Not Provided'} icon={Phone} />
-                                    <SimpleInfoItem label="Campus Landline" value={school.landline || 'Not Provided'} icon={Phone} />
-                                    <SimpleInfoItem label="Principal UID" value={school.principalId || 'N/A'} icon={Hash} isCode />
-                                    <SimpleInfoItem
-                                        label="Profile Last Updated"
-                                        value={school.updatedAt?.toDate ? school.updatedAt.toDate().toLocaleDateString() : 'N/A'}
-                                        icon={Calendar}
-                                    />
-                                </div>
-                            </fieldset>
-                        </div>
-                    )}
+                    {activeTab === 'principal' && (() => {
+                        const effectivePassword = school.temporaryPassword || school.initialPassword || principal?.temporaryPassword || principal?.initialPassword || '';
+                        return (
+                            <div>
+                                <fieldset className="win-fieldset">
+                                    <legend className="win-legend">School Administrator & Contact Details</legend>
+                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '16px' }}>
+                                        <SimpleInfoItem label="Principal Name" value={principal?.name || school.principalName || 'Not Set'} icon={User} />
+                                        <SimpleInfoItem label="Official Email Address" value={principal?.email || school.principalEmail || 'N/A'} icon={Mail} />
+                                        <SimpleInfoItem label="Principal Mobile" value={principal?.contact || school.principalContact || 'Not Provided'} icon={Phone} />
+                                        <SimpleInfoItem label="Vice Principal Contact" value={school.vicePrincipalContact || 'Not Provided'} icon={Phone} />
+                                        <SimpleInfoItem label="Campus Landline" value={school.landline || 'Not Provided'} icon={Phone} />
+                                        <SimpleInfoItem label="Principal UID" value={school.principalId || 'N/A'} icon={Hash} isCode />
+                                        <SimpleInfoItem
+                                            label="Profile Last Updated"
+                                            value={school.updatedAt?.toDate ? school.updatedAt.toDate().toLocaleDateString() : 'N/A'}
+                                            icon={Calendar}
+                                        />
+                                    </div>
+
+                                    {/* Credentials & Password Card */}
+                                    <div style={{
+                                        marginTop: '16px',
+                                        padding: '12px 14px',
+                                        backgroundColor: '#F0F9FF',
+                                        border: '1.5px solid #BAE6FD',
+                                        borderRadius: '6px',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'space-between',
+                                        flexWrap: 'wrap',
+                                        gap: '12px'
+                                    }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                            <div style={{
+                                                width: '36px',
+                                                height: '36px',
+                                                borderRadius: '6px',
+                                                backgroundColor: '#0284C7',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'center',
+                                                color: '#FFFFFF'
+                                            }}>
+                                                <Key size={18} />
+                                            </div>
+                                            <div>
+                                                <div style={{ fontSize: '11px', fontWeight: 'bold', color: '#0369A1', textTransform: 'uppercase' }}>
+                                                    Administrator Login Password (Temporary / Initial)
+                                                </div>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '2px' }}>
+                                                    <span style={{
+                                                        fontFamily: 'monospace',
+                                                        fontSize: '14px',
+                                                        fontWeight: 'bold',
+                                                        color: effectivePassword ? '#0C4A6E' : '#64748B'
+                                                    }}>
+                                                        {effectivePassword ? (showPass ? effectivePassword : '••••••••••••') : 'No temporary password recorded'}
+                                                    </span>
+                                                    {effectivePassword && (
+                                                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => setShowPass(!showPass)}
+                                                                title={showPass ? "Hide" : "Show"}
+                                                                style={{ padding: '3px 6px', background: '#FFFFFF', border: '1px solid #BAE6FD', borderRadius: '3px', cursor: 'pointer', color: '#0369A1' }}
+                                                            >
+                                                                {showPass ? <EyeOff size={13} /> : <Eye size={13} />}
+                                                            </button>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => handleCopyPrincipalPassword(effectivePassword)}
+                                                                title="Copy Password"
+                                                                style={{
+                                                                    padding: '3px 8px',
+                                                                    background: copiedPass ? '#DCFCE7' : '#FFFFFF',
+                                                                    border: `1px solid ${copiedPass ? '#16A34A' : '#BAE6FD'}`,
+                                                                    borderRadius: '3px',
+                                                                    cursor: 'pointer',
+                                                                    color: copiedPass ? '#166534' : '#0369A1',
+                                                                    fontSize: '11px',
+                                                                    fontWeight: 'bold',
+                                                                    display: 'inline-flex',
+                                                                    alignItems: 'center',
+                                                                    gap: '3px'
+                                                                }}
+                                                            >
+                                                                {copiedPass ? <Check size={12} /> : <Copy size={12} />}
+                                                                {copiedPass ? 'Copied' : 'Copy'}
+                                                            </button>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {(isMasterAdmin || hasPermission('manageSchools')) && (
+                                            <button
+                                                type="button"
+                                                onClick={() => setShowEditModal(true)}
+                                                style={{
+                                                    display: 'inline-flex',
+                                                    alignItems: 'center',
+                                                    gap: '6px',
+                                                    padding: '6px 14px',
+                                                    backgroundColor: '#0284C7',
+                                                    color: '#FFFFFF',
+                                                    border: 'none',
+                                                    borderRadius: '4px',
+                                                    fontSize: '12px',
+                                                    fontWeight: 'bold',
+                                                    cursor: 'pointer',
+                                                    boxShadow: '0 2px 4px rgba(2, 132, 199, 0.2)'
+                                                }}
+                                            >
+                                                <Lock size={13} /> Quick Reset Password / Edit
+                                            </button>
+                                        )}
+                                    </div>
+                                </fieldset>
+                            </div>
+                        );
+                    })()}
 
                     {/* TAB 3: Subscription & Modules */}
                     {activeTab === 'subscription' && (
@@ -965,6 +1080,35 @@ const SchoolDetail = () => {
                     )}
                 </div>
             </div>
+
+            {/* Quick Edit & Reset Password Modal */}
+            {showEditModal && (
+                <div style={{
+                    position: 'fixed',
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    backgroundColor: 'rgba(15, 23, 42, 0.6)',
+                    backdropFilter: 'blur(4px)',
+                    zIndex: 9999,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    padding: '16px'
+                }}>
+                    <div style={{ width: '100%', maxWidth: '640px', background: '#FFFFFF', borderRadius: '12px', overflow: 'hidden', boxShadow: '0 20px 40px rgba(0,0,0,0.4)' }}>
+                        <InlineEditSchool
+                            school={school}
+                            displayId={school.id}
+                            onClose={() => setShowEditModal(false)}
+                            onSuccess={() => {
+                                setShowEditModal(false);
+                            }}
+                        />
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
