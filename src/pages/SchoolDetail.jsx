@@ -365,42 +365,64 @@ const SchoolDetail = () => {
                         <ChevronLeft size={16} /> Back
                     </button>
 
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                        <div style={{
-                            width: '40px',
-                            height: '40px',
-                            borderRadius: '8px',
-                            background: 'linear-gradient(135deg, #2563EB, #1D4ED8)',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            color: '#FFFFFF'
-                        }}>
-                            <School size={20} />
-                        </div>
-                        <div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: '800', color: '#0F172A' }}>
-                                    {school.name || school.schoolName || 'Unnamed School'}
-                                </h2>
-                                <span style={{
-                                    fontSize: '11px',
-                                    fontFamily: 'monospace',
-                                    padding: '2px 6px',
-                                    borderRadius: '4px',
-                                    backgroundColor: '#F1F5F9',
-                                    color: '#475569',
-                                    border: '1px solid #CBD5E1'
+                    {(() => {
+                        const isDemo = school?.id === 'SCHOOL_6257' || school?.schoolId === 'SCHOOL_6257' || school?.isDemo === true;
+                        return (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                <div style={{
+                                    width: '40px',
+                                    height: '40px',
+                                    borderRadius: '8px',
+                                    background: isDemo ? 'linear-gradient(135deg, #8B5CF6, #6D28D9)' : 'linear-gradient(135deg, #2563EB, #1D4ED8)',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    color: '#FFFFFF'
                                 }}>
-                                    ID: {school.id}
-                                </span>
+                                    <School size={20} />
+                                </div>
+                                <div>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                        <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: '800', color: isDemo ? '#5B21B6' : '#0F172A' }}>
+                                            {school.name || school.schoolName || 'Unnamed School'}
+                                        </h2>
+                                        <span style={{
+                                            fontSize: '11px',
+                                            fontFamily: 'monospace',
+                                            padding: '2px 6px',
+                                            borderRadius: '4px',
+                                            backgroundColor: isDemo ? '#F3E8FF' : '#F1F5F9',
+                                            color: isDemo ? '#6D28D9' : '#475569',
+                                            border: isDemo ? '1px solid #DDD6FE' : '1px solid #CBD5E1'
+                                        }}>
+                                            ID: {school.id}
+                                        </span>
+                                        {isDemo && (
+                                            <span style={{
+                                                fontSize: '11px',
+                                                fontWeight: '800',
+                                                padding: '2px 8px',
+                                                borderRadius: '12px',
+                                                backgroundColor: '#EDE9FE',
+                                                color: '#6D28D9',
+                                                border: '1px solid #DDD6FE',
+                                                display: 'inline-flex',
+                                                alignItems: 'center',
+                                                gap: '4px'
+                                            }}>
+                                                <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#8B5CF6' }} />
+                                                Demo Acc
+                                            </span>
+                                        )}
+                                    </div>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: '#64748B', marginTop: '2px' }}>
+                                        <MapPin size={12} style={{ color: isDemo ? '#7C3AED' : '#2563EB' }} />
+                                        <span>{school.city || school.district || 'City N/A'}, {school.state || 'Province N/A'}</span>
+                                    </div>
+                                </div>
                             </div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: '#64748B', marginTop: '2px' }}>
-                                <MapPin size={12} style={{ color: '#2563EB' }} />
-                                <span>{school.city || school.district || 'City N/A'}, {school.state || 'Province N/A'}</span>
-                            </div>
-                        </div>
-                    </div>
+                        );
+                    })()}
                 </div>
 
                 {/* Right: Quick Action Controls Bar */}

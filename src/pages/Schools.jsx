@@ -551,19 +551,23 @@ const Schools = () => {
                                     const cycleLabel = school.billingCycle === 'yearly' ? 'yr' : 'mo';
                                     const isPaid = school.paymentStatus === 'paid';
                                     const isActive = school.status === 'active';
+                                    const isDemo = school.id === 'SCHOOL_6257' || school.schoolId === 'SCHOOL_6257' || school.isDemo === true;
 
                                     return (
                                         <tr
                                             key={school.id}
                                             onClick={() => navigate(`/schools/${school.id}`)}
                                             style={{
-                                                backgroundColor: index % 2 === 0 ? '#FFFFFF' : '#F8FAFC',
+                                                backgroundColor: isDemo
+                                                    ? (index % 2 === 0 ? '#FAF5FF' : '#F5EEFD')
+                                                    : (index % 2 === 0 ? '#FFFFFF' : '#F8FAFC'),
                                                 borderBottom: '1px solid #E2E8F0',
+                                                borderLeft: isDemo ? '4px solid #8B5CF6' : '4px solid transparent',
                                                 cursor: 'pointer',
                                                 transition: 'background-color 0.1s ease'
                                             }}
-                                            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#EFF6FF'}
-                                            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = index % 2 === 0 ? '#FFFFFF' : '#F8FAFC'}
+                                            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = isDemo ? '#F3E8FF' : '#EFF6FF'}
+                                            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = isDemo ? (index % 2 === 0 ? '#FAF5FF' : '#F5EEFD') : (index % 2 === 0 ? '#FFFFFF' : '#F8FAFC')}
                                         >
                                             {/* School Name & ID */}
                                             <td style={{ padding: '10px 14px' }}>
@@ -572,7 +576,7 @@ const Schools = () => {
                                                         width: '32px',
                                                         height: '32px',
                                                         borderRadius: '6px',
-                                                        background: 'linear-gradient(135deg, #3B82F6, #1D4ED8)',
+                                                        background: isDemo ? 'linear-gradient(135deg, #8B5CF6, #6D28D9)' : 'linear-gradient(135deg, #3B82F6, #1D4ED8)',
                                                         display: 'flex',
                                                         alignItems: 'center',
                                                         justifyContent: 'center',
@@ -582,10 +586,29 @@ const Schools = () => {
                                                         <School size={16} />
                                                     </div>
                                                     <div>
-                                                        <div style={{ fontWeight: '700', color: '#1E3A8A', fontSize: '13px' }}>
-                                                            {school.name || school.schoolName || 'Unnamed School'}
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                            <span style={{ fontWeight: '700', color: isDemo ? '#5B21B6' : '#1E3A8A', fontSize: '13px' }}>
+                                                                {school.name || school.schoolName || 'Unnamed School'}
+                                                            </span>
+                                                            {isDemo && (
+                                                                <span style={{
+                                                                    padding: '1px 6px',
+                                                                    borderRadius: '999px',
+                                                                    fontSize: '10px',
+                                                                    fontWeight: '800',
+                                                                    backgroundColor: '#EDE9FE',
+                                                                    color: '#6D28D9',
+                                                                    border: '1px solid #DDD6FE',
+                                                                    display: 'inline-flex',
+                                                                    alignItems: 'center',
+                                                                    gap: '3px'
+                                                                }}>
+                                                                    <span style={{ width: '5px', height: '5px', borderRadius: '50%', backgroundColor: '#8B5CF6' }} />
+                                                                    Demo Acc
+                                                                </span>
+                                                            )}
                                                         </div>
-                                                        <div style={{ fontSize: '11px', color: '#64748B', fontFamily: 'monospace' }}>
+                                                        <div style={{ fontSize: '11px', color: isDemo ? '#7C3AED' : '#64748B', fontFamily: 'monospace' }}>
                                                             {displayId}
                                                         </div>
                                                     </div>
@@ -946,29 +969,32 @@ const Schools = () => {
                                 );
                             }
 
+                            const isDemo = school.id === 'SCHOOL_6257' || school.schoolId === 'SCHOOL_6257' || school.isDemo === true;
+
                             return (
                                 <div
                                     key={school.id}
                                     onClick={() => navigate(`/schools/${school.id}`)}
                                     style={{
-                                        backgroundColor: '#FFFFFF',
-                                        border: '1px solid #CBD5E1',
+                                        backgroundColor: isDemo ? '#FAF5FF' : '#FFFFFF',
+                                        border: isDemo ? '1.5px solid #C4B5FD' : '1px solid #CBD5E1',
+                                        borderLeft: isDemo ? '4px solid #8B5CF6' : '1px solid #CBD5E1',
                                         borderRadius: '8px',
                                         padding: '12px 14px',
                                         cursor: 'pointer',
-                                        boxShadow: '0 2px 4px rgba(0,0,0,0.03)',
+                                        boxShadow: isDemo ? '0 3px 8px rgba(139, 92, 246, 0.08)' : '0 2px 4px rgba(0,0,0,0.03)',
                                         display: 'flex',
                                         flexDirection: 'column',
                                         gap: '10px',
                                         transition: 'all 0.15s ease'
                                     }}
                                     onMouseEnter={(e) => {
-                                        e.currentTarget.style.borderColor = '#3B82F6';
-                                        e.currentTarget.style.boxShadow = '0 6px 12px rgba(59, 130, 246, 0.1)';
+                                        e.currentTarget.style.borderColor = isDemo ? '#8B5CF6' : '#3B82F6';
+                                        e.currentTarget.style.boxShadow = isDemo ? '0 6px 14px rgba(139, 92, 246, 0.18)' : '0 6px 12px rgba(59, 130, 246, 0.1)';
                                     }}
                                     onMouseLeave={(e) => {
-                                        e.currentTarget.style.borderColor = '#CBD5E1';
-                                        e.currentTarget.style.boxShadow = '0 2px 4px rgba(0,0,0,0.03)';
+                                        e.currentTarget.style.borderColor = isDemo ? '#C4B5FD' : '#CBD5E1';
+                                        e.currentTarget.style.boxShadow = isDemo ? '0 3px 8px rgba(139, 92, 246, 0.08)' : '0 2px 4px rgba(0,0,0,0.03)';
                                     }}
                                 >
                                     {/* Top Row: School Icon + Name + City + Actions */}
@@ -978,7 +1004,7 @@ const Schools = () => {
                                                 width: '36px',
                                                 height: '36px',
                                                 borderRadius: '6px',
-                                                background: 'linear-gradient(135deg, #3B82F6, #1D4ED8)',
+                                                background: isDemo ? 'linear-gradient(135deg, #8B5CF6, #6D28D9)' : 'linear-gradient(135deg, #3B82F6, #1D4ED8)',
                                                 display: 'flex',
                                                 alignItems: 'center',
                                                 justifyContent: 'center',
@@ -988,11 +1014,30 @@ const Schools = () => {
                                                 <School size={18} />
                                             </div>
                                             <div>
-                                                <h4 style={{ margin: 0, fontSize: '13.5px', fontWeight: '700', color: '#1E3A8A', lineHeight: 1.3 }}>
-                                                    {school.name || school.schoolName || 'Unnamed School'}
-                                                </h4>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                    <h4 style={{ margin: 0, fontSize: '13.5px', fontWeight: '700', color: isDemo ? '#5B21B6' : '#1E3A8A', lineHeight: 1.3 }}>
+                                                        {school.name || school.schoolName || 'Unnamed School'}
+                                                    </h4>
+                                                    {isDemo && (
+                                                        <span style={{
+                                                            padding: '1px 6px',
+                                                            borderRadius: '999px',
+                                                            fontSize: '10px',
+                                                            fontWeight: '800',
+                                                            backgroundColor: '#EDE9FE',
+                                                            color: '#6D28D9',
+                                                            border: '1px solid #DDD6FE',
+                                                            display: 'inline-flex',
+                                                            alignItems: 'center',
+                                                            gap: '3px'
+                                                        }}>
+                                                            <span style={{ width: '5px', height: '5px', borderRadius: '50%', backgroundColor: '#8B5CF6' }} />
+                                                            Demo Acc
+                                                        </span>
+                                                    )}
+                                                </div>
                                                 <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11px', color: '#64748B', marginTop: '2px' }}>
-                                                    <MapPin size={11} style={{ color: '#2563EB' }} />
+                                                    <MapPin size={11} style={{ color: isDemo ? '#7C3AED' : '#2563EB' }} />
                                                     <span>{school.city || school.district || 'N/A'}</span>
                                                     {school.state && <span>• {school.state}</span>}
                                                 </div>

@@ -546,13 +546,17 @@ const Dashboard = () => {
                             ) : displayedSchools.map((school, index) => {
                                 const isPaid = school.paymentStatus === 'paid';
                                 const isActive = school.status === 'active';
+                                const isDemo = school.id === 'SCHOOL_6257' || school.schoolId === 'SCHOOL_6257' || school.isDemo === true;
 
                                 return (
                                     <tr
                                         key={school.id}
                                         onClick={() => navigate(`/schools/${school.id}`)}
                                         style={{
-                                            backgroundColor: index % 2 === 0 ? '#FFFFFF' : '#F8FAFC',
+                                            backgroundColor: isDemo
+                                                ? (index % 2 === 0 ? '#FAF5FF' : '#F5EEFD')
+                                                : (index % 2 === 0 ? '#FFFFFF' : '#F8FAFC'),
+                                            borderLeft: isDemo ? '4px solid #8B5CF6' : '4px solid transparent',
                                             cursor: 'pointer'
                                         }}
                                     >
@@ -562,8 +566,8 @@ const Dashboard = () => {
                                                     width: '32px',
                                                     height: '32px',
                                                     borderRadius: '5px',
-                                                    background: '#EFF6FF',
-                                                    color: '#2563EB',
+                                                    background: isDemo ? '#F3E8FF' : '#EFF6FF',
+                                                    color: isDemo ? '#7C3AED' : '#2563EB',
                                                     display: 'flex',
                                                     alignItems: 'center',
                                                     justifyContent: 'center',
@@ -572,8 +576,27 @@ const Dashboard = () => {
                                                     <School size={16} />
                                                 </div>
                                                 <div>
-                                                    <div style={{ fontWeight: '700', color: '#1E3A8A' }}>
-                                                        {school.name || school.schoolName || 'Unnamed School'}
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                        <span style={{ fontWeight: '700', color: isDemo ? '#5B21B6' : '#1E3A8A' }}>
+                                                            {school.name || school.schoolName || 'Unnamed School'}
+                                                        </span>
+                                                        {isDemo && (
+                                                            <span style={{
+                                                                padding: '1px 6px',
+                                                                borderRadius: '999px',
+                                                                fontSize: '10px',
+                                                                fontWeight: '800',
+                                                                backgroundColor: '#EDE9FE',
+                                                                color: '#6D28D9',
+                                                                border: '1px solid #DDD6FE',
+                                                                display: 'inline-flex',
+                                                                alignItems: 'center',
+                                                                gap: '3px'
+                                                            }}>
+                                                                <span style={{ width: '5px', height: '5px', borderRadius: '50%', backgroundColor: '#8B5CF6' }} />
+                                                                Demo Acc
+                                                            </span>
+                                                        )}
                                                     </div>
                                                     <div style={{ fontSize: '11px', color: '#64748B' }}>
                                                         {school.city || school.district || 'Location N/A'}
@@ -583,7 +606,14 @@ const Dashboard = () => {
                                         </td>
 
                                         <td>
-                                            <code style={{ fontSize: '11px', color: '#1E40AF', backgroundColor: '#F1F5F9', padding: '2px 6px', borderRadius: '3px' }}>
+                                            <code style={{
+                                                fontSize: '11px',
+                                                color: isDemo ? '#6D28D9' : '#1E40AF',
+                                                backgroundColor: isDemo ? '#F3E8FF' : '#F1F5F9',
+                                                padding: '2px 6px',
+                                                borderRadius: '3px',
+                                                border: isDemo ? '1px solid #E9D5FF' : 'none'
+                                            }}>
                                                 {school.id}
                                             </code>
                                         </td>
