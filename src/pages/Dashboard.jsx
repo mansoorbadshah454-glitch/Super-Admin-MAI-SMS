@@ -113,44 +113,67 @@ const Dashboard = () => {
         };
         window.addEventListener('mousedown', handleClickOutside);
 
+        // Helper to accurately aggregate live counts across all schools and heal database
+        const recalculateMetrics = async () => {
+            try {
+                const schoolsSnap = await getDocs(query(collection(db, "schools")));
+                const activeSchools = schoolsSnap.docs.filter(d => d.id && !d.id.includes('test_dummy'));
+                
+                const stPromises = activeSchools.map(s => getCountFromServer(collection(db, `schools/${s.id}/students`)).catch(() => ({ data: () => ({ count: 0 }) })));
+                const tePromises = activeSchools.map(s => getCountFromServer(collection(db, `schools/${s.id}/teachers`)).catch(() => ({ data: () => ({ count: 0 }) })));
+                const paPromises = activeSchools.map(s => getCountFromServer(collection(db, `schools/${s.id}/parents`)).catch(() => ({ data: () => ({ count: 0 }) })));
+
+                const [stSnaps, teSnaps, paSnaps] = await Promise.all([
+                    Promise.all(stPromises), Promise.all(tePromises), Promise.all(paPromises)
+                ]);
+                
+                const tStudents = Math.max(0, stSnaps.reduce((acc, snap) => acc + (snap.data?.()?.count || 0), 0));
+                const tTeachers = Math.max(0, teSnaps.reduce((acc, snap) => acc + (snap.data?.()?.count || 0), 0));
+                const tParents = Math.max(0, paSnaps.reduce((acc, snap) => acc + (snap.data?.()?.count || 0), 0));
+
+                setStats(prev => {
+                    const newStats = [...prev];
+                    newStats[1] = { ...newStats[1], value: tStudents.toLocaleString() };
+                    newStats[2] = { ...newStats[2], value: tTeachers.toLocaleString() };
+                    newStats[3] = { ...newStats[3], value: tParents.toLocaleString() };
+                    return newStats;
+                });
+
+                // Auto-heal system/metrics in Firestore to purge negative numbers permanently
+                await setDoc(doc(db, "system", "metrics"), {
+                    totalStudents: tStudents,
+                    totalTeachers: tTeachers,
+                    totalParents: tParents,
+                    updatedAt: serverTimestamp()
+                }, { merge: true });
+            } catch (err) {
+                console.error("Dashboard: Auto-recalculate & heal metrics failed:", err);
+            }
+        };
+
         // Listen for atomic global metrics
         const unsubscribeMetrics = onSnapshot(doc(db, "system", "metrics"), (docSnap) => {
             if (docSnap.exists()) {
                 const data = docSnap.data();
+                const rawStudents = data.totalStudents ?? 0;
+                const rawTeachers = data.totalTeachers ?? 0;
+                const rawParents = data.totalParents ?? 0;
+
+                // If any metric in Firestore is negative/corrupted, auto-heal immediately
+                if (rawStudents < 0 || rawTeachers < 0 || rawParents < 0) {
+                    recalculateMetrics();
+                    return;
+                }
+
                 setStats(prev => {
                     const newStats = [...prev];
-                    newStats[1] = { ...newStats[1], value: (data.totalStudents || 0).toLocaleString() };
-                    newStats[2] = { ...newStats[2], value: (data.totalTeachers || 0).toLocaleString() };
-                    newStats[3] = { ...newStats[3], value: (data.totalParents || 0).toLocaleString() };
+                    newStats[1] = { ...newStats[1], value: Math.max(0, rawStudents).toLocaleString() };
+                    newStats[2] = { ...newStats[2], value: Math.max(0, rawTeachers).toLocaleString() };
+                    newStats[3] = { ...newStats[3], value: Math.max(0, rawParents).toLocaleString() };
                     return newStats;
                 });
             } else {
-                (async () => {
-                    try {
-                        const schoolsSnap = await getDocs(query(collection(db, "schools")));
-                        const legitSchools = schoolsSnap.docs.filter(d => d.id === 'SCHOOL_6257' || d.id.startsWith('SCHOOL_'));
-                        
-                        const stPromises = legitSchools.map(s => getCountFromServer(collection(db, `schools/${s.id}/students`)));
-                        const tePromises = legitSchools.map(s => getCountFromServer(collection(db, `schools/${s.id}/teachers`)));
-                        const paPromises = legitSchools.map(s => getCountFromServer(collection(db, `schools/${s.id}/parents`)));
-
-                        const [stSnaps, teSnaps, paSnaps] = await Promise.all([
-                            Promise.all(stPromises), Promise.all(tePromises), Promise.all(paPromises)
-                        ]);
-                        
-                        const tStudents = stSnaps.reduce((acc, snap) => acc + snap.data().count, 0);
-                        const tTeachers = teSnaps.reduce((acc, snap) => acc + snap.data().count, 0);
-                        const tParents = paSnaps.reduce((acc, snap) => acc + snap.data().count, 0);
-
-                        await setDoc(doc(db, "system", "metrics"), {
-                            totalStudents: tStudents,
-                            totalTeachers: tTeachers,
-                            totalParents: tParents
-                        }, { merge: true });
-                    } catch (err) {
-                        console.error("Auto-backfill failed:", err);
-                    }
-                })();
+                recalculateMetrics();
             }
         });
 
