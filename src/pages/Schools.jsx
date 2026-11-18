@@ -4,10 +4,12 @@ import {
     School, Search, Filter, Plus, MoreHorizontal, ExternalLink, Trash2, Edit2, 
     Users, MapPin, Power, CreditCard, Megaphone, RotateCcw, X, SlidersHorizontal,
     Table as TableIcon, LayoutGrid, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight,
-    Calendar, CheckCircle, AlertTriangle, ArrowRight, Key, Eye, EyeOff, Copy, Check, Lock
+    Calendar, CheckCircle, AlertTriangle, ArrowRight, Key, Eye, EyeOff, Copy, Check, Lock,
+    Zap, Loader2
 } from 'lucide-react';
-import { db, auth } from '../firebase';
-import { collection, onSnapshot, query, orderBy, getCountFromServer, where, Timestamp, doc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { db, auth, functions } from '../firebase';
+import { collection, onSnapshot, query, orderBy, getCountFromServer, where, Timestamp, doc, updateDoc, serverTimestamp, getDoc, setDoc } from 'firebase/firestore';
+import { httpsCallable } from 'firebase/functions';
 import CreateSchoolModal from '../components/CreateSchoolModal';
 import InlineEditSchool from '../components/InlineEditSchool';
 import DeleteSchoolModal from '../components/DeleteSchoolModal';
@@ -31,6 +33,7 @@ const Schools = () => {
     const [showPassMap, setShowPassMap] = useState({});
     const [copiedSchoolId, setCopiedSchoolId] = useState(null);
     const [paymentFilter, setPaymentFilter] = useState('all'); // 'all' | 'paid' | 'unpaid'
+    const [runningAutoCheck, setRunningAutoCheck] = useState(false);
 
     const toggleShowPass = (id) => {
         setShowPassMap(prev => ({ ...prev, [id]: !prev[id] }));
@@ -131,6 +134,91 @@ const Schools = () => {
             });
         } catch (error) {
             alert("Failed to start trial: " + error.message);
+        }
+    };
+
+    const handleRunAutoCheckNow = async () => {
+        if (!window.confirm("Run Automated 10th Date Billing Enforcement now?\n\nThis will scan all schools: Any unpaid school after the 10th will be automatically suspended, and schools with 7th+ overdue will receive the warning alert banner in their Principal App.")) {
+            return;
+        }
+
+        setRunningAutoCheck(true);
+        try {
+            // First call Cloud Function
+            try {
+                const enforceFn = httpsCallable(functions, 'enforceSubscriptionBillingNow');
+                await enforceFn();
+            } catch (fnErr) {
+                console.warn("Cloud function notice, proceeding with direct client enforcement:", fnErr);
+            }
+
+            // Also run direct client scan for real-time instant feedback
+            const now = new Date();
+            const currentYear = now.getFullYear();
+            const currentMonth = now.getMonth() + 1;
+            const currentDay = now.getDate();
+            const currentMonthKey = `${currentYear}_${String(currentMonth).padStart(2, '0')}`;
+
+            let suspendedCount = 0;
+            let activeCount = 0;
+            let warnedCount = 0;
+
+            for (const s of schools) {
+                if (s.autoBillingExemption === true) continue;
+
+                const invoiceSnap = await getDoc(doc(db, `schools/${s.id}/subscription_invoices`, currentMonthKey));
+                const isPaid = (invoiceSnap.exists() && invoiceSnap.data().status === 'paid') || s.paymentStatus === 'paid';
+
+                if (isPaid) {
+                    activeCount++;
+                    if (s.status === 'suspended') {
+                        await updateDoc(doc(db, "schools", s.id), {
+                            status: 'active',
+                            paymentStatus: 'paid',
+                            updatedAt: new Date()
+                        });
+                    }
+                    // Clear warning banner if active
+                    try {
+                        const announceSnap = await getDoc(doc(db, `schools/${s.id}/announcements`, 'global_broadcast'));
+                        if (announceSnap.exists() && announceSnap.data().active === true && announceSnap.data().autoBillingNotice === true) {
+                            await updateDoc(doc(db, `schools/${s.id}/announcements`, 'global_broadcast'), {
+                                active: false,
+                                dismissedAt: new Date().toISOString()
+                            });
+                        }
+                    } catch (e) {}
+                } else {
+                    // Unpaid school check
+                    if (currentDay >= 10) {
+                        if (s.status !== 'suspended') {
+                            suspendedCount++;
+                            await updateDoc(doc(db, "schools", s.id), {
+                                status: 'suspended',
+                                paymentStatus: 'unpaid',
+                                updatedAt: new Date()
+                            });
+                        }
+                    } else if (currentDay >= 7) {
+                        warnedCount++;
+                        await setDoc(doc(db, `schools/${s.id}/announcements`, 'global_broadcast'), {
+                            message: "محترم پرنسپل صاحب، اس ماہ کی سافٹ ویئر سبسکرپشن فیس واجب الادا ہے۔ کسی بھی سروس تعطل سے بچنے کیلئے براہ کرم 10 تاریخ سے پہلے فیس کلیئر کروائیں۔",
+                            type: "warning",
+                            active: true,
+                            autoBillingNotice: true,
+                            sentAt: serverTimestamp(),
+                            dismissedBy: []
+                        }, { merge: true });
+                    }
+                }
+            }
+
+            alert(`⚡ Auto-Check Complete!\n\nToday is Day ${currentDay}.\n• Suspended Unpaid Schools: ${suspendedCount}\n• Active / Paid Schools: ${activeCount}\n• Warned Schools (7th-9th): ${warnedCount}`);
+        } catch (err) {
+            console.error("Error running auto-check:", err);
+            alert("Error running auto-check: " + err.message);
+        } finally {
+            setRunningAutoCheck(false);
         }
     };
 
@@ -285,7 +373,29 @@ const Schools = () => {
                         Manage, monitor and supervise all registered school client instances.
                     </p>
                 </div>
-                <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+                <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                    {(isMasterAdmin || hasPermission('manageBilling')) && (
+                        <button
+                            className="btn"
+                            style={{
+                                background: '#FEF2F2',
+                                color: '#DC2626',
+                                border: '1px solid #FECACA',
+                                padding: '0.6rem 1rem',
+                                fontSize: '0.85rem',
+                                fontWeight: '700',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '6px'
+                            }}
+                            onClick={handleRunAutoCheckNow}
+                            disabled={runningAutoCheck}
+                            title="Immediately scan and enforce 10th Date Auto-Stop and 7th Date Warning Alerts across all schools"
+                        >
+                            {runningAutoCheck ? <Loader2 size={16} className="animate-spin" /> : <Zap size={16} />}
+                            ⚡ Run Auto-Check Now
+                        </button>
+                    )}
                     {(isMasterAdmin || hasPermission('broadcastAnnouncements')) && (
                         <button
                             className="btn"
