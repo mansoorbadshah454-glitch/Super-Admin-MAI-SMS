@@ -20,14 +20,15 @@ import {
     Plus,
     Trash2,
     Lock,
-    Check
+    Check,
+    ShieldAlert
 } from 'lucide-react';
 import { db } from '../firebase';
 import { doc, getDoc, setDoc, serverTimestamp, onSnapshot } from 'firebase/firestore';
 import { useAdminAuth } from '../contexts/AdminAuthContext';
 
 const Settings = () => {
-    const { isMasterAdmin } = useAdminAuth();
+    const { isMasterAdmin, hasPermission } = useAdminAuth();
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [savingAccounts, setSavingAccounts] = useState(false);
@@ -71,6 +72,10 @@ const Settings = () => {
     };
 
     const handleSaveAccountsOnly = async (accountsToSave = officialAccounts) => {
+        if (!isMasterAdmin && !hasPermission('manageSettings')) {
+            alert("Permission Denied: You do not have permission to modify system settings.");
+            return;
+        }
         setSavingAccounts(true);
         try {
             await setDoc(doc(db, "system_configs", "platform_billing"), {
@@ -168,6 +173,10 @@ const Settings = () => {
     }, []);
 
     const handleSave = async () => {
+        if (!isMasterAdmin && !hasPermission('manageSettings')) {
+            alert("Permission Denied: You do not have permission to modify system settings.");
+            return;
+        }
         setSaving(true);
         setMessage({ type: '', text: '' });
 
@@ -224,6 +233,43 @@ const Settings = () => {
             <div style={{ height: '60vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '10px' }}>
                 <Loader2 className="animate-spin" size={36} color="#2563EB" />
                 <span style={{ fontSize: '13px', color: '#64748B' }}>Loading system configuration...</span>
+            </div>
+        );
+    }
+
+    if (!isMasterAdmin && !hasPermission('manageSettings')) {
+        return (
+            <div style={{ height: '60vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '1rem', fontFamily: fontFamily }}>
+                <div style={{
+                    width: '100%',
+                    maxWidth: '480px',
+                    backgroundColor: '#FFFFFF',
+                    border: '1px solid #CBD5E1',
+                    borderRadius: '8px',
+                    padding: '2rem',
+                    textAlign: 'center',
+                    boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+                }}>
+                    <div style={{
+                        width: '48px',
+                        height: '48px',
+                        borderRadius: '50%',
+                        backgroundColor: '#FEE2E2',
+                        color: '#DC2626',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        margin: '0 auto 1rem'
+                    }}>
+                        <ShieldAlert size={26} />
+                    </div>
+                    <h3 style={{ fontSize: '16px', fontWeight: '800', color: '#0F172A', marginBottom: '8px' }}>
+                        Access Denied
+                    </h3>
+                    <p style={{ color: '#64748B', fontSize: '13px', margin: 0, lineHeight: 1.5 }}>
+                        You do not have permission to view or modify System & Platform Settings. Please contact the Master Administrator.
+                    </p>
+                </div>
             </div>
         );
     }

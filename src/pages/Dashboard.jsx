@@ -10,10 +10,12 @@ import { db, auth } from '../firebase';
 import { collection, query, orderBy, limit, onSnapshot, getDocs, getCountFromServer, doc, updateDoc, serverTimestamp, setDoc } from 'firebase/firestore';
 import { calculateTrialDays } from '../utils/dateUtils';
 import { useTheme } from '../contexts/ThemeContext';
+import { useAdminAuth } from '../contexts/AdminAuthContext';
 
 const Dashboard = () => {
     const { isDark } = useTheme();
     const navigate = useNavigate();
+    const { hasPermission, isMasterAdmin } = useAdminAuth();
     const [showCreateModal, setShowCreateModal] = useState(false);
     const [allSchools, setAllSchools] = useState([]);
     const [activeTab, setActiveTab] = useState('recent');
@@ -189,6 +191,10 @@ const Dashboard = () => {
     };
 
     const handleStartTrial = async (schoolId) => {
+        if (!isMasterAdmin && !hasPermission('systemControl')) {
+            alert("Permission Denied: You do not have permission to start school trials.");
+            return;
+        }
         try {
             await updateDoc(doc(db, "schools", schoolId), {
                 trialStartDate: serverTimestamp(),
@@ -200,6 +206,10 @@ const Dashboard = () => {
     };
 
     const togglePaymentStatus = async (schoolId, currentStatus) => {
+        if (!isMasterAdmin && !hasPermission('manageBilling')) {
+            alert("Permission Denied: You do not have permission to manage billing status.");
+            return;
+        }
         try {
             await updateDoc(doc(db, "schools", schoolId), {
                 paymentStatus: currentStatus === 'paid' ? 'unpaid' : 'paid',
@@ -212,6 +222,10 @@ const Dashboard = () => {
     };
 
     const toggleSchoolStatus = async (schoolId, currentStatus) => {
+        if (!isMasterAdmin && !hasPermission('systemControl')) {
+            alert("Permission Denied: You do not have permission to control school systems.");
+            return;
+        }
         try {
             await updateDoc(doc(db, "schools", schoolId), {
                 status: currentStatus === 'active' ? 'stop' : 'active',
@@ -344,82 +358,86 @@ const Dashboard = () => {
                 </div>
 
                 <div style={{ display: 'flex', gap: '8px' }}>
-                    <button
-                        className="win-btn win-btn-primary"
-                        onClick={() => setShowCreateModal(true)}
-                        style={{ padding: '7px 16px' }}
-                    >
-                        <Plus size={16} /> Register New School
-                    </button>
+                    {(isMasterAdmin || hasPermission('manageSchools')) && (
+                        <button
+                            className="win-btn win-btn-primary"
+                            onClick={() => setShowCreateModal(true)}
+                            style={{ padding: '7px 16px' }}
+                        >
+                            <Plus size={16} /> Register New School
+                        </button>
+                    )}
                 </div>
             </div>
 
             {/* 2. FINANCIAL REVENUE PANEL (Windows 7 Resource Strip) */}
-            <div
-                className="win-card"
-                style={{
-                    padding: '14px 18px',
-                    marginBottom: '1.25rem',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    flexWrap: 'wrap',
-                    gap: '14px',
-                    backgroundColor: '#FFFFFF',
-                    borderLeft: '4px solid #16A34A'
-                }}
-            >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-                    <div style={{
-                        width: '44px',
-                        height: '44px',
-                        borderRadius: '6px',
-                        background: 'linear-gradient(135deg, #16A34A, #15803D)',
+            {(isMasterAdmin || hasPermission('viewRevenue')) && (
+                <div
+                    className="win-card"
+                    style={{
+                        padding: '14px 18px',
+                        marginBottom: '1.25rem',
                         display: 'flex',
                         alignItems: 'center',
-                        justifyContent: 'center',
-                        color: '#FFFFFF',
-                        flexShrink: 0
-                    }}>
-                        <CreditCard size={22} />
+                        justifyContent: 'space-between',
+                        flexWrap: 'wrap',
+                        gap: '14px',
+                        backgroundColor: '#FFFFFF',
+                        borderLeft: '4px solid #16A34A'
+                    }}
+                >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                        <div style={{
+                            width: '44px',
+                            height: '44px',
+                            borderRadius: '6px',
+                            background: 'linear-gradient(135deg, #16A34A, #15803D)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            color: '#FFFFFF',
+                            flexShrink: 0
+                        }}>
+                            <CreditCard size={22} />
+                        </div>
+                        <div>
+                            <div style={{ fontSize: '11px', fontWeight: '700', textTransform: 'uppercase', color: '#16A34A', letterSpacing: '0.04em' }}>
+                                Total Subscription Revenue (Active Paid Schools)
+                            </div>
+                            <div style={{ fontSize: '1.65rem', fontWeight: '800', color: '#0F172A', lineHeight: 1.2 }}>
+                                ₨ {totalPaidRevenue.toLocaleString()}
+                            </div>
+                            <div style={{ fontSize: '12px', color: '#64748B', marginTop: '2px' }}>
+                                Paid: <strong style={{ color: '#16A34A' }}>{paidSchoolsCount} schools</strong> • Unpaid / Due: <strong style={{ color: '#D97706' }}>{unpaidSchoolsCount} schools</strong>
+                            </div>
+                        </div>
                     </div>
-                    <div>
-                        <div style={{ fontSize: '11px', fontWeight: '700', textTransform: 'uppercase', color: '#16A34A', letterSpacing: '0.04em' }}>
-                            Total Subscription Revenue (Active Paid Schools)
-                        </div>
-                        <div style={{ fontSize: '1.65rem', fontWeight: '800', color: '#0F172A', lineHeight: 1.2 }}>
-                            ₨ {totalPaidRevenue.toLocaleString()}
-                        </div>
-                        <div style={{ fontSize: '12px', color: '#64748B', marginTop: '2px' }}>
-                            Paid: <strong style={{ color: '#16A34A' }}>{paidSchoolsCount} schools</strong> • Unpaid / Due: <strong style={{ color: '#D97706' }}>{unpaidSchoolsCount} schools</strong>
-                        </div>
-                    </div>
-                </div>
 
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                    {pendingSlips > 0 && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                        {pendingSlips > 0 && (
+                            <button
+                                onClick={() => navigate('/billing-subscriptions')}
+                                className="win-btn"
+                                style={{
+                                    backgroundColor: '#FFFBEB',
+                                    borderColor: '#FDE68A',
+                                    color: '#B45309',
+                                    fontWeight: '700'
+                                }}
+                            >
+                                <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#D97706' }} />
+                                {pendingSlips} New Slip{pendingSlips > 1 ? 's' : ''} to Review
+                            </button>
+                        )}
                         <button
                             onClick={() => navigate('/billing-subscriptions')}
                             className="win-btn"
-                            style={{
-                                backgroundColor: '#FFFBEB',
-                                borderColor: '#FDE68A',
-                                color: '#B45309',
-                                fontWeight: '700'
-                            }}
                         >
-                            <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#D97706' }} />
-                            {pendingSlips} New Slip{pendingSlips > 1 ? 's' : ''} to Review
+                            Billing & Invoices <ArrowRight size={14} />
                         </button>
-                    )}
-                    <button
-                        onClick={() => navigate('/billing-subscriptions')}
-                        className="win-btn"
-                    >
-                        Billing & Invoices <ArrowRight size={14} />
-                    </button>
+                    </div>
                 </div>
-            </div>
+            )}
 
             {/* 3. SYSTEM STATS TILES (Windows 7 Performance Monitor Style) */}
             <div
@@ -461,7 +479,9 @@ const Dashboard = () => {
                                     {stat.label}
                                 </div>
                                 <div style={{ fontSize: '1.35rem', fontWeight: '800', color: '#0F172A', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                    {stat.value}
+                                    {(!isMasterAdmin && !hasPermission('viewRevenue') && stat.label === 'Paid Schools')
+                                        ? String(paidSchoolsCount)
+                                        : stat.value}
                                 </div>
                             </div>
                         </div>
@@ -635,13 +655,17 @@ const Dashboard = () => {
 
                                         <td>
                                             {school.trialInfo?.notStarted ? (
-                                                <button
-                                                    onClick={(e) => { e.stopPropagation(); handleStartTrial(school.id); }}
-                                                    className="win-btn"
-                                                    style={{ padding: '2px 8px', fontSize: '11px' }}
-                                                >
-                                                    Start Trial
-                                                </button>
+                                                (isMasterAdmin || hasPermission('systemControl')) ? (
+                                                    <button
+                                                        onClick={(e) => { e.stopPropagation(); handleStartTrial(school.id); }}
+                                                        className="win-btn"
+                                                        style={{ padding: '2px 8px', fontSize: '11px' }}
+                                                    >
+                                                        Start Trial
+                                                    </button>
+                                                ) : (
+                                                    <span style={{ fontSize: '11px', color: '#64748B' }}>Not Started</span>
+                                                )
                                             ) : (
                                                 <span style={{
                                                     padding: '2px 7px',
@@ -721,49 +745,53 @@ const Dashboard = () => {
                                                         <Eye size={14} color="#2563EB" /> View Details
                                                     </button>
 
-                                                    <button
-                                                        onClick={() => togglePaymentStatus(school.id, school.paymentStatus)}
-                                                        style={{
-                                                            width: '100%',
-                                                            padding: '8px 12px',
-                                                            display: 'flex',
-                                                            alignItems: 'center',
-                                                            gap: '8px',
-                                                            border: 'none',
-                                                            background: 'transparent',
-                                                            cursor: 'pointer',
-                                                            color: '#1E293B',
-                                                            fontSize: '12px',
-                                                            textAlign: 'left'
-                                                        }}
-                                                        onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#EFF6FF'}
-                                                        onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
-                                                    >
-                                                        <CreditCard size={14} color={isPaid ? '#D97706' : '#16A34A'} />
-                                                        Mark as {isPaid ? 'Unpaid' : 'Paid'}
-                                                    </button>
+                                                    {(isMasterAdmin || hasPermission('manageBilling')) && (
+                                                        <button
+                                                            onClick={() => togglePaymentStatus(school.id, school.paymentStatus)}
+                                                            style={{
+                                                                width: '100%',
+                                                                padding: '8px 12px',
+                                                                display: 'flex',
+                                                                alignItems: 'center',
+                                                                gap: '8px',
+                                                                border: 'none',
+                                                                background: 'transparent',
+                                                                cursor: 'pointer',
+                                                                color: '#1E293B',
+                                                                fontSize: '12px',
+                                                                textAlign: 'left'
+                                                            }}
+                                                            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#EFF6FF'}
+                                                            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                                                        >
+                                                            <CreditCard size={14} color={isPaid ? '#D97706' : '#16A34A'} />
+                                                            Mark as {isPaid ? 'Unpaid' : 'Paid'}
+                                                        </button>
+                                                    )}
 
-                                                    <button
-                                                        onClick={() => toggleSchoolStatus(school.id, school.status)}
-                                                        style={{
-                                                            width: '100%',
-                                                            padding: '8px 12px',
-                                                            display: 'flex',
-                                                            alignItems: 'center',
-                                                            gap: '8px',
-                                                            border: 'none',
-                                                            background: 'transparent',
-                                                            cursor: 'pointer',
-                                                            color: '#1E293B',
-                                                            fontSize: '12px',
-                                                            textAlign: 'left'
-                                                        }}
-                                                        onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#EFF6FF'}
-                                                        onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
-                                                    >
-                                                        <PlayCircle size={14} color={isActive ? '#DC2626' : '#16A34A'} />
-                                                        {isActive ? 'Stop School' : 'Start School'}
-                                                    </button>
+                                                    {(isMasterAdmin || hasPermission('systemControl')) && (
+                                                        <button
+                                                            onClick={() => toggleSchoolStatus(school.id, school.status)}
+                                                            style={{
+                                                                width: '100%',
+                                                                padding: '8px 12px',
+                                                                display: 'flex',
+                                                                alignItems: 'center',
+                                                                gap: '8px',
+                                                                border: 'none',
+                                                                background: 'transparent',
+                                                                cursor: 'pointer',
+                                                                color: '#1E293B',
+                                                                fontSize: '12px',
+                                                                textAlign: 'left'
+                                                            }}
+                                                            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#EFF6FF'}
+                                                            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                                                        >
+                                                            <PlayCircle size={14} color={isActive ? '#DC2626' : '#16A34A'} />
+                                                            {isActive ? 'Stop School' : 'Start School'}
+                                                        </button>
+                                                    )}
                                                 </div>
                                             )}
                                         </td>

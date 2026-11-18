@@ -18,7 +18,11 @@ import {
     CreditCard,
     Power,
     Users as UsersIcon,
-    AlertCircle
+    AlertCircle,
+    DollarSign,
+    Settings,
+    Megaphone,
+    Key
 } from 'lucide-react';
 import { db, auth, functions } from '../firebase';
 import {
@@ -58,11 +62,39 @@ const PERMISSION_CONFIG = [
         color: '#D97706'
     },
     {
+        key: 'viewRevenue',
+        label: 'Subscription Revenue Card',
+        desc: 'View total subscription revenue & financial income metrics',
+        icon: DollarSign,
+        color: '#059669'
+    },
+    {
         key: 'systemControl',
         label: 'System Control (Start/Stop)',
         desc: 'Activate or suspend/stop school operations',
         icon: Power,
         color: '#16A34A'
+    },
+    {
+        key: 'manageSettings',
+        label: 'System & Platform Settings',
+        desc: 'Configure system settings, official bank accounts & API keys',
+        icon: Settings,
+        color: '#475569'
+    },
+    {
+        key: 'broadcastAnnouncements',
+        label: 'Broadcast Notifications',
+        desc: 'Send announcements and push notifications to all schools',
+        icon: Megaphone,
+        color: '#4F46E5'
+    },
+    {
+        key: 'resetCredentials',
+        label: 'Reset Credentials',
+        desc: 'Reset principal passwords and credentials',
+        icon: Key,
+        color: '#0284C7'
     },
     {
         key: 'manageAdmins',
@@ -84,7 +116,11 @@ const AddAdminModal = ({ onClose, onSuccess }) => {
             manageSchools: true,
             deleteSchool: false,
             manageBilling: false,
+            viewRevenue: false,
             systemControl: false,
+            manageSettings: false,
+            broadcastAnnouncements: false,
+            resetCredentials: false,
             manageAdmins: false
         }
     });
@@ -303,7 +339,11 @@ const EditPermissionsModal = ({ adminUser, onClose, onSuccess }) => {
         manageSchools: true,
         deleteSchool: false,
         manageBilling: false,
+        viewRevenue: false,
         systemControl: false,
+        manageSettings: false,
+        broadcastAnnouncements: false,
+        resetCredentials: false,
         manageAdmins: false,
         ...(adminUser.permissions || {})
     });

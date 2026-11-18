@@ -4,8 +4,10 @@ import { db, functions, auth } from '../firebase';
 import { doc, updateDoc, getDoc, setDoc } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 import { sendPasswordResetEmail } from 'firebase/auth';
+import { useAdminAuth } from '../contexts/AdminAuthContext';
 
 const InlineEditSchool = ({ school, onClose, onSuccess, displayId }) => {
+    const { isMasterAdmin, hasPermission } = useAdminAuth();
     const [page, setPage] = useState(1);
     const [loading, setLoading] = useState(false);
     const [passwordLoading, setPasswordLoading] = useState(false);
@@ -81,6 +83,10 @@ const InlineEditSchool = ({ school, onClose, onSuccess, displayId }) => {
     };
 
     const handleSendResetEmail = async () => {
+        if (!isMasterAdmin && !hasPermission('resetCredentials')) {
+            setMessage({ type: 'error', text: 'Permission Denied: You do not have permission to reset credentials.' });
+            return;
+        }
         const targetEmail = (formData.principalEmail || initialEmail || '').trim();
         if (!targetEmail) {
             setMessage({ type: 'error', text: 'Principal email is missing.' });
@@ -122,6 +128,12 @@ const InlineEditSchool = ({ school, onClose, onSuccess, displayId }) => {
             const normalizedEmail = (formData.principalEmail || '').toLowerCase().trim();
             const emailChanged = normalizedEmail && (normalizedEmail !== initialEmail.toLowerCase().trim());
             const hasNewPassword = Boolean(newPassword.trim());
+
+            if (hasNewPassword && !isMasterAdmin && !hasPermission('resetCredentials')) {
+                setMessage({ type: 'error', text: 'Permission Denied: You do not have permission to override passwords.' });
+                setLoading(false);
+                return;
+            }
 
             if (hasNewPassword && newPassword.trim().length < 6) {
                 setMessage({ type: 'error', text: 'Password must be at least 6 characters long.' });
@@ -467,76 +479,94 @@ const InlineEditSchool = ({ school, onClose, onSuccess, displayId }) => {
                         </div>
 
                         {/* Reset / Override Password Section */}
-                        <fieldset style={{
-                            border: '1.5px solid #3B82F6',
-                            borderRadius: '4px',
-                            padding: '8px 10px',
-                            background: '#F0F7FF'
-                        }}>
-                            <legend style={{ fontSize: '11px', fontWeight: 'bold', color: '#1D4ED8', padding: '0 4px', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                <Lock size={12} /> Reset / Override Password (No Old Password Needed)
-                            </legend>
-                            <p style={{ fontSize: '10.5px', color: '#1E3A8A', margin: '0 0 6px 0', lineHeight: '1.3' }}>
-                                Type a new password below. It will immediately overwrite the Principal's Firebase login password:
-                            </p>
-                            <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-                                <input
-                                    type={showNewPassword ? "text" : "password"}
-                                    placeholder="Enter new password (min 6 characters)"
-                                    style={{
-                                        ...inputStyle,
-                                        paddingRight: '30px',
-                                        borderColor: newPassword ? '#2563EB' : '#7F9DB9',
-                                        backgroundColor: '#FFFFFF',
-                                        fontWeight: newPassword ? 'bold' : 'normal'
-                                    }}
-                                    value={newPassword}
-                                    onChange={(e) => setNewPassword(e.target.value)}
-                                />
-                                <button
-                                    type="button"
-                                    onClick={() => setShowNewPassword(!showNewPassword)}
-                                    style={{
-                                        position: 'absolute',
-                                        right: '6px',
-                                        background: 'transparent',
-                                        border: 'none',
-                                        cursor: 'pointer',
-                                        color: '#64748B',
-                                        display: 'flex',
-                                        alignItems: 'center'
-                                    }}
-                                >
-                                    {showNewPassword ? <EyeOff size={13} /> : <Eye size={13} />}
-                                </button>
-                            </div>
-                        </fieldset>
+                        {(isMasterAdmin || hasPermission('resetCredentials')) ? (
+                            <>
+                                <fieldset style={{
+                                    border: '1.5px solid #3B82F6',
+                                    borderRadius: '4px',
+                                    padding: '8px 10px',
+                                    background: '#F0F7FF'
+                                }}>
+                                    <legend style={{ fontSize: '11px', fontWeight: 'bold', color: '#1D4ED8', padding: '0 4px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                        <Lock size={12} /> Reset / Override Password (No Old Password Needed)
+                                    </legend>
+                                    <p style={{ fontSize: '10.5px', color: '#1E3A8A', margin: '0 0 6px 0', lineHeight: '1.3' }}>
+                                        Type a new password below. It will immediately overwrite the Principal's Firebase login password:
+                                    </p>
+                                    <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                                        <input
+                                            type={showNewPassword ? "text" : "password"}
+                                            placeholder="Enter new password (min 6 characters)"
+                                            style={{
+                                                ...inputStyle,
+                                                paddingRight: '30px',
+                                                borderColor: newPassword ? '#2563EB' : '#7F9DB9',
+                                                backgroundColor: '#FFFFFF',
+                                                fontWeight: newPassword ? 'bold' : 'normal'
+                                            }}
+                                            value={newPassword}
+                                            onChange={(e) => setNewPassword(e.target.value)}
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowNewPassword(!showNewPassword)}
+                                            style={{
+                                                position: 'absolute',
+                                                right: '6px',
+                                                background: 'transparent',
+                                                border: 'none',
+                                                cursor: 'pointer',
+                                                color: '#64748B',
+                                                display: 'flex',
+                                                alignItems: 'center'
+                                            }}
+                                        >
+                                            {showNewPassword ? <EyeOff size={13} /> : <Eye size={13} />}
+                                        </button>
+                                    </div>
+                                </fieldset>
 
-                        {/* Alternative: Self-Reset Email */}
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '2px' }}>
-                            <span style={{ fontSize: '10.5px', color: '#64748B' }}>Or email self-reset link:</span>
-                            <button
-                                type="button"
-                                onClick={handleSendResetEmail}
-                                disabled={passwordLoading}
-                                style={{
-                                    display: 'inline-flex',
-                                    alignItems: 'center',
-                                    gap: '4px',
-                                    padding: '3px 8px',
-                                    background: '#FFFFFF',
-                                    border: '1px solid #CBD5E1',
-                                    borderRadius: '3px',
-                                    fontSize: '10px',
-                                    color: '#003399',
-                                    fontWeight: 'bold',
-                                    cursor: passwordLoading ? 'not-allowed' : 'pointer'
-                                }}
-                            >
-                                {passwordLoading ? <Loader2 size={11} className="animate-spin" /> : <Mail size={11} />}
-                                Send Reset Link via Email
-                            </button>
-                        </div>
+                                {/* Alternative: Self-Reset Email */}
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '2px' }}>
+                                    <span style={{ fontSize: '10.5px', color: '#64748B' }}>Or email self-reset link:</span>
+                                    <button
+                                        type="button"
+                                        onClick={handleSendResetEmail}
+                                        disabled={passwordLoading}
+                                        style={{
+                                            display: 'inline-flex',
+                                            alignItems: 'center',
+                                            gap: '4px',
+                                            padding: '3px 8px',
+                                            background: '#FFFFFF',
+                                            border: '1px solid #CBD5E1',
+                                            borderRadius: '3px',
+                                            fontSize: '10px',
+                                            color: '#003399',
+                                            fontWeight: 'bold',
+                                            cursor: passwordLoading ? 'not-allowed' : 'pointer'
+                                        }}
+                                    >
+                                        {passwordLoading ? <Loader2 size={11} className="animate-spin" /> : <Mail size={11} />}
+                                        Send Reset Link via Email
+                                    </button>
+                                </div>
+                            </>
+                        ) : (
+                            <div style={{
+                                padding: '8px 10px',
+                                backgroundColor: '#F8FAFC',
+                                border: '1px dashed #CBD5E1',
+                                borderRadius: '4px',
+                                fontSize: '11px',
+                                color: '#64748B',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '6px'
+                            }}>
+                                <Lock size={12} color="#94A3B8" /> Password modification is restricted (Requires Reset Credentials permission).
+                            </div>
+                        )}
 
                         <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '6px' }}>
                             <button

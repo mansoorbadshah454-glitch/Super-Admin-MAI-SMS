@@ -274,14 +274,16 @@ const Schools = () => {
                     </p>
                 </div>
                 <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
-                    <button
-                        className="btn"
-                        style={{ background: 'rgba(99, 102, 241, 0.1)', color: 'var(--primary)', border: '1px solid rgba(99, 102, 241, 0.25)', padding: '0.6rem 1rem', fontSize: '0.85rem' }}
-                        onClick={() => setShowBroadcastModal(true)}
-                    >
-                        <Megaphone size={17} />
-                        Broadcast
-                    </button>
+                    {(isMasterAdmin || hasPermission('broadcastAnnouncements')) && (
+                        <button
+                            className="btn"
+                            style={{ background: 'rgba(99, 102, 241, 0.1)', color: 'var(--primary)', border: '1px solid rgba(99, 102, 241, 0.25)', padding: '0.6rem 1rem', fontSize: '0.85rem' }}
+                            onClick={() => setShowBroadcastModal(true)}
+                        >
+                            <Megaphone size={17} />
+                            Broadcast
+                        </button>
+                    )}
                     {(isMasterAdmin || hasPermission('manageSchools')) && (
                         <button
                             className="btn btn-primary"
@@ -816,7 +818,7 @@ const Schools = () => {
                                             {/* Actions */}
                                             <td style={{ padding: '10px 14px', textAlign: 'right' }} onClick={(e) => e.stopPropagation()}>
                                                 <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                                                    {(isMasterAdmin || hasPermission('manageSchools')) && (
+                                                    {(isMasterAdmin || hasPermission('manageSchools') || hasPermission('resetCredentials')) && (
                                                         <button
                                                             onClick={() => setSelectedSchool(school)}
                                                             title="Edit School"
@@ -1097,7 +1099,7 @@ const Schools = () => {
                                         </div>
 
                                         <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }} onClick={(e) => e.stopPropagation()}>
-                                            {(isMasterAdmin || hasPermission('manageSchools')) && (
+                                            {(isMasterAdmin || hasPermission('manageSchools') || hasPermission('resetCredentials')) && (
                                                 <button
                                                     onClick={() => setSelectedSchool(school)}
                                                     title="Edit School"
@@ -1198,7 +1200,7 @@ const Schools = () => {
                                                     </button>
                                                 </>
                                             )}
-                                            {(isMasterAdmin || hasPermission('manageSchools')) && (
+                                            {(isMasterAdmin || hasPermission('manageSchools') || hasPermission('resetCredentials')) && (
                                                 <button
                                                     type="button"
                                                     onClick={() => setSelectedSchool(school)}

@@ -745,7 +745,7 @@ const SchoolDetail = () => {
                                             </div>
                                         </div>
 
-                                        {(isMasterAdmin || hasPermission('manageSchools')) && (
+                                        {(isMasterAdmin || hasPermission('manageSchools') || hasPermission('resetCredentials')) && (
                                             <button
                                                 type="button"
                                                 onClick={() => setShowEditModal(true)}

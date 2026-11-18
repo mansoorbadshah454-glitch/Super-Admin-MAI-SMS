@@ -16,7 +16,7 @@ const Sidebar = () => {
         { icon: School, label: 'Schools', path: '/schools' },
         { icon: CreditCard, label: 'Billing & Subscriptions', path: '/billing-subscriptions', permission: 'manageBilling' },
         { icon: ShieldCheck, label: 'Admins', path: '/admins', permission: 'manageAdmins' },
-        { icon: Settings, label: 'Settings', path: '/settings' },
+        { icon: Settings, label: 'Settings', path: '/settings', permission: 'manageSettings' },
     ];
 
     const handleLogout = async () => {

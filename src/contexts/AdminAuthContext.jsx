@@ -27,7 +27,11 @@ export const AdminAuthProvider = ({ children }) => {
                         manageSchools: true,
                         deleteSchool: true,
                         manageBilling: true,
+                        viewRevenue: true,
                         systemControl: true,
+                        manageSettings: true,
+                        broadcastAnnouncements: true,
+                        resetCredentials: true,
                         manageAdmins: true
                     }
                 });
@@ -59,7 +63,11 @@ export const AdminAuthProvider = ({ children }) => {
                                 manageSchools: true,
                                 deleteSchool: true,
                                 manageBilling: true,
+                                viewRevenue: true,
                                 systemControl: true,
+                                manageSettings: true,
+                                broadcastAnnouncements: true,
+                                resetCredentials: true,
                                 manageAdmins: true
                             }
                         });
@@ -82,6 +90,15 @@ export const AdminAuthProvider = ({ children }) => {
         };
     }, []);
 
+    // Master Super Admin check: true for owner/full admin (manageAdmins: true or default super-admin), false for restricted staff
+    const isMaster = Boolean(
+        adminProfile?.isMasterAdmin ||
+        adminProfile?.role === 'master_admin' ||
+        adminProfile?.permissions?.manageAdmins === true ||
+        (adminProfile?.role === 'super-admin' && adminProfile?.permissions?.manageAdmins !== false) ||
+        user?.uid === 'K1T1CwRoTdYtQJDCRNEc0NK9vjt2'
+    );
+
     // Check if admin has a specific permission
     const hasPermission = (permKey) => {
         if (!adminProfile) return false;
@@ -96,18 +113,9 @@ export const AdminAuthProvider = ({ children }) => {
             return Boolean(adminProfile.permissions[permKey]);
         }
 
-        // Default to true for super-admin role if unspecified
-        return adminProfile.role === 'super-admin';
+        // Default to true for unrestricted master admin, false for restricted staff
+        return isMaster;
     };
-
-    // Master Super Admin check: true for owner/full admin (manageAdmins: true or default super-admin), false for restricted staff
-    const isMaster = Boolean(
-        adminProfile?.isMasterAdmin ||
-        adminProfile?.role === 'master_admin' ||
-        adminProfile?.permissions?.manageAdmins === true ||
-        (adminProfile?.role === 'super-admin' && adminProfile?.permissions?.manageAdmins !== false) ||
-        user?.uid === 'K1T1CwRoTdYtQJDCRNEc0NK9vjt2'
-    );
 
     return (
         <AdminAuthContext.Provider value={{
