@@ -2,22 +2,24 @@ import React, { useState, useEffect, useRef } from 'react';
 import { 
     School, Users, Activity, Plus, Search, Filter, MoreVertical, GraduationCap, 
     DollarSign, Play, Square, Eye, CheckCircle, XCircle, PlayCircle, StopCircle, 
-    CreditCard, ArrowRight, TrendingUp, RefreshCw, AlertCircle
+    CreditCard, ArrowRight, TrendingUp, RefreshCw, AlertCircle, MapPin
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import CreateSchoolModal from '../components/CreateSchoolModal';
 import { db, auth } from '../firebase';
 import { collection, query, orderBy, limit, onSnapshot, getDocs, getCountFromServer, doc, updateDoc, serverTimestamp, setDoc } from 'firebase/firestore';
 import { calculateTrialDays } from '../utils/dateUtils';
-import { useTheme } from '../contexts/ThemeContext';
 import { useAdminAuth } from '../contexts/AdminAuthContext';
 
 const Dashboard = () => {
-    const { isDark } = useTheme();
     const navigate = useNavigate();
-    const { hasPermission, isMasterAdmin } = useAdminAuth();
+    const { hasPermission, isMasterAdmin, adminProfile, isSchoolInTerritory } = useAdminAuth();
     const [showCreateModal, setShowCreateModal] = useState(false);
+    const [rawSchools, setRawSchools] = useState([]);
     const [allSchools, setAllSchools] = useState([]);
+    const [territoryStateFilter, setTerritoryStateFilter] = useState('');
+    const [territoryDistrictFilter, setTerritoryDistrictFilter] = useState('');
+    const [territoryCityFilter, setTerritoryCityFilter] = useState('');
     const [activeTab, setActiveTab] = useState('recent');
     const [openMenuId, setOpenMenuId] = useState(null);
     const menuRef = useRef(null);
@@ -34,6 +36,72 @@ const Dashboard = () => {
         { label: 'Paid Schools', value: '0', icon: CheckCircle, color: '#16A34A', bg: '#F0FDF4' },
         { label: 'Unpaid Schools', value: '0', icon: AlertCircle, color: '#D97706', bg: '#FFFBEB' },
     ]);
+
+    // Dynamic territory filters computed from registered schools
+    const availableStates = Array.from(new Set(rawSchools.map(s => s.state).filter(Boolean)));
+    const availableDistricts = Array.from(new Set(
+        rawSchools
+            .filter(s => !territoryStateFilter || (s.state || '').toLowerCase() === territoryStateFilter.toLowerCase())
+            .map(s => s.district)
+            .filter(Boolean)
+    ));
+    const availableCities = Array.from(new Set(
+        rawSchools
+            .filter(s => 
+                (!territoryStateFilter || (s.state || '').toLowerCase() === territoryStateFilter.toLowerCase()) &&
+                (!territoryDistrictFilter || (s.district || '').toLowerCase() === territoryDistrictFilter.toLowerCase())
+            )
+            .map(s => s.city)
+            .filter(Boolean)
+    ));
+
+    // Scoped filtering based on manager's territory jurisdiction or master admin's switcher
+    useEffect(() => {
+        let filtered = [...rawSchools];
+
+        if (!isMasterAdmin && adminProfile?.territoryScope && adminProfile.territoryScope !== 'all') {
+            filtered = filtered.filter(s => isSchoolInTerritory(s, adminProfile));
+        } else if (isMasterAdmin) {
+            if (territoryStateFilter) {
+                filtered = filtered.filter(s => (s.state || '').toLowerCase() === territoryStateFilter.toLowerCase());
+            }
+            if (territoryDistrictFilter) {
+                filtered = filtered.filter(s => (s.district || '').toLowerCase() === territoryDistrictFilter.toLowerCase());
+            }
+            if (territoryCityFilter) {
+                filtered = filtered.filter(s => (s.city || '').toLowerCase() === territoryCityFilter.toLowerCase());
+            }
+        }
+
+        let paidCount = 0;
+        let unpaidCount = 0;
+        let calculatedRevenue = 0;
+
+        filtered.forEach((data) => {
+            if (data.paymentStatus === 'paid') {
+                paidCount++;
+                const fee = data.billingCycle === 'yearly'
+                    ? (Number(data.yearlySubscriptionFee) || 50000)
+                    : (Number(data.monthlySubscriptionFee) || 5000);
+                calculatedRevenue += fee;
+            } else {
+                unpaidCount++;
+            }
+        });
+
+        setPaidSchoolsCount(paidCount);
+        setUnpaidSchoolsCount(unpaidCount);
+        setTotalPaidRevenue(calculatedRevenue);
+        setAllSchools(filtered);
+
+        setStats(prev => {
+            const newStats = [...prev];
+            newStats[0] = { ...newStats[0], value: filtered.length.toString() };
+            newStats[4] = { ...newStats[4], value: `${paidCount} (₨ ${calculatedRevenue.toLocaleString()})` };
+            newStats[5] = { ...newStats[5], value: unpaidCount.toString() };
+            return newStats;
+        });
+    }, [rawSchools, territoryStateFilter, territoryDistrictFilter, territoryCityFilter, adminProfile, isMasterAdmin]);
 
     // Listen for pending verification slips
     useEffect(() => {
@@ -54,9 +122,6 @@ const Dashboard = () => {
         const q = collection(db, "schools");
         const unsubscribe = onSnapshot(q, async (querySnapshot) => {
             const schoolsArray = [];
-            let paidCount = 0;
-            let unpaidCount = 0;
-            let calculatedRevenue = 0;
 
             querySnapshot.forEach((doc) => {
                 const data = doc.data();
@@ -67,21 +132,7 @@ const Dashboard = () => {
                     ...data,
                     trialInfo
                 });
-
-                if (data.paymentStatus === 'paid') {
-                    paidCount++;
-                    const fee = data.billingCycle === 'yearly'
-                        ? (Number(data.yearlySubscriptionFee) || 50000)
-                        : (Number(data.monthlySubscriptionFee) || 5000);
-                    calculatedRevenue += fee;
-                } else {
-                    unpaidCount++;
-                }
             });
-
-            setPaidSchoolsCount(paidCount);
-            setUnpaidSchoolsCount(unpaidCount);
-            setTotalPaidRevenue(calculatedRevenue);
 
             // Sort logic: Expired trials first, then ascending days left, then not started
             schoolsArray.sort((a, b) => {
@@ -95,15 +146,7 @@ const Dashboard = () => {
                 return 0;
             });
 
-            setAllSchools(schoolsArray);
-
-            setStats(prev => {
-                const newStats = [...prev];
-                newStats[0] = { ...newStats[0], value: schoolsArray.length.toString() };
-                newStats[4] = { ...newStats[4], value: `${paidCount} (₨ ${calculatedRevenue.toLocaleString()})` };
-                newStats[5] = { ...newStats[5], value: unpaidCount.toString() };
-                return newStats;
-            });
+            setRawSchools(schoolsArray);
         }, (error) => {
             console.error("Dashboard Fetch Error:", error);
         });
@@ -368,6 +411,109 @@ const Dashboard = () => {
                         </button>
                     )}
                 </div>
+            </div>
+
+            {/* 1.5 TERRITORY JURISDICTION & REGIONAL SWITCHER */}
+            <div
+                className="win-card"
+                style={{
+                    padding: '10px 14px',
+                    marginBottom: '1.25rem',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    flexWrap: 'wrap',
+                    gap: '10px',
+                    backgroundColor: '#FFFFFF',
+                    borderLeft: '4px solid #2563EB'
+                }}
+            >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <div style={{
+                        width: '32px',
+                        height: '32px',
+                        borderRadius: '5px',
+                        backgroundColor: '#EFF6FF',
+                        color: '#2563EB',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        flexShrink: 0
+                    }}>
+                        <MapPin size={17} />
+                    </div>
+                    <div>
+                        <div style={{ fontSize: '11px', fontWeight: '700', textTransform: 'uppercase', color: '#64748B', letterSpacing: '0.04em' }}>
+                            {isMasterAdmin ? 'Territory Scope (National Multi-City)' : 'Assigned Jurisdiction'}
+                        </div>
+                        <div style={{ fontSize: '13px', fontWeight: '700', color: '#0F172A' }}>
+                            {isMasterAdmin
+                                ? (territoryStateFilter || territoryDistrictFilter || territoryCityFilter
+                                    ? `Filtered View: ${[territoryCityFilter, territoryDistrictFilter, territoryStateFilter].filter(Boolean).join(' • ')} (${allSchools.length} Schools)`
+                                    : `All Pakistan Overview (${allSchools.length} Schools across ${availableCities.length} Cities)`)
+                                : (!adminProfile?.territoryScope || adminProfile.territoryScope === 'all'
+                                    ? 'All Pakistan Overview (Full Access)'
+                                    : `${adminProfile.roleTitle || 'Regional Manager'}: ${[adminProfile.territoryCity, adminProfile.territoryDistrict, adminProfile.territoryState].filter(Boolean).join(', ')} (${allSchools.length} Schools)`
+                                )
+                            }
+                        </div>
+                    </div>
+                </div>
+
+                {/* Master Admin Territory Cascading Switcher */}
+                {isMasterAdmin && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                        <select
+                            value={territoryStateFilter}
+                            onChange={(e) => {
+                                setTerritoryStateFilter(e.target.value);
+                                setTerritoryDistrictFilter('');
+                                setTerritoryCityFilter('');
+                            }}
+                            style={{ padding: '5px 8px', borderRadius: '4px', border: '1px solid #CBD5E1', fontSize: '12px', background: '#FFFFFF', color: '#1E293B', fontWeight: '500' }}
+                        >
+                            <option value="">All Provinces ({availableStates.length})</option>
+                            {availableStates.map(st => <option key={st} value={st}>{st}</option>)}
+                        </select>
+
+                        <select
+                            value={territoryDistrictFilter}
+                            onChange={(e) => {
+                                setTerritoryDistrictFilter(e.target.value);
+                                setTerritoryCityFilter('');
+                            }}
+                            style={{ padding: '5px 8px', borderRadius: '4px', border: '1px solid #CBD5E1', fontSize: '12px', background: '#FFFFFF', color: '#1E293B', fontWeight: '500' }}
+                            disabled={!territoryStateFilter && availableDistricts.length === 0}
+                        >
+                            <option value="">All Districts ({availableDistricts.length})</option>
+                            {availableDistricts.map(dt => <option key={dt} value={dt}>{dt}</option>)}
+                        </select>
+
+                        <select
+                            value={territoryCityFilter}
+                            onChange={(e) => setTerritoryCityFilter(e.target.value)}
+                            style={{ padding: '5px 8px', borderRadius: '4px', border: '1px solid #CBD5E1', fontSize: '12px', background: '#FFFFFF', color: '#1E293B', fontWeight: '500' }}
+                        >
+                            <option value="">All Cities ({availableCities.length})</option>
+                            {availableCities.map(ct => <option key={ct} value={ct}>{ct}</option>)}
+                        </select>
+
+                        {(territoryStateFilter || territoryDistrictFilter || territoryCityFilter) && (
+                            <button
+                                onClick={() => {
+                                    setTerritoryStateFilter('');
+                                    setTerritoryDistrictFilter('');
+                                    setTerritoryCityFilter('');
+                                }}
+                                className="win-btn"
+                                style={{ padding: '4px 8px', fontSize: '11px', color: '#DC2626' }}
+                                title="Reset to All Pakistan"
+                            >
+                                Reset Filter
+                            </button>
+                        )}
+                    </div>
+                )}
             </div>
 
             {/* 2. FINANCIAL REVENUE PANEL (Windows 7 Resource Strip) */}

@@ -22,9 +22,23 @@ import {
     DollarSign,
     Settings,
     Megaphone,
-    Key
+    Key,
+    MapPin,
+    Globe,
+    Building2,
+    Briefcase
 } from 'lucide-react';
 import { db, auth, functions } from '../firebase';
+
+const PROVINCES_LIST = [
+    "Punjab",
+    "Sindh",
+    "Khyber Pakhtunkhwa",
+    "Balochistan",
+    "Islamabad (ICT)",
+    "Azad Jammu & Kashmir",
+    "Gilgit-Baltistan"
+];
 import {
     collection,
     query,
@@ -108,22 +122,84 @@ const PERMISSION_CONFIG = [
 const AddAdminModal = ({ onClose, onSuccess }) => {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
+    const [rolePreset, setRolePreset] = useState('operations_manager');
     const [formData, setFormData] = useState({
         name: '',
         email: '',
         password: '',
+        roleTitle: 'Operations Manager',
+        territoryScope: 'city',
+        territoryState: 'Punjab',
+        territoryDistrict: '',
+        territoryCity: '',
         permissions: {
             manageSchools: true,
             deleteSchool: false,
             manageBilling: false,
             viewRevenue: false,
-            systemControl: false,
+            systemControl: true,
             manageSettings: false,
-            broadcastAnnouncements: false,
+            broadcastAnnouncements: true,
             resetCredentials: false,
             manageAdmins: false
         }
     });
+
+    const handleApplyPreset = (presetKey) => {
+        setRolePreset(presetKey);
+        if (presetKey === 'operations_manager') {
+            setFormData(prev => ({
+                ...prev,
+                roleTitle: 'Operations Manager',
+                territoryScope: prev.territoryScope === 'all' ? 'city' : prev.territoryScope,
+                permissions: {
+                    manageSchools: true,
+                    deleteSchool: false,
+                    manageBilling: false,
+                    viewRevenue: false,
+                    systemControl: true,
+                    manageSettings: false,
+                    broadcastAnnouncements: true,
+                    resetCredentials: false,
+                    manageAdmins: false
+                }
+            }));
+        } else if (presetKey === 'accountant') {
+            setFormData(prev => ({
+                ...prev,
+                roleTitle: 'Accountant / Finance',
+                territoryScope: 'all',
+                permissions: {
+                    manageSchools: false,
+                    deleteSchool: false,
+                    manageBilling: true,
+                    viewRevenue: true,
+                    systemControl: false,
+                    manageSettings: false,
+                    broadcastAnnouncements: false,
+                    resetCredentials: false,
+                    manageAdmins: false
+                }
+            }));
+        } else if (presetKey === 'master_admin') {
+            setFormData(prev => ({
+                ...prev,
+                roleTitle: 'Master Administrator',
+                territoryScope: 'all',
+                permissions: {
+                    manageSchools: true,
+                    deleteSchool: true,
+                    manageBilling: true,
+                    viewRevenue: true,
+                    systemControl: true,
+                    manageSettings: true,
+                    broadcastAnnouncements: true,
+                    resetCredentials: true,
+                    manageAdmins: true
+                }
+            }));
+        }
+    };
 
     const togglePermission = (key) => {
         setFormData(prev => ({
@@ -142,12 +218,24 @@ const AddAdminModal = ({ onClose, onSuccess }) => {
 
         try {
             const createSuperAdmin = httpsCallable(functions, 'createSuperAdmin');
-            await createSuperAdmin({
+            const res = await createSuperAdmin({
                 name: formData.name,
                 email: formData.email,
                 password: formData.password,
                 permissions: formData.permissions
             });
+
+            const newUid = res?.data?.uid;
+            if (newUid) {
+                await updateDoc(doc(db, "global_users", newUid), {
+                    roleTitle: formData.roleTitle,
+                    territoryScope: formData.territoryScope,
+                    territoryState: formData.territoryScope !== 'all' ? formData.territoryState : '',
+                    territoryDistrict: (formData.territoryScope === 'district' || formData.territoryScope === 'city') ? formData.territoryDistrict : '',
+                    territoryCity: formData.territoryScope === 'city' ? formData.territoryCity : '',
+                    updatedAt: serverTimestamp()
+                });
+            }
 
             onSuccess();
             onClose();
@@ -278,6 +366,98 @@ const AddAdminModal = ({ onClose, onSuccess }) => {
                                         />
                                     </div>
                                 </div>
+                            </div>
+                        </fieldset>
+
+                        {/* Role Template / Preset Selector */}
+                        <fieldset style={{ border: '1px solid #C5C0B8', borderRadius: '4px', padding: '10px 14px', marginBottom: '12px', backgroundColor: '#F4F2E8' }}>
+                            <legend style={{ fontSize: '11px', fontWeight: '700', color: '#003399', padding: '0 6px', textTransform: 'uppercase' }}>Role Preset / Template</legend>
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px' }}>
+                                {[
+                                    { id: 'operations_manager', label: '🏢 Operations Manager', desc: 'Territory-scoped school manager' },
+                                    { id: 'accountant', label: '💼 Accountant / Finance', desc: 'Billing, slips & revenue' },
+                                    { id: 'master_admin', label: '🛡️ Master Admin', desc: 'Unrestricted national access' }
+                                ].map(r => (
+                                    <button
+                                        type="button"
+                                        key={r.id}
+                                        onClick={() => handleApplyPreset(r.id)}
+                                        style={{
+                                            padding: '8px 10px',
+                                            borderRadius: '4px',
+                                            border: rolePreset === r.id ? '2px solid #0055EA' : '1px solid #CBD5E1',
+                                            backgroundColor: rolePreset === r.id ? '#EFF6FF' : '#FFFFFF',
+                                            textAlign: 'left',
+                                            cursor: 'pointer'
+                                        }}
+                                    >
+                                        <div style={{ fontSize: '12px', fontWeight: '700', color: rolePreset === r.id ? '#1D4ED8' : '#1E293B' }}>{r.label}</div>
+                                        <div style={{ fontSize: '10.5px', color: '#64748B', marginTop: '2px' }}>{r.desc}</div>
+                                    </button>
+                                ))}
+                            </div>
+                        </fieldset>
+
+                        {/* Territory / Regional Jurisdiction Scope */}
+                        <fieldset style={{ border: '1px solid #C5C0B8', borderRadius: '4px', padding: '10px 14px', marginBottom: '12px', backgroundColor: '#F4F2E8' }}>
+                            <legend style={{ fontSize: '11px', fontWeight: '700', color: '#003399', padding: '0 6px', textTransform: 'uppercase' }}>Territory / Regional Scope</legend>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                <div>
+                                    <label style={{ display: 'block', fontSize: '11.5px', fontWeight: '700', color: '#374151', marginBottom: '3px' }}>Territory Jurisdiction Level *</label>
+                                    <select
+                                        value={formData.territoryScope}
+                                        onChange={(e) => setFormData({ ...formData, territoryScope: e.target.value })}
+                                        style={{ width: '100%', boxSizing: 'border-box', padding: '6px 9px', borderRadius: '2px', border: '1px solid #7F9DB9', fontSize: '12.5px', background: '#FFFFFF' }}
+                                    >
+                                        <option value="all">🌐 All Pakistan (National Unrestricted)</option>
+                                        <option value="state">🏛️ Province / State Level (Entire Province)</option>
+                                        <option value="district">🏙️ District Level (Entire District)</option>
+                                        <option value="city">📍 City / Tehsil Level (Single City)</option>
+                                    </select>
+                                </div>
+
+                                {formData.territoryScope !== 'all' && (
+                                    <div style={{ display: 'grid', gridTemplateColumns: formData.territoryScope === 'city' ? '1fr 1fr 1fr' : (formData.territoryScope === 'district' ? '1fr 1fr' : '1fr'), gap: '8px' }}>
+                                        <div>
+                                            <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: '#374151', marginBottom: '3px' }}>Province / State *</label>
+                                            <select
+                                                value={formData.territoryState}
+                                                onChange={(e) => setFormData({ ...formData, territoryState: e.target.value })}
+                                                style={{ width: '100%', boxSizing: 'border-box', padding: '5px 8px', borderRadius: '2px', border: '1px solid #7F9DB9', fontSize: '12px', background: '#FFFFFF' }}
+                                            >
+                                                {PROVINCES_LIST.map(p => <option key={p} value={p}>{p}</option>)}
+                                            </select>
+                                        </div>
+
+                                        {(formData.territoryScope === 'district' || formData.territoryScope === 'city') && (
+                                            <div>
+                                                <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: '#374151', marginBottom: '3px' }}>District *</label>
+                                                <input
+                                                    type="text"
+                                                    required
+                                                    placeholder="e.g. Rawalpindi, Lahore"
+                                                    value={formData.territoryDistrict}
+                                                    onChange={(e) => setFormData({ ...formData, territoryDistrict: e.target.value })}
+                                                    style={{ width: '100%', boxSizing: 'border-box', padding: '5px 8px', borderRadius: '2px', border: '1px solid #7F9DB9', fontSize: '12px', background: '#FFFFFF' }}
+                                                />
+                                            </div>
+                                        )}
+
+                                        {formData.territoryScope === 'city' && (
+                                            <div>
+                                                <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: '#374151', marginBottom: '3px' }}>City / Tehsil *</label>
+                                                <input
+                                                    type="text"
+                                                    required
+                                                    placeholder="e.g. Taxila, Gujar Khan"
+                                                    value={formData.territoryCity}
+                                                    onChange={(e) => setFormData({ ...formData, territoryCity: e.target.value })}
+                                                    style={{ width: '100%', boxSizing: 'border-box', padding: '5px 8px', borderRadius: '2px', border: '1px solid #7F9DB9', fontSize: '12px', background: '#FFFFFF' }}
+                                                />
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
                             </div>
                         </fieldset>
 
@@ -491,6 +671,81 @@ const EditPermissionsModal = ({ adminUser, onClose, onSuccess }) => {
                                 </button>
                             </div>
                         </div>
+
+                        {/* Role Title / Designation */}
+                        <div style={{ marginBottom: '12px' }}>
+                            <label style={{ display: 'block', fontSize: '11.5px', fontWeight: '700', color: '#374151', marginBottom: '3px' }}>Role / Designation Title</label>
+                            <input
+                                type="text"
+                                placeholder="e.g. Operations Manager, Accountant, Regional Head"
+                                value={roleTitle}
+                                onChange={(e) => setRoleTitle(e.target.value)}
+                                style={{ width: '100%', boxSizing: 'border-box', padding: '6px 9px', borderRadius: '2px', border: '1px solid #7F9DB9', fontSize: '12.5px', background: '#FFFFFF' }}
+                            />
+                        </div>
+
+                        {/* Territory / Regional Jurisdiction Scope */}
+                        <fieldset style={{ border: '1px solid #C5C0B8', borderRadius: '4px', padding: '10px 14px', marginBottom: '12px', backgroundColor: '#F4F2E8' }}>
+                            <legend style={{ fontSize: '11px', fontWeight: '700', color: '#003399', padding: '0 6px', textTransform: 'uppercase' }}>Territory / Regional Scope</legend>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                <div>
+                                    <label style={{ display: 'block', fontSize: '11.5px', fontWeight: '700', color: '#374151', marginBottom: '3px' }}>Territory Jurisdiction Level</label>
+                                    <select
+                                        value={territoryScope}
+                                        onChange={(e) => setTerritoryScope(e.target.value)}
+                                        style={{ width: '100%', boxSizing: 'border-box', padding: '6px 9px', borderRadius: '2px', border: '1px solid #7F9DB9', fontSize: '12.5px', background: '#FFFFFF' }}
+                                    >
+                                        <option value="all">🌐 All Pakistan (National Unrestricted)</option>
+                                        <option value="state">🏛️ Province / State Level (Entire Province)</option>
+                                        <option value="district">🏙️ District Level (Entire District)</option>
+                                        <option value="city">📍 City / Tehsil Level (Single City)</option>
+                                    </select>
+                                </div>
+
+                                {territoryScope !== 'all' && (
+                                    <div style={{ display: 'grid', gridTemplateColumns: territoryScope === 'city' ? '1fr 1fr 1fr' : (territoryScope === 'district' ? '1fr 1fr' : '1fr'), gap: '8px' }}>
+                                        <div>
+                                            <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: '#374151', marginBottom: '3px' }}>Province / State *</label>
+                                            <select
+                                                value={territoryState}
+                                                onChange={(e) => setTerritoryState(e.target.value)}
+                                                style={{ width: '100%', boxSizing: 'border-box', padding: '5px 8px', borderRadius: '2px', border: '1px solid #7F9DB9', fontSize: '12px', background: '#FFFFFF' }}
+                                            >
+                                                {PROVINCES_LIST.map(p => <option key={p} value={p}>{p}</option>)}
+                                            </select>
+                                        </div>
+
+                                        {(territoryScope === 'district' || territoryScope === 'city') && (
+                                            <div>
+                                                <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: '#374151', marginBottom: '3px' }}>District *</label>
+                                                <input
+                                                    type="text"
+                                                    required
+                                                    placeholder="e.g. Rawalpindi, Lahore"
+                                                    value={territoryDistrict}
+                                                    onChange={(e) => setTerritoryDistrict(e.target.value)}
+                                                    style={{ width: '100%', boxSizing: 'border-box', padding: '5px 8px', borderRadius: '2px', border: '1px solid #7F9DB9', fontSize: '12px', background: '#FFFFFF' }}
+                                                />
+                                            </div>
+                                        )}
+
+                                        {territoryScope === 'city' && (
+                                            <div>
+                                                <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: '#374151', marginBottom: '3px' }}>City / Tehsil *</label>
+                                                <input
+                                                    type="text"
+                                                    required
+                                                    placeholder="e.g. Taxila, Gujar Khan"
+                                                    value={territoryCity}
+                                                    onChange={(e) => setTerritoryCity(e.target.value)}
+                                                    style={{ width: '100%', boxSizing: 'border-box', padding: '5px 8px', borderRadius: '2px', border: '1px solid #7F9DB9', fontSize: '12px', background: '#FFFFFF' }}
+                                                />
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+                        </fieldset>
 
                         <fieldset style={{ border: '1px solid #C5C0B8', borderRadius: '4px', padding: '12px 14px', backgroundColor: '#F4F2E8' }}>
                             <legend style={{ fontSize: '11px', fontWeight: '700', color: '#003399', padding: '0 6px', textTransform: 'uppercase' }}>Assigned Permissions</legend>
@@ -857,18 +1112,41 @@ const Admins = () => {
                                         </span>
                                     </div>
 
-                                    {/* Role Badge */}
-                                    <div style={{ marginBottom: '10px' }}>
+                                    {/* Role & Territory Badges */}
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', marginBottom: '10px' }}>
                                         <span style={{
                                             padding: '2px 8px',
                                             borderRadius: '3px',
                                             fontSize: '11px',
                                             fontWeight: '700',
-                                            backgroundColor: isMaster ? '#EFF6FF' : '#F1F5F9',
-                                            color: isMaster ? '#1D4ED8' : '#334155',
-                                            border: isMaster ? '1px solid #BFDBFE' : '1px solid #CBD5E1'
+                                            backgroundColor: isMaster ? '#EFF6FF' : (adminUser.roleTitle?.includes('Accountant') ? '#FEF3C7' : '#F0FDF4'),
+                                            color: isMaster ? '#1D4ED8' : (adminUser.roleTitle?.includes('Accountant') ? '#92400E' : '#166534'),
+                                            border: isMaster ? '1px solid #BFDBFE' : (adminUser.roleTitle?.includes('Accountant') ? '1px solid #FDE68A' : '1px solid #BBF7D0')
                                         }}>
-                                            {isMaster ? '⭐ Master Administrator' : 'Office Staff Operator'}
+                                            {adminUser.roleTitle || (isMaster ? '⭐ Master Administrator' : 'Office Staff Operator')}
+                                        </span>
+
+                                        <span style={{
+                                            padding: '2px 8px',
+                                            borderRadius: '3px',
+                                            fontSize: '11px',
+                                            fontWeight: '600',
+                                            backgroundColor: '#F8FAFC',
+                                            color: '#475569',
+                                            border: '1px solid #E2E8F0',
+                                            display: 'inline-flex',
+                                            alignItems: 'center',
+                                            gap: '4px'
+                                        }}>
+                                            <MapPin size={11} color="#64748B" />
+                                            {(!adminUser.territoryScope || adminUser.territoryScope === 'all')
+                                                ? 'All Pakistan (National)'
+                                                : adminUser.territoryScope === 'state'
+                                                    ? `Province: ${adminUser.territoryState || 'Punjab'}`
+                                                    : adminUser.territoryScope === 'district'
+                                                        ? `District: ${adminUser.territoryDistrict} (${adminUser.territoryState || 'Punjab'})`
+                                                        : `City: ${adminUser.territoryCity} (${adminUser.territoryDistrict || adminUser.territoryState})`
+                                            }
                                         </span>
                                     </div>
 

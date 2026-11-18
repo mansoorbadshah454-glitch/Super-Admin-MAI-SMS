@@ -16,7 +16,7 @@ import { calculateTrialDays } from '../utils/dateUtils';
 import { useAdminAuth } from '../contexts/AdminAuthContext';
 
 const Schools = () => {
-    const { hasPermission, isMasterAdmin } = useAdminAuth();
+    const { hasPermission, isMasterAdmin, adminProfile, isSchoolInTerritory } = useAdminAuth();
     const [schools, setSchools] = useState([]);
     const [stats, setStats] = useState({});
     const [searchTerm, setSearchTerm] = useState('');
@@ -174,12 +174,29 @@ const Schools = () => {
             .filter(Boolean)
     )].sort();
 
+    const isRestrictedManager = !isMasterAdmin && adminProfile?.territoryScope && adminProfile.territoryScope !== 'all';
+
+    // Auto-sync territory defaults for restricted managers
+    useEffect(() => {
+        if (isRestrictedManager) {
+            if (adminProfile.territoryState) setSelectedState(adminProfile.territoryState);
+            if (adminProfile.territoryDistrict) setSelectedDistrict(adminProfile.territoryDistrict);
+            if (adminProfile.territoryCity) setSelectedCity(adminProfile.territoryCity);
+        }
+    }, [isRestrictedManager, adminProfile]);
+
     const activeFilterCount = (selectedState ? 1 : 0) + (selectedDistrict ? 1 : 0) + (selectedCity ? 1 : 0);
 
     const handleResetFilters = () => {
-        setSelectedState('');
-        setSelectedDistrict('');
-        setSelectedCity('');
+        if (isRestrictedManager) {
+            setSelectedState(adminProfile.territoryState || '');
+            setSelectedDistrict(adminProfile.territoryDistrict || '');
+            setSelectedCity(adminProfile.territoryCity || '');
+        } else {
+            setSelectedState('');
+            setSelectedDistrict('');
+            setSelectedCity('');
+        }
         setSearchTerm('');
         setCurrentPage(1);
     };
@@ -191,6 +208,9 @@ const Schools = () => {
     });
 
     const filteredSchools = sortedForIds.filter(s => {
+        const matchesTerritory = isSchoolInTerritory(s, adminProfile);
+        if (!matchesTerritory) return false;
+
         const term = searchTerm.toLowerCase().trim();
         const nameMatch = (s.name || s.schoolName || '').toLowerCase().includes(term);
         const idMatch = (s.id || '').toLowerCase().includes(term);
@@ -296,6 +316,32 @@ const Schools = () => {
                     )}
                 </div>
             </header>
+
+            {/* Territory Jurisdiction Info Banner for Regional Managers */}
+            {!isMasterAdmin && adminProfile?.territoryScope && adminProfile.territoryScope !== 'all' && (
+                <div style={{
+                    padding: '8px 14px',
+                    marginBottom: '1rem',
+                    borderRadius: '6px',
+                    backgroundColor: '#EFF6FF',
+                    border: '1px solid #BFDBFE',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    flexWrap: 'wrap',
+                    gap: '8px'
+                }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <MapPin size={16} color="#2563EB" />
+                        <span style={{ fontSize: '12px', color: '#1E40AF', fontWeight: '600' }}>
+                            Operational Territory: <strong>{[adminProfile.territoryCity, adminProfile.territoryDistrict, adminProfile.territoryState].filter(Boolean).join(' • ')}</strong>
+                        </span>
+                    </div>
+                    <span style={{ fontSize: '11px', color: '#3B82F6', fontWeight: 'bold' }}>
+                        Filtered to your jurisdiction ({filteredSchools.length} Schools)
+                    </span>
+                </div>
+            )}
 
             {/* WINDOWS 7 / XP STYLE TOOLBAR & FILTERS */}
             <div

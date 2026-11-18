@@ -1,14 +1,12 @@
 import React from 'react';
-import { LayoutDashboard, School, Settings, LogOut, Shield, ShieldCheck, Sun, Moon, CreditCard, Laptop } from 'lucide-react';
+import { LayoutDashboard, School, Settings, LogOut, Shield, ShieldCheck, CreditCard, Laptop } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import { signOut } from 'firebase/auth';
 import { auth } from '../firebase';
-import { useTheme } from '../contexts/ThemeContext';
 import { useAdminAuth } from '../contexts/AdminAuthContext';
 
 const Sidebar = () => {
     const location = useLocation();
-    const { theme, toggleTheme } = useTheme();
     const { adminProfile, hasPermission, isMasterAdmin } = useAdminAuth();
 
     const menuItems = [
@@ -202,54 +200,30 @@ const Sidebar = () => {
                     </div>
                 </div>
 
-                {/* Footer Push Buttons */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <button
-                        onClick={toggleTheme}
-                        title={`Switch to ${theme === 'dark' ? 'Light' : 'Dark'} Mode`}
-                        style={{
-                            flex: 1,
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            gap: '5px',
-                            padding: '5px 8px',
-                            borderRadius: '3px',
-                            border: '1px solid #CBD5E1',
-                            background: '#F8FAFC',
-                            color: '#475569',
-                            fontSize: '11.5px',
-                            fontWeight: '600',
-                            cursor: 'pointer',
-                            fontFamily: 'inherit'
-                        }}
-                    >
-                        {theme === 'dark' ? <Sun size={13} /> : <Moon size={13} />}
-                        <span>{theme === 'dark' ? 'Light' : 'Dark'}</span>
-                    </button>
-
+                {/* Footer Action */}
+                <div>
                     <button
                         onClick={handleLogout}
                         title="Logout"
                         style={{
-                            flex: 1,
+                            width: '100%',
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
-                            gap: '5px',
-                            padding: '5px 8px',
-                            borderRadius: '3px',
+                            gap: '6px',
+                            padding: '6px 10px',
+                            borderRadius: '4px',
                             border: '1px solid #FECACA',
                             background: '#FEF2F2',
                             color: '#DC2626',
-                            fontSize: '11.5px',
-                            fontWeight: '600',
+                            fontSize: '12px',
+                            fontWeight: '700',
                             cursor: 'pointer',
                             fontFamily: 'inherit'
                         }}
                     >
-                        <LogOut size={13} />
-                        <span>Logout</span>
+                        <LogOut size={14} />
+                        <span>Sign Out / Disconnect</span>
                     </button>
                 </div>
             </div>

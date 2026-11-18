@@ -33,7 +33,11 @@ export const AdminAuthProvider = ({ children }) => {
                         broadcastAnnouncements: true,
                         resetCredentials: true,
                         manageAdmins: true
-                    }
+                    },
+                    territoryScope: 'all',
+                    territoryState: '',
+                    territoryDistrict: '',
+                    territoryCity: ''
                 });
                 setLoading(false);
                 return;
@@ -69,7 +73,11 @@ export const AdminAuthProvider = ({ children }) => {
                                 broadcastAnnouncements: true,
                                 resetCredentials: true,
                                 manageAdmins: true
-                            }
+                            },
+                            territoryScope: 'all',
+                            territoryState: '',
+                            territoryDistrict: '',
+                            territoryCity: ''
                         });
                     }
                     setLoading(false);
@@ -117,13 +125,56 @@ export const AdminAuthProvider = ({ children }) => {
         return isMaster;
     };
 
+    // Check if a school is within the admin's assigned territory
+    const isSchoolInTerritory = (school, profile = adminProfile) => {
+        if (!school) return false;
+        if (!profile) return false;
+
+        // Master admins or profiles with 'all' scope have unrestricted access
+        if (isMaster || profile.role === 'master_admin' || !profile.territoryScope || profile.territoryScope === 'all') {
+            return true;
+        }
+
+        const schoolState = (school.state || '').trim().toLowerCase();
+        const schoolDistrict = (school.district || '').trim().toLowerCase();
+        const schoolCity = (school.city || '').trim().toLowerCase();
+
+        const targetState = (profile.territoryState || '').trim().toLowerCase();
+        const targetDistrict = (profile.territoryDistrict || '').trim().toLowerCase();
+        const targetCity = (profile.territoryCity || '').trim().toLowerCase();
+
+        if (profile.territoryScope === 'state') {
+            return targetState ? schoolState === targetState : true;
+        }
+
+        if (profile.territoryScope === 'district') {
+            const stateMatches = !targetState || schoolState === targetState;
+            return stateMatches && schoolDistrict === targetDistrict;
+        }
+
+        if (profile.territoryScope === 'city') {
+            const stateMatches = !targetState || schoolState === targetState;
+            const districtMatches = !targetDistrict || schoolDistrict === targetDistrict;
+            return stateMatches && districtMatches && schoolCity === targetCity;
+        }
+
+        return true;
+    };
+
+    const filterSchoolsByTerritory = (schools, profile = adminProfile) => {
+        if (!Array.isArray(schools)) return [];
+        return schools.filter(s => isSchoolInTerritory(s, profile));
+    };
+
     return (
         <AdminAuthContext.Provider value={{
             user,
             adminProfile,
             loading,
             hasPermission,
-            isMasterAdmin: isMaster
+            isMasterAdmin: isMaster,
+            isSchoolInTerritory,
+            filterSchoolsByTerritory
         }}>
             {children}
         </AdminAuthContext.Provider>

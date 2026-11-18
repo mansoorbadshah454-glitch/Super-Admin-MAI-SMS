@@ -6,7 +6,7 @@ import {
     MapPin, Hash, CheckCircle, XCircle, Users, Phone,
     Landmark, Building2, Plus, Trash2, Crown, Sparkles, Bus, Tv,
     DollarSign, SlidersHorizontal, Check, AlertCircle, ArrowLeft,
-    Key, Eye, EyeOff, Copy, Lock, Edit2
+    Key, Eye, EyeOff, Copy, Lock, Edit2, ShieldAlert
 } from 'lucide-react';
 import { db } from '../firebase';
 import { doc, onSnapshot, updateDoc, getDoc, collection, getCountFromServer, setDoc } from 'firebase/firestore';
@@ -16,7 +16,7 @@ import InlineEditSchool from '../components/InlineEditSchool';
 const SchoolDetail = () => {
     const { id } = useParams();
     const navigate = useNavigate();
-    const { hasPermission, isMasterAdmin } = useAdminAuth();
+    const { hasPermission, isMasterAdmin, adminProfile, isSchoolInTerritory } = useAdminAuth();
     const [school, setSchool] = useState(null);
     const [principal, setPrincipal] = useState(null);
     const [stats, setStats] = useState({ total: '...', teachers: '...', parents: '...' });
@@ -265,6 +265,46 @@ const SchoolDetail = () => {
             <div style={{ height: '70vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '12px' }}>
                 <Loader2 className="animate-spin" size={36} color="#2563EB" />
                 <span style={{ fontSize: '13px', color: '#64748B', fontWeight: '600' }}>Loading School Console...</span>
+            </div>
+        );
+    }
+
+    if (!school) {
+        return (
+            <div style={{ padding: '3rem 1rem', textAlign: 'center' }}>
+                <h3 style={{ color: '#0F172A', marginBottom: '8px' }}>School Record Not Found</h3>
+                <p style={{ color: '#64748B', fontSize: '13px', marginBottom: '16px' }}>The requested institution does not exist or has been removed.</p>
+                <button onClick={() => navigate('/schools')} className="win-btn win-btn-primary">Back to Directory</button>
+            </div>
+        );
+    }
+
+    if (!isMasterAdmin && !isSchoolInTerritory(school, adminProfile)) {
+        return (
+            <div style={{ height: '60vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '1rem', fontFamily: "'Segoe UI', Tahoma, Verdana, sans-serif" }}>
+                <div style={{
+                    width: '100%',
+                    maxWidth: '480px',
+                    backgroundColor: '#FFFFFF',
+                    border: '1px solid #CBD5E1',
+                    borderRadius: '8px',
+                    padding: '2rem',
+                    textAlign: 'center',
+                    boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05)'
+                }}>
+                    <div style={{ width: '48px', height: '48px', borderRadius: '50%', backgroundColor: '#FEE2E2', color: '#DC2626', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1rem' }}>
+                        <ShieldAlert size={26} />
+                    </div>
+                    <h3 style={{ fontSize: '16px', fontWeight: '800', color: '#0F172A', marginBottom: '8px' }}>
+                        Territory Access Denied
+                    </h3>
+                    <p style={{ color: '#64748B', fontSize: '13px', margin: '0 0 16px 0', lineHeight: 1.5 }}>
+                        This school ({school.name || school.schoolName}) is located in <strong>{[school.city, school.district, school.state].filter(Boolean).join(', ')}</strong>, which is outside your assigned operational territory.
+                    </p>
+                    <button onClick={() => navigate('/schools')} className="win-btn win-btn-primary">
+                        Return to My Schools Directory
+                    </button>
+                </div>
             </div>
         );
     }

@@ -1,19 +1,25 @@
 import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
-import { X, Save, Shield, School, Mail, Lock, Sparkles, Crown, Bus, Tv, Check, ChevronRight, ChevronLeft, AlertCircle } from 'lucide-react';
+import { X, Save, Shield, School, Mail, Lock, Sparkles, Crown, Bus, Tv, Check, ChevronRight, ChevronLeft, AlertCircle, MapPin } from 'lucide-react';
 import { db, auth, functions } from '../firebase';
 import { httpsCallable } from 'firebase/functions';
+import { useAdminAuth } from '../contexts/AdminAuthContext';
 
 const CreateSchoolModal = ({ onClose, onSuccess }) => {
+    const { adminProfile, isMasterAdmin } = useAdminAuth();
+    const isRestrictedState = !isMasterAdmin && adminProfile?.territoryScope && adminProfile.territoryScope !== 'all' && Boolean(adminProfile.territoryState);
+    const isRestrictedDistrict = !isMasterAdmin && (adminProfile?.territoryScope === 'district' || adminProfile?.territoryScope === 'city') && Boolean(adminProfile.territoryDistrict);
+    const isRestrictedCity = !isMasterAdmin && adminProfile?.territoryScope === 'city' && Boolean(adminProfile.territoryCity);
+
     const [step, setStep] = useState(1);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
 
     const [formData, setFormData] = useState({
         schoolName: '',
-        state: 'Punjab',
-        district: '',
-        city: '',
+        state: isRestrictedState ? adminProfile.territoryState : 'Punjab',
+        district: isRestrictedDistrict ? adminProfile.territoryDistrict : '',
+        city: isRestrictedCity ? adminProfile.territoryCity : '',
         address: '',
         schoolContact: '',
         package: 'standard',
@@ -519,18 +525,26 @@ const CreateSchoolModal = ({ onClose, onSuccess }) => {
                                 <fieldset className="xp-fieldset">
                                     <legend className="xp-legend">Location & Campus Address</legend>
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                                        {(isRestrictedState || isRestrictedDistrict || isRestrictedCity) && (
+                                            <div style={{ padding: '6px 10px', backgroundColor: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: '4px', fontSize: '11px', color: '#1D4ED8', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                <MapPin size={13} color="#2563EB" />
+                                                <span>Location auto-assigned to your regional jurisdiction: <strong>{[adminProfile.territoryCity, adminProfile.territoryDistrict, adminProfile.territoryState].filter(Boolean).join(', ')}</strong></span>
+                                            </div>
+                                        )}
                                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px' }}>
                                             <div>
                                                 <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: '#1F2937', marginBottom: '4px' }}>
                                                     Province / State <span style={{ color: '#DC2626' }}>*</span>
+                                                    {isRestrictedState && <span style={{ fontSize: '10px', color: '#64748B', marginLeft: '4px' }}>(Locked)</span>}
                                                 </label>
                                                 <select
                                                     name="state"
                                                     className="xp-input"
                                                     value={formData.state}
                                                     onChange={handleChange}
+                                                    disabled={isRestrictedState}
                                                     required
-                                                    style={{ cursor: 'pointer' }}
+                                                    style={{ cursor: isRestrictedState ? 'not-allowed' : 'pointer', backgroundColor: isRestrictedState ? '#F1F5F9' : '#FFFFFF' }}
                                                 >
                                                     <option value="Punjab">Punjab</option>
                                                     <option value="Sindh">Sindh</option>
@@ -545,6 +559,7 @@ const CreateSchoolModal = ({ onClose, onSuccess }) => {
                                             <div>
                                                 <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: '#1F2937', marginBottom: '4px' }}>
                                                     District <span style={{ color: '#DC2626' }}>*</span>
+                                                    {isRestrictedDistrict && <span style={{ fontSize: '10px', color: '#64748B', marginLeft: '4px' }}>(Locked)</span>}
                                                 </label>
                                                 <input
                                                     type="text"
@@ -553,6 +568,8 @@ const CreateSchoolModal = ({ onClose, onSuccess }) => {
                                                     placeholder="e.g. Rawalpindi, Lahore"
                                                     value={formData.district}
                                                     onChange={handleChange}
+                                                    readOnly={isRestrictedDistrict}
+                                                    style={{ backgroundColor: isRestrictedDistrict ? '#F1F5F9' : '#FFFFFF', cursor: isRestrictedDistrict ? 'not-allowed' : 'text' }}
                                                     required
                                                 />
                                             </div>
@@ -560,6 +577,7 @@ const CreateSchoolModal = ({ onClose, onSuccess }) => {
                                             <div>
                                                 <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: '#1F2937', marginBottom: '4px' }}>
                                                     City / Tehsil <span style={{ color: '#DC2626' }}>*</span>
+                                                    {isRestrictedCity && <span style={{ fontSize: '10px', color: '#64748B', marginLeft: '4px' }}>(Locked)</span>}
                                                 </label>
                                                 <input
                                                     type="text"
@@ -568,6 +586,8 @@ const CreateSchoolModal = ({ onClose, onSuccess }) => {
                                                     placeholder="e.g. Taxila, Gujar Khan"
                                                     value={formData.city}
                                                     onChange={handleChange}
+                                                    readOnly={isRestrictedCity}
+                                                    style={{ backgroundColor: isRestrictedCity ? '#F1F5F9' : '#FFFFFF', cursor: isRestrictedCity ? 'not-allowed' : 'text' }}
                                                     required
                                                 />
                                             </div>
