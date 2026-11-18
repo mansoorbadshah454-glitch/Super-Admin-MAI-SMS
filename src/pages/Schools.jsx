@@ -30,6 +30,7 @@ const Schools = () => {
     const [showBroadcastModal, setShowBroadcastModal] = useState(false);
     const [showPassMap, setShowPassMap] = useState({});
     const [copiedSchoolId, setCopiedSchoolId] = useState(null);
+    const [paymentFilter, setPaymentFilter] = useState('all'); // 'all' | 'paid' | 'unpaid'
 
     const toggleShowPass = (id) => {
         setShowPassMap(prev => ({ ...prev, [id]: !prev[id] }));
@@ -105,21 +106,6 @@ const Schools = () => {
         return () => unsubscribe();
     }, []);
 
-    const handleTogglePayment = async (schoolId, currentStatus) => {
-        if (!isMasterAdmin && !hasPermission('manageBilling')) {
-            alert("Permission Denied: You do not have permission to manage school billing.");
-            return;
-        }
-        try {
-            const newStatus = currentStatus === 'paid' ? 'unpaid' : 'paid';
-            await updateDoc(doc(db, "schools", schoolId), {
-                paymentStatus: newStatus,
-                updatedAt: new Date()
-            });
-        } catch (error) {
-            alert("Failed to update payment status: " + error.message);
-        }
-    };
 
     const handleToggleSystemStatus = async (schoolId, currentStatus) => {
         if (!isMasterAdmin && !hasPermission('systemControl')) {
@@ -207,10 +193,13 @@ const Schools = () => {
         return timeB - timeA;
     });
 
-    const filteredSchools = sortedForIds.filter(s => {
-        const matchesTerritory = isSchoolInTerritory(s, adminProfile);
-        if (!matchesTerritory) return false;
+    // Territory-scoped schools and billing counts
+    const territorySchools = sortedForIds.filter(s => isSchoolInTerritory(s, adminProfile));
+    const totalCount = territorySchools.length;
+    const paidCount = territorySchools.filter(s => s.paymentStatus === 'paid').length;
+    const unpaidCount = totalCount - paidCount;
 
+    const filteredSchools = territorySchools.filter(s => {
         const term = searchTerm.toLowerCase().trim();
         const nameMatch = (s.name || s.schoolName || '').toLowerCase().includes(term);
         const idMatch = (s.id || '').toLowerCase().includes(term);
@@ -224,14 +213,17 @@ const Schools = () => {
         const matchesState = !selectedState || (s.state || '').toLowerCase() === selectedState.toLowerCase();
         const matchesDistrict = !selectedDistrict || (s.district || '').toLowerCase() === selectedDistrict.toLowerCase();
         const matchesCity = !selectedCity || (s.city || '').toLowerCase() === selectedCity.toLowerCase();
+        const matchesPayment = paymentFilter === 'all'
+            ? true
+            : (paymentFilter === 'paid' ? s.paymentStatus === 'paid' : s.paymentStatus !== 'paid');
 
-        return matchesSearch && matchesState && matchesDistrict && matchesCity;
+        return matchesSearch && matchesState && matchesDistrict && matchesCity && matchesPayment;
     });
 
     // Reset pagination on filter or search change
     useEffect(() => {
         setCurrentPage(1);
-    }, [searchTerm, selectedState, selectedDistrict, selectedCity]);
+    }, [searchTerm, selectedState, selectedDistrict, selectedCity, paymentFilter]);
 
     // Pagination calculations
     const totalItems = filteredSchools.length;
@@ -357,6 +349,67 @@ const Schools = () => {
                     gap: '10px'
                 }}
             >
+                {/* 1. Subscription Billing Filter Buttons Bar */}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px', borderBottom: '1px solid #F1F5F9', paddingBottom: '8px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                        <span style={{ fontSize: '11.5px', fontWeight: '700', color: '#64748B', marginRight: '4px', textTransform: 'uppercase' }}>
+                            Billing Status:
+                        </span>
+
+                        <button
+                            type="button"
+                            onClick={() => setPaymentFilter('all')}
+                            className="win-btn"
+                            style={{
+                                backgroundColor: paymentFilter === 'all' ? '#1E293B' : '#FFFFFF',
+                                color: paymentFilter === 'all' ? '#FFFFFF' : '#334155',
+                                borderColor: paymentFilter === 'all' ? '#0F172A' : '#CBD5E1',
+                                fontWeight: '700',
+                                fontSize: '11.5px',
+                                padding: '3px 10px'
+                            }}
+                        >
+                            All Schools ({totalCount})
+                        </button>
+
+                        <button
+                            type="button"
+                            onClick={() => setPaymentFilter('paid')}
+                            className="win-btn"
+                            style={{
+                                backgroundColor: paymentFilter === 'paid' ? '#059669' : '#FFFFFF',
+                                color: paymentFilter === 'paid' ? '#FFFFFF' : '#065F46',
+                                borderColor: paymentFilter === 'paid' ? '#047857' : '#A7F3D0',
+                                fontWeight: '700',
+                                fontSize: '11.5px',
+                                padding: '3px 10px'
+                            }}
+                        >
+                            🟢 Paid Schools ({paidCount})
+                        </button>
+
+                        <button
+                            type="button"
+                            onClick={() => setPaymentFilter('unpaid')}
+                            className="win-btn"
+                            style={{
+                                backgroundColor: paymentFilter === 'unpaid' ? '#DC2626' : '#FFFFFF',
+                                color: paymentFilter === 'unpaid' ? '#FFFFFF' : '#991B1B',
+                                borderColor: paymentFilter === 'unpaid' ? '#B91C1C' : '#FECACA',
+                                fontWeight: '700',
+                                fontSize: '11.5px',
+                                padding: '3px 10px'
+                            }}
+                        >
+                            🔴 Unpaid / Due ({unpaidCount})
+                        </button>
+                    </div>
+
+                    <div style={{ fontSize: '11.5px', color: '#64748B' }}>
+                        Showing <strong>{filteredSchools.length}</strong> of {totalCount} Schools
+                    </div>
+                </div>
+
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px' }}>
                     {/* Left: Search Bar */}
                     <div style={{ flex: '1 1 280px', position: 'relative' }}>
@@ -770,24 +823,26 @@ const Schools = () => {
                                                         color: isPaid ? '#03543F' : '#854D0E',
                                                         border: isPaid ? '1px solid #84E1BC' : '1px solid #FDE047'
                                                     }}>
-                                                        {school.paymentStatus || 'unpaid'}
+                                                        {isPaid ? 'Paid' : 'Unpaid'}
                                                     </span>
-                                                    <button
-                                                        onClick={() => handleTogglePayment(school.id, school.paymentStatus)}
-                                                        title="Toggle Payment Status"
-                                                        style={{
-                                                            padding: '3px 6px',
-                                                            borderRadius: '3px',
-                                                            border: '1px solid #CBD5E1',
-                                                            backgroundColor: '#FFFFFF',
-                                                            color: isPaid ? '#D97706' : '#059669',
-                                                            cursor: 'pointer',
-                                                            fontSize: '10.5px',
-                                                            fontWeight: '600'
-                                                        }}
-                                                    >
-                                                        {isPaid ? 'Unpay' : 'Pay'}
-                                                    </button>
+                                                    {!isPaid && (
+                                                        <button
+                                                            onClick={() => navigate('/schools/' + school.id)}
+                                                            title="Record Payment in Ledger"
+                                                            style={{
+                                                                padding: '3px 8px',
+                                                                borderRadius: '3px',
+                                                                border: '1px solid #1D4ED8',
+                                                                backgroundColor: '#2563EB',
+                                                                color: '#FFFFFF',
+                                                                cursor: 'pointer',
+                                                                fontSize: '10.5px',
+                                                                fontWeight: '700'
+                                                            }}
+                                                        >
+                                                            Pay
+                                                        </button>
+                                                    )}
                                                 </div>
                                             </td>
 
@@ -1289,25 +1344,28 @@ const Schools = () => {
                                                 fontWeight: '700',
                                                 textTransform: 'uppercase',
                                                 backgroundColor: isPaid ? '#DEF7EC' : '#FEF08A',
-                                                color: isPaid ? '#03543F' : '#854D0E'
+                                                color: isPaid ? '#03543F' : '#854D0E',
+                                                border: isPaid ? '1px solid #84E1BC' : '1px solid #FDE047'
                                             }}>
-                                                {school.paymentStatus || 'unpaid'}
+                                                {isPaid ? 'Paid' : 'Unpaid'}
                                             </span>
-                                            <button
-                                                onClick={() => handleTogglePayment(school.id, school.paymentStatus)}
-                                                style={{
-                                                    padding: '2px 6px',
-                                                    borderRadius: '3px',
-                                                    border: '1px solid #CBD5E1',
-                                                    background: '#FFFFFF',
-                                                    color: isPaid ? '#D97706' : '#059669',
-                                                    fontSize: '10px',
-                                                    fontWeight: '700',
-                                                    cursor: 'pointer'
-                                                }}
-                                            >
-                                                {isPaid ? 'Unpay' : 'Pay'}
-                                            </button>
+                                            {!isPaid && (
+                                                <button
+                                                    onClick={() => navigate('/schools/' + school.id)}
+                                                    style={{
+                                                        padding: '2px 6px',
+                                                        borderRadius: '3px',
+                                                        border: '1px solid #1D4ED8',
+                                                        background: '#2563EB',
+                                                        color: '#FFFFFF',
+                                                        fontSize: '10px',
+                                                        fontWeight: '700',
+                                                        cursor: 'pointer'
+                                                    }}
+                                                >
+                                                    Pay
+                                                </button>
+                                            )}
                                         </div>
 
                                         {/* System Status */}

@@ -132,17 +132,28 @@ const SchoolDetail = () => {
 
             await setDoc(doc(db, `schools/${id}/subscription_invoices`, monthKey), invoiceData, { merge: true });
 
-            // If paying for the current month, sync school paymentStatus
+            // If paying for the current month, sync school paymentStatus and AUTO-START!
             const now = new Date();
             if (selectedYear === now.getFullYear() && paymentModalMonth.num === (now.getMonth() + 1)) {
                 await updateDoc(doc(db, "schools", id), {
                     paymentStatus: 'paid',
+                    status: 'active', // AUTO-START: Unfreezes portal immediately
                     updatedAt: new Date()
                 });
+
+                // Clear any warning announcement banner in Principal app
+                try {
+                    await setDoc(doc(db, `schools/${id}/announcements`, 'global_broadcast'), {
+                        active: false,
+                        dismissedAt: new Date().toISOString()
+                    }, { merge: true });
+                } catch (announceErr) {
+                    console.warn("Notice deactivation error (non-fatal):", announceErr);
+                }
             }
 
             setPaymentModalMonth(null);
-            alert(`Payment recorded successfully for ${paymentModalMonth.name} ${selectedYear}!`);
+            alert(`Payment recorded successfully for ${paymentModalMonth.name} ${selectedYear}! School system auto-started.`);
         } catch (err) {
             console.error("Failed to record subscription payment:", err);
             alert("Error recording payment: " + err.message);
@@ -151,31 +162,13 @@ const SchoolDetail = () => {
         }
     };
 
-    const handleRevertPayment = async (monthObj) => {
-        if (!window.confirm(`Are you sure you want to revert payment and mark ${monthObj.name} ${selectedYear} as unpaid/due?`)) {
-            return;
-        }
-        const monthKey = `${selectedYear}_${String(monthObj.num).padStart(2, '0')}`;
-        try {
-            await setDoc(doc(db, `schools/${id}/subscription_invoices`, monthKey), {
-                status: 'unpaid',
-                revertedBy: adminProfile?.name || adminProfile?.email || 'Administrator',
-                revertedAt: new Date().toISOString(),
-                updatedAt: new Date().toISOString()
-            }, { merge: true });
-
-            // If current month, also update school paymentStatus to unpaid
-            const now = new Date();
-            if (selectedYear === now.getFullYear() && monthObj.num === (now.getMonth() + 1)) {
-                await updateDoc(doc(db, "schools", id), {
-                    paymentStatus: 'unpaid',
-                    updatedAt: new Date()
-                });
-            }
-        } catch (err) {
-            console.error("Failed to revert payment:", err);
-            alert("Error reverting payment: " + err.message);
-        }
+    const handleQuickRecordCurrentMonth = () => {
+        setActiveTab('ledger');
+        const now = new Date();
+        const curM = MONTHS_LIST.find(m => m.num === (now.getMonth() + 1)) || MONTHS_LIST[0];
+        setSelectedYear(now.getFullYear());
+        const monthKey = `${now.getFullYear()}_${String(curM.num).padStart(2, '0')}`;
+        handleOpenPaymentModal(curM, invoices[monthKey]);
     };
 
     useEffect(() => {
@@ -247,24 +240,6 @@ const SchoolDetail = () => {
         }
     };
 
-    const handleTogglePayment = async () => {
-        if (!isMasterAdmin && !hasPermission('manageBilling')) {
-            alert("Permission Denied: You do not have permission to manage billing.");
-            return;
-        }
-        setUpdating(true);
-        try {
-            const newStatus = school.paymentStatus === 'paid' ? 'unpaid' : 'paid';
-            await updateDoc(doc(db, "schools", id), {
-                paymentStatus: newStatus,
-                updatedAt: new Date()
-            });
-        } catch (error) {
-            alert("Failed to update payment status: " + error.message);
-        } finally {
-            setUpdating(false);
-        }
-    };
 
     const handleSaveSubscriptionPricing = async () => {
         if (!isMasterAdmin && !hasPermission('manageBilling')) {
@@ -596,7 +571,7 @@ const SchoolDetail = () => {
                         {isSuspended ? 'Start System' : 'Stop System'}
                     </button>
 
-                    {/* Payment Pill & Toggle */}
+                    {/* Payment Status Pill */}
                     <span style={{
                         padding: '4px 9px',
                         borderRadius: '4px',
@@ -605,24 +580,44 @@ const SchoolDetail = () => {
                         textTransform: 'uppercase',
                         backgroundColor: isPaid ? '#DEF7EC' : '#FEF08A',
                         color: isPaid ? '#03543F' : '#854D0E',
-                        border: isPaid ? '1px solid #84E1BC' : '1px solid #FDE047'
+                        border: isPaid ? '1px solid #84E1BC' : '1px solid #FDE047',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '4px'
                     }}>
-                        {school.paymentStatus || 'unpaid'}
+                        {isPaid ? <CheckCircle2 size={13} /> : <AlertCircle size={13} />}
+                        {isPaid ? 'Paid' : 'Unpaid / Due'}
                     </span>
 
-                    <button
-                        onClick={handleTogglePayment}
-                        disabled={updating}
-                        className="win-btn"
-                        style={{
-                            color: isPaid ? '#D97706' : '#059669',
-                            borderColor: isPaid ? '#FDE68A' : '#A7F3D0',
-                            backgroundColor: isPaid ? '#FFFBEB' : '#ECFDF5'
-                        }}
-                    >
-                        <CreditCard size={14} />
-                        {isPaid ? 'Mark Unpaid' : 'Mark Paid'}
-                    </button>
+                    {/* Pay / Record Subscription Button */}
+                    {!isPaid ? (
+                        <button
+                            onClick={handleQuickRecordCurrentMonth}
+                            className="win-btn"
+                            style={{
+                                color: '#FFFFFF',
+                                borderColor: '#1D4ED8',
+                                backgroundColor: '#2563EB',
+                                fontWeight: '700'
+                            }}
+                        >
+                            <CreditCard size={14} />
+                            Pay Subscription
+                        </button>
+                    ) : (
+                        <button
+                            onClick={() => setActiveTab('ledger')}
+                            className="win-btn"
+                            style={{
+                                color: '#166534',
+                                borderColor: '#86EFAC',
+                                backgroundColor: '#F0FDF4'
+                            }}
+                        >
+                            <Receipt size={14} />
+                            View 12M Ledger
+                        </button>
+                    )}
                 </div>
             </div>
 
@@ -1297,48 +1292,29 @@ const SchoolDetail = () => {
 
                                                     <div style={{ borderTop: '1px solid #F1F5F9', paddingTop: '8px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px' }}>
                                                         {isPaid ? (
-                                                            <>
-                                                                <button
-                                                                    type="button"
-                                                                    onClick={() => setViewVoucherData({
-                                                                        month: m,
-                                                                        year: selectedYear,
-                                                                        invoice: inv,
-                                                                        school: school,
-                                                                        principal: principal
-                                                                    })}
-                                                                    className="win-btn"
-                                                                    style={{
-                                                                        fontSize: '11px',
-                                                                        padding: '4px 8px',
-                                                                        color: '#1D4ED8',
-                                                                        borderColor: '#BFDBFE',
-                                                                        backgroundColor: '#EFF6FF',
-                                                                        flex: 1,
-                                                                        justifyContent: 'center'
-                                                                    }}
-                                                                >
-                                                                    <Printer size={12} /> View Voucher
-                                                                </button>
-
-                                                                {canManagePricing && (
-                                                                    <button
-                                                                        type="button"
-                                                                        onClick={() => handleRevertPayment(m)}
-                                                                        title="Revert / Mark as Unpaid"
-                                                                        className="win-btn"
-                                                                        style={{
-                                                                            fontSize: '11px',
-                                                                            padding: '4px 6px',
-                                                                            color: '#B91C1C',
-                                                                            borderColor: '#FECACA',
-                                                                            backgroundColor: '#FEF2F2'
-                                                                        }}
-                                                                    >
-                                                                        <RotateCcw size={12} />
-                                                                    </button>
-                                                                )}
-                                                            </>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => setViewVoucherData({
+                                                                    month: m,
+                                                                    year: selectedYear,
+                                                                    invoice: inv,
+                                                                    school: school,
+                                                                    principal: principal
+                                                                })}
+                                                                className="win-btn"
+                                                                style={{
+                                                                    fontSize: '11.5px',
+                                                                    padding: '5px 8px',
+                                                                    color: '#1D4ED8',
+                                                                    borderColor: '#BFDBFE',
+                                                                    backgroundColor: '#EFF6FF',
+                                                                    width: '100%',
+                                                                    justifyContent: 'center',
+                                                                    fontWeight: '700'
+                                                                }}
+                                                            >
+                                                                <Printer size={13} /> View Official Voucher
+                                                            </button>
                                                         ) : (
                                                             canManagePricing ? (
                                                                 <button
@@ -1539,6 +1515,12 @@ const SchoolDetail = () => {
                                     placeholder="e.g. Received via Meezan corporate account"
                                     style={{ resize: 'none' }}
                                 />
+                            </div>
+
+                            {/* Permanent Audit Warning */}
+                            <div style={{ padding: '8px 12px', backgroundColor: '#FEF3C7', border: '1px solid #FDE68A', borderRadius: '4px', color: '#92400E', fontSize: '11px', marginBottom: '14px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                <Lock size={13} style={{ flexShrink: 0 }} />
+                                <span><strong>Permanent Record:</strong> Once verified and recorded, subscription payments cannot be undone or reverted. System access will automatically start.</span>
                             </div>
 
                             {/* Actions */}
