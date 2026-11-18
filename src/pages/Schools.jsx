@@ -33,7 +33,6 @@ const Schools = () => {
     const [showPassMap, setShowPassMap] = useState({});
     const [copiedSchoolId, setCopiedSchoolId] = useState(null);
     const [paymentFilter, setPaymentFilter] = useState('all'); // 'all' | 'paid' | 'unpaid'
-    const [runningAutoCheck, setRunningAutoCheck] = useState(false);
 
     const toggleShowPass = (id) => {
         setShowPassMap(prev => ({ ...prev, [id]: !prev[id] }));
@@ -110,22 +109,6 @@ const Schools = () => {
     }, []);
 
 
-    const handleToggleSystemStatus = async (schoolId, currentStatus) => {
-        if (!isMasterAdmin && !hasPermission('systemControl')) {
-            alert("Permission Denied: You do not have permission to start/stop school systems.");
-            return;
-        }
-        try {
-            const newStatus = currentStatus === 'active' ? 'suspended' : 'active';
-            await updateDoc(doc(db, "schools", schoolId), {
-                status: newStatus,
-                updatedAt: new Date()
-            });
-        } catch (error) {
-            alert("Failed to update system status: " + error.message);
-        }
-    };
-
     const handleStartTrial = async (schoolId) => {
         try {
             await updateDoc(doc(db, "schools", schoolId), {
@@ -134,91 +117,6 @@ const Schools = () => {
             });
         } catch (error) {
             alert("Failed to start trial: " + error.message);
-        }
-    };
-
-    const handleRunAutoCheckNow = async () => {
-        if (!window.confirm("Run Automated 10th Date Billing Enforcement now?\n\nThis will scan all schools: Any unpaid school after the 10th will be automatically suspended, and schools with 7th+ overdue will receive the warning alert banner in their Principal App.")) {
-            return;
-        }
-
-        setRunningAutoCheck(true);
-        try {
-            // First call Cloud Function
-            try {
-                const enforceFn = httpsCallable(functions, 'enforceSubscriptionBillingNow');
-                await enforceFn();
-            } catch (fnErr) {
-                console.warn("Cloud function notice, proceeding with direct client enforcement:", fnErr);
-            }
-
-            // Also run direct client scan for real-time instant feedback
-            const now = new Date();
-            const currentYear = now.getFullYear();
-            const currentMonth = now.getMonth() + 1;
-            const currentDay = now.getDate();
-            const currentMonthKey = `${currentYear}_${String(currentMonth).padStart(2, '0')}`;
-
-            let suspendedCount = 0;
-            let activeCount = 0;
-            let warnedCount = 0;
-
-            for (const s of schools) {
-                if (s.autoBillingExemption === true) continue;
-
-                const invoiceSnap = await getDoc(doc(db, `schools/${s.id}/subscription_invoices`, currentMonthKey));
-                const isPaid = (invoiceSnap.exists() && invoiceSnap.data().status === 'paid') || s.paymentStatus === 'paid';
-
-                if (isPaid) {
-                    activeCount++;
-                    if (s.status === 'suspended') {
-                        await updateDoc(doc(db, "schools", s.id), {
-                            status: 'active',
-                            paymentStatus: 'paid',
-                            updatedAt: new Date()
-                        });
-                    }
-                    // Clear warning banner if active
-                    try {
-                        const announceSnap = await getDoc(doc(db, `schools/${s.id}/announcements`, 'global_broadcast'));
-                        if (announceSnap.exists() && announceSnap.data().active === true && announceSnap.data().autoBillingNotice === true) {
-                            await updateDoc(doc(db, `schools/${s.id}/announcements`, 'global_broadcast'), {
-                                active: false,
-                                dismissedAt: new Date().toISOString()
-                            });
-                        }
-                    } catch (e) {}
-                } else {
-                    // Unpaid school check
-                    if (currentDay >= 10) {
-                        if (s.status !== 'suspended') {
-                            suspendedCount++;
-                            await updateDoc(doc(db, "schools", s.id), {
-                                status: 'suspended',
-                                paymentStatus: 'unpaid',
-                                updatedAt: new Date()
-                            });
-                        }
-                    } else if (currentDay >= 7) {
-                        warnedCount++;
-                        await setDoc(doc(db, `schools/${s.id}/announcements`, 'global_broadcast'), {
-                            message: "محترم پرنسپل صاحب، اس ماہ کی سافٹ ویئر سبسکرپشن فیس واجب الادا ہے۔ کسی بھی سروس تعطل سے بچنے کیلئے براہ کرم 10 تاریخ سے پہلے فیس کلیئر کروائیں۔",
-                            type: "warning",
-                            active: true,
-                            autoBillingNotice: true,
-                            sentAt: serverTimestamp(),
-                            dismissedBy: []
-                        }, { merge: true });
-                    }
-                }
-            }
-
-            alert(`⚡ Auto-Check Complete!\n\nToday is Day ${currentDay}.\n• Suspended Unpaid Schools: ${suspendedCount}\n• Active / Paid Schools: ${activeCount}\n• Warned Schools (7th-9th): ${warnedCount}`);
-        } catch (err) {
-            console.error("Error running auto-check:", err);
-            alert("Error running auto-check: " + err.message);
-        } finally {
-            setRunningAutoCheck(false);
         }
     };
 
@@ -374,28 +272,6 @@ const Schools = () => {
                     </p>
                 </div>
                 <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap' }}>
-                    {(isMasterAdmin || hasPermission('manageBilling')) && (
-                        <button
-                            className="btn"
-                            style={{
-                                background: '#FEF2F2',
-                                color: '#DC2626',
-                                border: '1px solid #FECACA',
-                                padding: '0.6rem 1rem',
-                                fontSize: '0.85rem',
-                                fontWeight: '700',
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: '6px'
-                            }}
-                            onClick={handleRunAutoCheckNow}
-                            disabled={runningAutoCheck}
-                            title="Immediately scan and enforce 10th Date Auto-Stop and 7th Date Warning Alerts across all schools"
-                        >
-                            {runningAutoCheck ? <Loader2 size={16} className="animate-spin" /> : <Zap size={16} />}
-                            ⚡ Run Auto-Check Now
-                        </button>
-                    )}
                     {(isMasterAdmin || hasPermission('broadcastAnnouncements')) && (
                         <button
                             className="btn"
@@ -956,42 +832,20 @@ const Schools = () => {
                                                 </div>
                                             </td>
 
-                                            {/* System Status & Toggle */}
+                                            {/* System Status */}
                                             <td style={{ padding: '10px 12px' }} onClick={(e) => e.stopPropagation()}>
-                                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                                    <span style={{
-                                                        padding: '2px 7px',
-                                                        borderRadius: '4px',
-                                                        fontSize: '11px',
-                                                        fontWeight: '700',
-                                                        textTransform: 'uppercase',
-                                                        backgroundColor: isActive ? '#DEF7EC' : '#FDE8E8',
-                                                        color: isActive ? '#03543F' : '#9B1C1C',
-                                                        border: isActive ? '1px solid #84E1BC' : '1px solid #F8B4B4'
-                                                    }}>
-                                                        {school.status || 'inactive'}
-                                                    </span>
-                                                    <button
-                                                        onClick={() => handleToggleSystemStatus(school.id, school.status)}
-                                                        title="Start/Stop System"
-                                                        style={{
-                                                            padding: '3px 6px',
-                                                            borderRadius: '3px',
-                                                            border: '1px solid #CBD5E1',
-                                                            backgroundColor: '#FFFFFF',
-                                                            color: school.status === 'suspended' ? '#059669' : '#DC2626',
-                                                            cursor: 'pointer',
-                                                            fontSize: '10.5px',
-                                                            fontWeight: '600',
-                                                            display: 'inline-flex',
-                                                            alignItems: 'center',
-                                                            gap: '3px'
-                                                        }}
-                                                    >
-                                                        <Power size={11} />
-                                                        {school.status === 'suspended' ? 'Start' : 'Stop'}
-                                                    </button>
-                                                </div>
+                                                <span style={{
+                                                    padding: '2px 7px',
+                                                    borderRadius: '4px',
+                                                    fontSize: '11px',
+                                                    fontWeight: '700',
+                                                    textTransform: 'uppercase',
+                                                    backgroundColor: isActive ? '#DEF7EC' : '#FDE8E8',
+                                                    color: isActive ? '#03543F' : '#9B1C1C',
+                                                    border: isActive ? '1px solid #84E1BC' : '1px solid #F8B4B4'
+                                                }}>
+                                                    {school.status || 'inactive'}
+                                                </span>
                                             </td>
 
                                             {/* 7-Day Trial */}
@@ -1491,25 +1345,6 @@ const Schools = () => {
                                             }}>
                                                 {school.status || 'inactive'}
                                             </span>
-                                            <button
-                                                onClick={() => handleToggleSystemStatus(school.id, school.status)}
-                                                style={{
-                                                    padding: '2px 6px',
-                                                    borderRadius: '3px',
-                                                    border: '1px solid #CBD5E1',
-                                                    background: '#FFFFFF',
-                                                    color: school.status === 'suspended' ? '#059669' : '#DC2626',
-                                                    fontSize: '10px',
-                                                    fontWeight: '700',
-                                                    cursor: 'pointer',
-                                                    display: 'inline-flex',
-                                                    alignItems: 'center',
-                                                    gap: '2px'
-                                                }}
-                                            >
-                                                <Power size={10} />
-                                                {school.status === 'suspended' ? 'Start' : 'Stop'}
-                                            </button>
                                         </div>
                                     </div>
                                 </div>
