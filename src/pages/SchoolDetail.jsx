@@ -28,6 +28,7 @@ const SchoolDetail = () => {
     const [yearlyFee, setYearlyFee] = useState('');
     const [billingCycle, setBillingCycle] = useState('monthly');
     const [savingPricing, setSavingPricing] = useState(false);
+    const canManagePricing = Boolean(isMasterAdmin || hasPermission('manageBilling'));
     
     // Windows 7 / XP Tab Navigation State
     const [activeTab, setActiveTab] = useState('general'); // 'general' | 'principal' | 'subscription' | 'banking'
@@ -933,6 +934,14 @@ const SchoolDetail = () => {
                             {/* Subscription Pricing Rates Editor */}
                             <fieldset className="win-fieldset">
                                 <legend className="win-legend">Subscription Billing Rates & Cycle</legend>
+
+                                {!canManagePricing && (
+                                    <div style={{ padding: '7px 12px', backgroundColor: '#FEF3C7', border: '1px solid #FDE68A', borderRadius: '4px', color: '#92400E', fontSize: '11.5px', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                        <Lock size={13} />
+                                        <span>Read-Only: Subscription pricing rates can only be edited by an Accountant or Master Administrator.</span>
+                                    </div>
+                                )}
+
                                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '14px', marginBottom: '14px' }}>
                                     <div>
                                         <label style={{ display: 'block', fontSize: '11.5px', fontWeight: '700', color: '#374151', marginBottom: '4px' }}>
@@ -942,6 +951,8 @@ const SchoolDetail = () => {
                                             className="win-input"
                                             value={billingCycle}
                                             onChange={(e) => setBillingCycle(e.target.value)}
+                                            disabled={!canManagePricing}
+                                            style={!canManagePricing ? { backgroundColor: '#F1F5F9', cursor: 'not-allowed' } : {}}
                                         >
                                             <option value="monthly">Monthly Cycle</option>
                                             <option value="yearly">Yearly Cycle</option>
@@ -958,6 +969,8 @@ const SchoolDetail = () => {
                                             value={monthlyFee}
                                             onChange={(e) => setMonthlyFee(e.target.value)}
                                             placeholder="5000"
+                                            disabled={!canManagePricing}
+                                            style={!canManagePricing ? { backgroundColor: '#F1F5F9', cursor: 'not-allowed' } : {}}
                                         />
                                     </div>
 
@@ -971,24 +984,28 @@ const SchoolDetail = () => {
                                             value={yearlyFee}
                                             onChange={(e) => setYearlyFee(e.target.value)}
                                             placeholder="50000"
+                                            disabled={!canManagePricing}
+                                            style={!canManagePricing ? { backgroundColor: '#F1F5F9', cursor: 'not-allowed' } : {}}
                                         />
                                     </div>
                                 </div>
 
-                                <button
-                                    type="button"
-                                    onClick={handleSaveSubscriptionPricing}
-                                    disabled={savingPricing}
-                                    className="win-btn"
-                                    style={{
-                                        backgroundColor: '#2563EB',
-                                        color: '#FFFFFF',
-                                        borderColor: '#1D4ED8'
-                                    }}
-                                >
-                                    {savingPricing ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
-                                    Save Pricing Rates
-                                </button>
+                                {canManagePricing && (
+                                    <button
+                                        type="button"
+                                        onClick={handleSaveSubscriptionPricing}
+                                        disabled={savingPricing}
+                                        className="win-btn"
+                                        style={{
+                                            backgroundColor: '#2563EB',
+                                            color: '#FFFFFF',
+                                            borderColor: '#1D4ED8'
+                                        }}
+                                    >
+                                        {savingPricing ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+                                        Save Pricing Rates
+                                    </button>
+                                )}
                             </fieldset>
                         </div>
                     )}

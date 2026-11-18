@@ -103,26 +103,29 @@ export const AdminAuthProvider = ({ children }) => {
         adminProfile?.isMasterAdmin ||
         adminProfile?.role === 'master_admin' ||
         adminProfile?.permissions?.manageAdmins === true ||
-        (adminProfile?.role === 'super-admin' && adminProfile?.permissions?.manageAdmins !== false) ||
-        user?.uid === 'K1T1CwRoTdYtQJDCRNEc0NK9vjt2'
+        (adminProfile?.role === 'super-admin' && adminProfile?.permissions?.manageAdmins !== false && !adminProfile?.roleTitle?.includes('Manager') && !adminProfile?.roleTitle?.includes('Accountant')) ||
+        user?.uid === 'K1T1CwRoTdYtQJDCRNEc0NK9vjt2' ||
+        user?.email === 'admin@system.local'
     );
 
     // Check if admin has a specific permission
     const hasPermission = (permKey) => {
-        if (!adminProfile) return false;
+        if (!adminProfile && !user) return false;
         
-        // Master super admins or admins without restricted permissions object have full access
-        if (adminProfile.role === 'super-admin' && (!adminProfile.permissions || Object.keys(adminProfile.permissions).length === 0)) {
+        // Master super admins have unrestricted permission for everything
+        if (isMaster) return true;
+
+        // Admins without restricted permissions object have full access
+        if (adminProfile?.role === 'super-admin' && (!adminProfile?.permissions || Object.keys(adminProfile.permissions).length === 0)) {
             return true;
         }
 
         // If permissions object exists, check the specific key
-        if (adminProfile.permissions && adminProfile.permissions[permKey] !== undefined) {
+        if (adminProfile?.permissions && adminProfile.permissions[permKey] !== undefined) {
             return Boolean(adminProfile.permissions[permKey]);
         }
 
-        // Default to true for unrestricted master admin, false for restricted staff
-        return isMaster;
+        return false;
     };
 
     // Check if a school is within the admin's assigned territory

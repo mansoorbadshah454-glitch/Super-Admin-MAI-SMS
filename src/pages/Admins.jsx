@@ -528,6 +528,57 @@ const EditPermissionsModal = ({ adminUser, onClose, onSuccess }) => {
         ...(adminUser.permissions || {})
     });
     const [status, setStatus] = useState(adminUser.status || 'active');
+    const [roleTitle, setRoleTitle] = useState(adminUser.roleTitle || '');
+    const [territoryScope, setTerritoryScope] = useState(adminUser.territoryScope || 'all');
+    const [territoryState, setTerritoryState] = useState(adminUser.territoryState || 'Punjab');
+    const [territoryDistrict, setTerritoryDistrict] = useState(adminUser.territoryDistrict || '');
+    const [territoryCity, setTerritoryCity] = useState(adminUser.territoryCity || '');
+
+    const applyPreset = (presetType) => {
+        if (presetType === 'ops_manager') {
+            setRoleTitle('Operations Manager');
+            if (territoryScope === 'all') setTerritoryScope('city');
+            setPermissions({
+                manageSchools: true,
+                deleteSchool: false,
+                manageBilling: false,
+                viewRevenue: false,
+                systemControl: true,
+                manageSettings: false,
+                broadcastAnnouncements: false,
+                resetCredentials: false,
+                manageAdmins: false
+            });
+        } else if (presetType === 'accountant') {
+            setRoleTitle('Accountant / Finance');
+            setTerritoryScope('all');
+            setPermissions({
+                manageSchools: false,
+                deleteSchool: false,
+                manageBilling: true,
+                viewRevenue: true,
+                systemControl: false,
+                manageSettings: false,
+                broadcastAnnouncements: false,
+                resetCredentials: false,
+                manageAdmins: false
+            });
+        } else if (presetType === 'master') {
+            setRoleTitle('Master Administrator');
+            setTerritoryScope('all');
+            setPermissions({
+                manageSchools: true,
+                deleteSchool: true,
+                manageBilling: true,
+                viewRevenue: true,
+                systemControl: true,
+                manageSettings: true,
+                broadcastAnnouncements: true,
+                resetCredentials: true,
+                manageAdmins: true
+            });
+        }
+    };
 
     const togglePermission = (key) => {
         setPermissions(prev => ({
@@ -545,6 +596,11 @@ const EditPermissionsModal = ({ adminUser, onClose, onSuccess }) => {
             await updateDoc(doc(db, "global_users", adminUser.id), {
                 permissions,
                 status,
+                roleTitle,
+                territoryScope,
+                territoryState: territoryScope !== 'all' ? territoryState : '',
+                territoryDistrict: (territoryScope === 'district' || territoryScope === 'city') ? territoryDistrict : '',
+                territoryCity: territoryScope === 'city' ? territoryCity : '',
                 updatedAt: serverTimestamp()
             });
 
@@ -668,6 +724,37 @@ const EditPermissionsModal = ({ adminUser, onClose, onSuccess }) => {
                                     }}
                                 >
                                     Disabled / Suspended
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Quick Role Presets */}
+                        <div style={{ marginBottom: '12px' }}>
+                            <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: '#64748B', marginBottom: '4px', textTransform: 'uppercase' }}>Quick Role Presets</label>
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '6px' }}>
+                                <button
+                                    type="button"
+                                    onClick={() => applyPreset('ops_manager')}
+                                    className="win-btn"
+                                    style={{ fontSize: '11px', padding: '5px 4px', justifyContent: 'center', backgroundColor: roleTitle?.includes('Manager') ? '#EFF6FF' : '#FFFFFF', borderColor: roleTitle?.includes('Manager') ? '#2563EB' : '#CBD5E1' }}
+                                >
+                                    🏢 Ops Manager
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => applyPreset('accountant')}
+                                    className="win-btn"
+                                    style={{ fontSize: '11px', padding: '5px 4px', justifyContent: 'center', backgroundColor: roleTitle?.includes('Accountant') ? '#FEF3C7' : '#FFFFFF', borderColor: roleTitle?.includes('Accountant') ? '#D97706' : '#CBD5E1' }}
+                                >
+                                    💼 Accountant
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => applyPreset('master')}
+                                    className="win-btn"
+                                    style={{ fontSize: '11px', padding: '5px 4px', justifyContent: 'center', backgroundColor: roleTitle?.includes('Master') ? '#F0FDF4' : '#FFFFFF', borderColor: roleTitle?.includes('Master') ? '#16A34A' : '#CBD5E1' }}
+                                >
+                                    🛡️ Master Admin
                                 </button>
                             </div>
                         </div>
