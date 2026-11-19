@@ -1,14 +1,15 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { 
     School, Search, Filter, Plus, MoreHorizontal, ExternalLink, Trash2, Edit2, 
     Users, MapPin, Power, CreditCard, Megaphone, RotateCcw, X, SlidersHorizontal,
     Table as TableIcon, LayoutGrid, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight,
     Calendar, CheckCircle, AlertTriangle, ArrowRight, Key, Eye, EyeOff, Copy, Check, Lock,
-    Zap, Loader2
+    Zap, Loader2, Clock
 } from 'lucide-react';
 import { db, auth, functions } from '../firebase';
-import { collection, onSnapshot, query, orderBy, getCountFromServer, where, Timestamp, doc, updateDoc, serverTimestamp, getDoc, setDoc } from 'firebase/firestore';
+import { collection, onSnapshot, query, orderBy, getCountFromServer, where, Timestamp, doc, updateDoc, serverTimestamp, getDoc, setDoc, deleteField } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 import CreateSchoolModal from '../components/CreateSchoolModal';
 import InlineEditSchool from '../components/InlineEditSchool';
@@ -33,6 +34,15 @@ const Schools = () => {
     const [showPassMap, setShowPassMap] = useState({});
     const [copiedSchoolId, setCopiedSchoolId] = useState(null);
     const [paymentFilter, setPaymentFilter] = useState('all'); // 'all' | 'paid' | 'unpaid'
+    const [accountTypeFilter, setAccountTypeFilter] = useState('all'); // 'all' | 'onboarded' | 'demo_active' | 'demo_expired'
+    const [resetModalData, setResetModalData] = useState(null); // { schoolId, schoolName, principalEmail }
+    const [resetTargetType, setResetTargetType] = useState('onboarded');
+    const [resetConfirmationText, setResetConfirmationText] = useState('');
+    const [isResetting, setIsResetting] = useState(false);
+    const [extendModalData, setExtendModalData] = useState(null); // { schoolId, schoolName }
+    const [extendDays, setExtendDays] = useState(7);
+    const [isExtending, setIsExtending] = useState(false);
+    const [startDemoModalData, setStartDemoModalData] = useState(null); // { schoolId, schoolName }
 
     const toggleShowPass = (id) => {
         setShowPassMap(prev => ({ ...prev, [id]: !prev[id] }));
@@ -86,7 +96,7 @@ const Schools = () => {
             const list = [];
             snapshot.forEach((doc) => {
                 const data = doc.data() || {};
-                const trialInfo = calculateTrialDays(data.trialStartDate);
+                const trialInfo = calculateTrialDays(data.trialStartDate, data.trialDurationDays || 7, data.trialEndDate, data.accountType, Boolean(data.isPermanentDemo || data.permanentDemo));
                 list.push({ id: doc.id, ...data, trialInfo });
             });
             list.sort((a, b) => {
@@ -109,14 +119,119 @@ const Schools = () => {
     }, []);
 
 
-    const handleStartTrial = async (schoolId) => {
+    const handleStartDemoWithConfig = async (schoolId, durationDays = 7, isPermanent = false) => {
         try {
-            await updateDoc(doc(db, "schools", schoolId), {
-                trialStartDate: serverTimestamp(),
+            if (isPermanent) {
+                await updateDoc(doc(db, "schools", schoolId), {
+                    accountType: 'demo',
+                    isPermanentDemo: true,
+                    demoStatus: 'active',
+                    status: 'active',
+                    trialStartDate: serverTimestamp(),
+                    trialEndDate: deleteField(),
+                    trialDurationDays: deleteField(),
+                    updatedAt: new Date()
+                });
+                alert("School configured as Permanent Showcase Demo (Never Expires)!");
+            } else {
+                const endDate = new Date();
+                endDate.setDate(endDate.getDate() + Number(durationDays));
+                await updateDoc(doc(db, "schools", schoolId), {
+                    accountType: 'demo',
+                    isPermanentDemo: false,
+                    demoStatus: 'active',
+                    status: 'active',
+                    trialDurationDays: Number(durationDays),
+                    trialStartDate: serverTimestamp(),
+                    trialEndDate: Timestamp.fromDate(endDate),
+                    updatedAt: new Date()
+                });
+                alert(`Demo started for ${durationDays} days! Expiry: ${endDate.toLocaleDateString()}`);
+            }
+            setStartDemoModalData(null);
+        } catch (err) {
+            alert("Failed to configure demo: " + err.message);
+        }
+    };
+
+    const handleStartTrial = async (schoolId, durationDays = 7) => {
+        return handleStartDemoWithConfig(schoolId, durationDays, false);
+    };
+
+    const handleExecuteReset = async () => {
+        if (!resetModalData) return;
+        if (resetConfirmationText.trim().toUpperCase() !== 'RESET') {
+            alert("Please type 'RESET' to confirm.");
+            return;
+        }
+
+        setIsResetting(true);
+        try {
+            const resetSchool = httpsCallable(functions, 'resetSchoolData');
+            const res = await resetSchool({
+                schoolId: resetModalData.schoolId,
+                targetAccountType: resetTargetType,
+                trialDurationDays: 7
+            });
+            alert(res.data?.message || 'School reset successfully!');
+            setResetModalData(null);
+            setResetConfirmationText('');
+        } catch (err) {
+            alert("Failed to reset school: " + err.message);
+        } finally {
+            setIsResetting(false);
+        }
+    };
+
+    const handleExtendTrialSubmit = async () => {
+        if (!extendModalData) return;
+        setIsExtending(true);
+        try {
+            const schoolRef = doc(db, "schools", extendModalData.schoolId);
+            const schoolDoc = await getDoc(schoolRef);
+            const currentData = schoolDoc.data() || {};
+            let baseDate = new Date();
+            if (currentData.trialEndDate) {
+                const existingEnd = currentData.trialEndDate.toDate ? currentData.trialEndDate.toDate() : new Date(currentData.trialEndDate);
+                if (existingEnd > baseDate) {
+                    baseDate = existingEnd;
+                }
+            }
+            baseDate.setDate(baseDate.getDate() + Number(extendDays));
+
+            await updateDoc(schoolRef, {
+                accountType: 'demo',
+                demoStatus: 'active',
+                status: 'active',
+                trialEndDate: Timestamp.fromDate(baseDate),
+                trialDurationDays: (currentData.trialDurationDays || 7) + Number(extendDays),
                 updatedAt: new Date()
             });
-        } catch (error) {
-            alert("Failed to start trial: " + error.message);
+            alert(`Demo extended by +${extendDays} days! New end date: ${baseDate.toLocaleDateString()}`);
+            setExtendModalData(null);
+        } catch (err) {
+            alert("Failed to extend demo: " + err.message);
+        } finally {
+            setIsExtending(false);
+        }
+    };
+
+    const handleConvertToOfficialKeepData = async (schoolId) => {
+        if (!window.confirm("Convert this school to Official (Keep all current data)?")) return;
+        try {
+            await updateDoc(doc(db, "schools", schoolId), {
+                accountType: 'onboarded',
+                status: 'active',
+                demoStatus: deleteField(),
+                trialStartDate: deleteField(),
+                trialEndDate: deleteField(),
+                trialDurationDays: deleteField(),
+                onboardedAt: serverTimestamp(),
+                updatedAt: new Date()
+            });
+            alert("School successfully converted to Official!");
+        } catch (err) {
+            alert("Failed to convert: " + err.message);
         }
     };
 
@@ -185,6 +300,11 @@ const Schools = () => {
     const paidCount = territorySchools.filter(s => s.paymentStatus === 'paid').length;
     const unpaidCount = totalCount - paidCount;
 
+    // Account Mode counts
+    const officialCount = territorySchools.filter(s => s.accountType === 'onboarded').length;
+    const demoActiveCount = territorySchools.filter(s => s.accountType === 'demo' && !s.trialInfo?.isExpired).length;
+    const demoExpiredCount = territorySchools.filter(s => s.accountType === 'demo' && s.trialInfo?.isExpired).length;
+
     const filteredSchools = territorySchools.filter(s => {
         const term = searchTerm.toLowerCase().trim();
         const nameMatch = (s.name || s.schoolName || '').toLowerCase().includes(term);
@@ -203,13 +323,21 @@ const Schools = () => {
             ? true
             : (paymentFilter === 'paid' ? s.paymentStatus === 'paid' : s.paymentStatus !== 'paid');
 
-        return matchesSearch && matchesState && matchesDistrict && matchesCity && matchesPayment;
+        const matchesAccountType = accountTypeFilter === 'all'
+            ? true
+            : accountTypeFilter === 'onboarded'
+                ? s.accountType === 'onboarded'
+                : accountTypeFilter === 'demo_active'
+                    ? (s.accountType === 'demo' && !s.trialInfo?.isExpired)
+                    : (s.accountType === 'demo' && s.trialInfo?.isExpired);
+
+        return matchesSearch && matchesState && matchesDistrict && matchesCity && matchesPayment && matchesAccountType;
     });
 
     // Reset pagination on filter or search change
     useEffect(() => {
         setCurrentPage(1);
-    }, [searchTerm, selectedState, selectedDistrict, selectedCity, paymentFilter]);
+    }, [searchTerm, selectedState, selectedDistrict, selectedCity, paymentFilter, accountTypeFilter]);
 
     // Pagination calculations
     const totalItems = filteredSchools.length;
@@ -261,6 +389,587 @@ const Schools = () => {
                 <BroadcastModal
                     onClose={() => setShowBroadcastModal(false)}
                 />
+            )}
+
+            {/* FRESH ACCOUNT RESET & ONBOARD MODAL */}
+            {resetModalData && createPortal(
+                <div style={{
+                    position: 'fixed',
+                    inset: 0,
+                    background: 'rgba(0, 0, 0, 0.75)',
+                    backdropFilter: 'blur(5px)',
+                    zIndex: 99999,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    padding: '16px'
+                }}>
+                    <div style={{
+                        width: '100%',
+                        maxWidth: '520px',
+                        background: '#ECE9D8',
+                        border: '2px solid #0055EA',
+                        borderRadius: '8px 8px 4px 4px',
+                        boxShadow: '0 20px 45px rgba(0,0,0,0.5)',
+                        fontFamily: 'Tahoma, "Segoe UI", sans-serif',
+                        overflow: 'hidden'
+                    }}>
+                        {/* Windows Titlebar */}
+                        <div style={{
+                            background: 'linear-gradient(180deg, #0055EA 0%, #0040B0 100%)',
+                            padding: '6px 10px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            color: '#fff',
+                            borderBottom: '1px solid #003399'
+                        }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <RotateCcw size={16} color="#fff" />
+                                <span style={{ fontSize: '12px', fontWeight: 'bold', textShadow: '1px 1px 1px rgba(0,0,0,0.5)' }}>
+                                    Fresh Account Reset & Onboarding Wizard
+                                </span>
+                            </div>
+                            <div style={{ display: 'flex', gap: '4px' }}>
+                                <button
+                                    type="button"
+                                    onClick={() => { setResetModalData(null); setResetConfirmationText(''); }}
+                                    style={{
+                                        width: '22px',
+                                        height: '20px',
+                                        background: '#c53030',
+                                        border: '1px solid #fff',
+                                        borderRadius: '3px',
+                                        color: '#fff',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        cursor: 'pointer',
+                                        fontWeight: 'bold'
+                                    }}
+                                    title="Close"
+                                >
+                                    ✕
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Content Area */}
+                        <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                            <fieldset style={{
+                                border: '1px solid #D0D0BF',
+                                borderRadius: '4px',
+                                padding: '10px 14px',
+                                background: '#FFFFFF'
+                            }}>
+                                <legend style={{ fontSize: '11px', fontWeight: 'bold', color: '#003399', padding: '0 6px' }}>
+                                    School Instance
+                                </legend>
+                                <div style={{ fontSize: '13px', fontWeight: 'bold', color: '#0F172A' }}>
+                                    {resetModalData.schoolName}
+                                </div>
+                                <div style={{ fontSize: '11px', color: '#64748B', marginTop: '2px' }}>
+                                    School ID: <strong style={{ color: '#0055EA' }}>{resetModalData.schoolId}</strong> • Principal: {resetModalData.principalEmail || 'Configured'}
+                                </div>
+                            </fieldset>
+
+                            {/* What stays vs what is wiped */}
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                                <div style={{ backgroundColor: '#F0FDF4', border: '1px solid #86EFAC', borderRadius: '4px', padding: '10px' }}>
+                                    <div style={{ fontSize: '11.5px', fontWeight: '800', color: '#166534', marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                        <CheckCircle size={14} /> Preserved (Safe):
+                                    </div>
+                                    <ul style={{ margin: 0, paddingLeft: '16px', fontSize: '11px', color: '#14532D', lineHeight: 1.5 }}>
+                                        <li>Same School ID</li>
+                                        <li>Principal Login & Pass</li>
+                                        <li>School Name & Location</li>
+                                    </ul>
+                                </div>
+
+                                <div style={{ backgroundColor: '#FEF2F2', border: '1px solid #FCA5A5', borderRadius: '4px', padding: '10px' }}>
+                                    <div style={{ fontSize: '11.5px', fontWeight: '800', color: '#991B1B', marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                        <Trash2 size={14} /> Wiped Clean:
+                                    </div>
+                                    <ul style={{ margin: 0, paddingLeft: '16px', fontSize: '11px', color: '#7F1D1D', lineHeight: 1.5 }}>
+                                        <li>Dummy Students & Teachers</li>
+                                        <li>Parents & Drivers</li>
+                                        <li>Store items, fees, attendance</li>
+                                    </ul>
+                                </div>
+                            </div>
+
+                            {/* Target Mode Selection */}
+                            <fieldset style={{
+                                border: '1px solid #D0D0BF',
+                                borderRadius: '4px',
+                                padding: '10px 14px',
+                                background: '#FFFFFF'
+                            }}>
+                                <legend style={{ fontSize: '11px', fontWeight: 'bold', color: '#003399', padding: '0 6px' }}>
+                                    Target Account Mode After Reset
+                                </legend>
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                                    <button
+                                        type="button"
+                                        onClick={() => setResetTargetType('onboarded')}
+                                        style={{
+                                            padding: '8px',
+                                            borderRadius: '4px',
+                                            border: `1.5px solid ${resetTargetType === 'onboarded' ? '#16A34A' : '#CBD5E1'}`,
+                                            backgroundColor: resetTargetType === 'onboarded' ? '#DCFCE7' : '#F8FAFC',
+                                            color: resetTargetType === 'onboarded' ? '#15803D' : '#475569',
+                                            cursor: 'pointer',
+                                            fontWeight: '800',
+                                            fontSize: '11.5px',
+                                            fontFamily: 'inherit'
+                                        }}
+                                    >
+                                        🟢 Official Onboarded
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setResetTargetType('demo')}
+                                        style={{
+                                            padding: '8px',
+                                            borderRadius: '4px',
+                                            border: `1.5px solid ${resetTargetType === 'demo' ? '#D97706' : '#CBD5E1'}`,
+                                            backgroundColor: resetTargetType === 'demo' ? '#FEF3C7' : '#F8FAFC',
+                                            color: resetTargetType === 'demo' ? '#92400E' : '#475569',
+                                            cursor: 'pointer',
+                                            fontWeight: '800',
+                                            fontSize: '11.5px',
+                                            fontFamily: 'inherit'
+                                        }}
+                                    >
+                                        🟡 Fresh Demo (7 Days)
+                                    </button>
+                                </div>
+                            </fieldset>
+
+                            {/* Confirmation Input */}
+                            <div style={{ background: '#FFFFFF', border: '1px solid #D0D0BF', borderRadius: '4px', padding: '10px 14px' }}>
+                                <label style={{ display: 'block', fontSize: '11.5px', fontWeight: '700', color: '#334155', marginBottom: '4px' }}>
+                                    Type <strong>RESET</strong> to confirm wipe & fresh start:
+                                </label>
+                                <input
+                                    type="text"
+                                    value={resetConfirmationText}
+                                    onChange={(e) => setResetConfirmationText(e.target.value)}
+                                    placeholder="Type RESET"
+                                    style={{
+                                        width: '100%',
+                                        padding: '6px 10px',
+                                        fontSize: '12px',
+                                        fontWeight: '700',
+                                        letterSpacing: '1px',
+                                        border: '1.5px solid #7F9DB9',
+                                        borderRadius: '3px',
+                                        boxSizing: 'border-box',
+                                        fontFamily: 'inherit'
+                                    }}
+                                />
+                            </div>
+
+                            {/* Actions */}
+                            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '4px' }}>
+                                <button
+                                    type="button"
+                                    onClick={() => { setResetModalData(null); setResetConfirmationText(''); }}
+                                    disabled={isResetting}
+                                    style={{
+                                        padding: '6px 16px',
+                                        borderRadius: '3px',
+                                        border: '1px solid #7F9DB9',
+                                        background: 'linear-gradient(180deg, #FFFFFF 0%, #ECE9D8 100%)',
+                                        color: '#111827',
+                                        fontSize: '12px',
+                                        fontWeight: 'bold',
+                                        cursor: 'pointer',
+                                        fontFamily: 'inherit'
+                                    }}
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={handleExecuteReset}
+                                    disabled={isResetting || resetConfirmationText.trim().toUpperCase() !== 'RESET'}
+                                    style={{
+                                        padding: '6px 18px',
+                                        borderRadius: '3px',
+                                        fontSize: '12px',
+                                        fontWeight: '800',
+                                        backgroundColor: resetConfirmationText.trim().toUpperCase() === 'RESET' ? '#2563EB' : '#94A3B8',
+                                        color: '#FFFFFF',
+                                        border: resetConfirmationText.trim().toUpperCase() === 'RESET' ? '1px solid #1D4ED8' : '1px solid #94A3B8',
+                                        cursor: resetConfirmationText.trim().toUpperCase() === 'RESET' && !isResetting ? 'pointer' : 'not-allowed',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '6px',
+                                        fontFamily: 'inherit'
+                                    }}
+                                >
+                                    {isResetting ? <Loader2 size={14} className="animate-spin" /> : <RotateCcw size={14} />}
+                                    {isResetting ? 'Wiping & Resetting...' : 'Confirm Reset & Fresh Start'}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>,
+                document.body
+            )}
+
+            {/* EXTEND DEMO TRIAL MODAL */}
+            {extendModalData && createPortal(
+                <div style={{
+                    position: 'fixed',
+                    inset: 0,
+                    background: 'rgba(0, 0, 0, 0.75)',
+                    backdropFilter: 'blur(5px)',
+                    zIndex: 99999,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    padding: '16px'
+                }}>
+                    <div style={{
+                        width: '100%',
+                        maxWidth: '440px',
+                        background: '#ECE9D8',
+                        border: '2px solid #0055EA',
+                        borderRadius: '8px 8px 4px 4px',
+                        boxShadow: '0 20px 45px rgba(0,0,0,0.5)',
+                        fontFamily: 'Tahoma, "Segoe UI", sans-serif',
+                        overflow: 'hidden'
+                    }}>
+                        {/* Titlebar */}
+                        <div style={{
+                            background: 'linear-gradient(180deg, #0055EA 0%, #0040B0 100%)',
+                            padding: '6px 10px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            color: '#fff',
+                            borderBottom: '1px solid #003399'
+                        }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <Clock size={16} color="#fff" />
+                                <span style={{ fontSize: '12px', fontWeight: 'bold', textShadow: '1px 1px 1px rgba(0,0,0,0.5)' }}>
+                                    Extend Demo Trial Duration
+                                </span>
+                            </div>
+                            <div style={{ display: 'flex', gap: '4px' }}>
+                                <button
+                                    type="button"
+                                    onClick={() => setExtendModalData(null)}
+                                    style={{
+                                        width: '22px',
+                                        height: '20px',
+                                        background: '#c53030',
+                                        border: '1px solid #fff',
+                                        borderRadius: '3px',
+                                        color: '#fff',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        cursor: 'pointer',
+                                        fontWeight: 'bold'
+                                    }}
+                                    title="Close"
+                                >
+                                    ✕
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Body */}
+                        <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                            <fieldset style={{
+                                border: '1px solid #D0D0BF',
+                                borderRadius: '4px',
+                                padding: '10px 14px',
+                                background: '#FFFFFF'
+                            }}>
+                                <legend style={{ fontSize: '11px', fontWeight: 'bold', color: '#003399', padding: '0 6px' }}>
+                                    School Instance
+                                </legend>
+                                <div style={{ fontSize: '13px', fontWeight: 'bold', color: '#0F172A' }}>
+                                    {extendModalData.schoolName}
+                                </div>
+                                <div style={{ fontSize: '11px', color: '#64748B', marginTop: '2px' }}>
+                                    Select additional days to extend demo trial:
+                                </div>
+                            </fieldset>
+
+                            <fieldset style={{
+                                border: '1px solid #D0D0BF',
+                                borderRadius: '4px',
+                                padding: '12px 14px',
+                                background: '#FFFFFF'
+                            }}>
+                                <legend style={{ fontSize: '11px', fontWeight: 'bold', color: '#003399', padding: '0 6px' }}>
+                                    Extension Period
+                                </legend>
+                                <div style={{ display: 'flex', gap: '8px' }}>
+                                    {[
+                                        { label: '+1 Week (7d)', value: 7 },
+                                        { label: '+2 Weeks (14d)', value: 14 },
+                                        { label: '+1 Month (30d)', value: 30 }
+                                    ].map((item) => (
+                                        <button
+                                            key={item.value}
+                                            type="button"
+                                            onClick={() => setExtendDays(item.value)}
+                                            style={{
+                                                flex: 1,
+                                                padding: '8px 4px',
+                                                fontSize: '11.5px',
+                                                fontWeight: extendDays === item.value ? '800' : '600',
+                                                backgroundColor: extendDays === item.value ? '#FEF3C7' : '#F8FAFC',
+                                                color: extendDays === item.value ? '#92400E' : '#334155',
+                                                border: `1.5px solid ${extendDays === item.value ? '#D97706' : '#CBD5E1'}`,
+                                                borderRadius: '4px',
+                                                cursor: 'pointer',
+                                                fontFamily: 'inherit'
+                                            }}
+                                        >
+                                            {item.label}
+                                        </button>
+                                    ))}
+                                </div>
+                            </fieldset>
+
+                            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '4px' }}>
+                                <button
+                                    type="button"
+                                    onClick={() => setExtendModalData(null)}
+                                    disabled={isExtending}
+                                    style={{
+                                        padding: '6px 16px',
+                                        borderRadius: '3px',
+                                        border: '1px solid #7F9DB9',
+                                        background: 'linear-gradient(180deg, #FFFFFF 0%, #ECE9D8 100%)',
+                                        color: '#111827',
+                                        fontSize: '12px',
+                                        fontWeight: 'bold',
+                                        cursor: 'pointer',
+                                        fontFamily: 'inherit'
+                                    }}
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={handleExtendTrialSubmit}
+                                    disabled={isExtending}
+                                    style={{
+                                        padding: '6px 18px',
+                                        fontSize: '12px',
+                                        fontWeight: '800',
+                                        backgroundColor: '#2563EB',
+                                        color: '#FFFFFF',
+                                        border: '1px solid #1D4ED8',
+                                        borderRadius: '3px',
+                                        cursor: 'pointer',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '6px',
+                                        fontFamily: 'inherit'
+                                    }}
+                                >
+                                    {isExtending ? <Loader2 size={14} className="animate-spin" /> : <Clock size={14} />}
+                                    {isExtending ? 'Extending...' : `Extend +${extendDays} Days`}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>,
+                document.body
+            )}
+
+            {/* START DEMO CONFIGURATION MODAL */}
+            {startDemoModalData && createPortal(
+                <div style={{
+                    position: 'fixed',
+                    inset: 0,
+                    background: 'rgba(0, 0, 0, 0.75)',
+                    backdropFilter: 'blur(5px)',
+                    zIndex: 99999,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    padding: '16px'
+                }}>
+                    <div style={{
+                        width: '100%',
+                        maxWidth: '480px',
+                        background: '#ECE9D8',
+                        border: '2px solid #0055EA',
+                        borderRadius: '8px 8px 4px 4px',
+                        boxShadow: '0 20px 45px rgba(0,0,0,0.5)',
+                        fontFamily: 'Tahoma, "Segoe UI", sans-serif',
+                        overflow: 'hidden'
+                    }}>
+                        {/* Windows XP / 7 Style Titlebar */}
+                        <div style={{
+                            background: 'linear-gradient(180deg, #0055EA 0%, #0040B0 100%)',
+                            padding: '6px 10px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            color: '#fff',
+                            borderBottom: '1px solid #003399'
+                        }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <Clock size={16} color="#fff" />
+                                <span style={{ fontSize: '12px', fontWeight: 'bold', textShadow: '1px 1px 1px rgba(0,0,0,0.5)' }}>
+                                    Start Demo Account Timer — Configuration
+                                </span>
+                            </div>
+                            <div style={{ display: 'flex', gap: '4px' }}>
+                                <button
+                                    type="button"
+                                    onClick={() => setStartDemoModalData(null)}
+                                    style={{
+                                        width: '22px',
+                                        height: '20px',
+                                        background: '#c53030',
+                                        border: '1px solid #fff',
+                                        borderRadius: '3px',
+                                        color: '#fff',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        cursor: 'pointer',
+                                        fontWeight: 'bold'
+                                    }}
+                                    title="Close"
+                                >
+                                    ✕
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Body Area */}
+                        <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                            <fieldset style={{
+                                border: '1px solid #D0D0BF',
+                                borderRadius: '4px',
+                                padding: '10px 14px',
+                                background: '#FFFFFF'
+                            }}>
+                                <legend style={{ fontSize: '11px', fontWeight: 'bold', color: '#003399', padding: '0 6px' }}>
+                                    Target School Instance
+                                </legend>
+                                <div style={{ fontSize: '13.5px', fontWeight: 'bold', color: '#1E3A8A' }}>
+                                    {startDemoModalData.schoolName}
+                                </div>
+                                <div style={{ fontSize: '11px', color: '#64748B', marginTop: '2px' }}>
+                                    Select trial duration to start the demo countdown timer:
+                                </div>
+                            </fieldset>
+
+                            <fieldset style={{
+                                border: '1px solid #D0D0BF',
+                                borderRadius: '4px',
+                                padding: '12px 14px',
+                                background: '#FFFFFF'
+                            }}>
+                                <legend style={{ fontSize: '11px', fontWeight: 'bold', color: '#003399', padding: '0 6px' }}>
+                                    Choose Demo Period
+                                </legend>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                    <button
+                                        type="button"
+                                        onClick={() => handleStartDemoWithConfig(startDemoModalData.schoolId, 7, false)}
+                                        style={{
+                                            padding: '10px 14px',
+                                            borderRadius: '4px',
+                                            border: '1px solid #FDE68A',
+                                            background: '#FFFBEB',
+                                            color: '#92400E',
+                                            cursor: 'pointer',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'space-between',
+                                            fontWeight: '700',
+                                            fontFamily: 'inherit',
+                                            fontSize: '12px'
+                                        }}
+                                    >
+                                        <span>🟡 Start 1 Week Demo (7 Days)</span>
+                                        <span style={{ fontSize: '11px', color: '#B45309' }}>Standard Trial</span>
+                                    </button>
+
+                                    <button
+                                        type="button"
+                                        onClick={() => handleStartDemoWithConfig(startDemoModalData.schoolId, 14, false)}
+                                        style={{
+                                            padding: '10px 14px',
+                                            borderRadius: '4px',
+                                            border: '1px solid #FCD34D',
+                                            background: '#FEF3C7',
+                                            color: '#78350F',
+                                            cursor: 'pointer',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'space-between',
+                                            fontWeight: '700',
+                                            fontFamily: 'inherit',
+                                            fontSize: '12px'
+                                        }}
+                                    >
+                                        <span>🟡 Start 2 Weeks Demo (14 Days)</span>
+                                        <span style={{ fontSize: '11px', color: '#92400E' }}>Extended Trial</span>
+                                    </button>
+
+                                    <button
+                                        type="button"
+                                        onClick={() => handleStartDemoWithConfig(startDemoModalData.schoolId, 0, true)}
+                                        style={{
+                                            padding: '10px 14px',
+                                            borderRadius: '4px',
+                                            border: '1px solid #DDD6FE',
+                                            background: '#F5F3FF',
+                                            color: '#5B21B6',
+                                            cursor: 'pointer',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'space-between',
+                                            fontWeight: '700',
+                                            fontFamily: 'inherit',
+                                            fontSize: '12px'
+                                        }}
+                                    >
+                                        <span>♾️ Permanent Showcase Demo</span>
+                                        <span style={{ fontSize: '11px', color: '#6D28D9' }}>Never Expires</span>
+                                    </button>
+                                </div>
+                            </fieldset>
+
+                            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '4px' }}>
+                                <button
+                                    type="button"
+                                    onClick={() => setStartDemoModalData(null)}
+                                    style={{
+                                        padding: '6px 18px',
+                                        borderRadius: '3px',
+                                        border: '1px solid #7F9DB9',
+                                        background: 'linear-gradient(180deg, #FFFFFF 0%, #ECE9D8 100%)',
+                                        color: '#111827',
+                                        fontSize: '12px',
+                                        fontWeight: 'bold',
+                                        cursor: 'pointer',
+                                        fontFamily: 'inherit'
+                                    }}
+                                >
+                                    Cancel
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>,
+                document.body
             )}
 
             {/* PAGE HEADER */}
@@ -393,6 +1102,79 @@ const Schools = () => {
 
                     <div style={{ fontSize: '11.5px', color: '#64748B' }}>
                         Showing <strong>{filteredSchools.length}</strong> of {totalCount} Schools
+                    </div>
+                </div>
+
+                {/* 2. Account Mode Filter Buttons Bar */}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px', borderBottom: '1px solid #F1F5F9', paddingBottom: '8px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                        <span style={{ fontSize: '11.5px', fontWeight: '700', color: '#64748B', marginRight: '4px', textTransform: 'uppercase' }}>
+                            Account Mode:
+                        </span>
+
+                        <button
+                            type="button"
+                            onClick={() => setAccountTypeFilter('all')}
+                            className="win-btn"
+                            style={{
+                                backgroundColor: accountTypeFilter === 'all' ? '#334155' : '#FFFFFF',
+                                color: accountTypeFilter === 'all' ? '#FFFFFF' : '#334155',
+                                borderColor: accountTypeFilter === 'all' ? '#1E293B' : '#CBD5E1',
+                                fontWeight: '700',
+                                fontSize: '11.5px',
+                                padding: '3px 10px'
+                            }}
+                        >
+                            All Modes
+                        </button>
+
+                        <button
+                            type="button"
+                            onClick={() => setAccountTypeFilter('onboarded')}
+                            className="win-btn"
+                            style={{
+                                backgroundColor: accountTypeFilter === 'onboarded' ? '#059669' : '#FFFFFF',
+                                color: accountTypeFilter === 'onboarded' ? '#FFFFFF' : '#065F46',
+                                borderColor: accountTypeFilter === 'onboarded' ? '#047857' : '#A7F3D0',
+                                fontWeight: '700',
+                                fontSize: '11.5px',
+                                padding: '3px 10px'
+                            }}
+                        >
+                            🟢 Official ({officialCount})
+                        </button>
+
+                        <button
+                            type="button"
+                            onClick={() => setAccountTypeFilter('demo_active')}
+                            className="win-btn"
+                            style={{
+                                backgroundColor: accountTypeFilter === 'demo_active' ? '#D97706' : '#FFFFFF',
+                                color: accountTypeFilter === 'demo_active' ? '#FFFFFF' : '#92400E',
+                                borderColor: accountTypeFilter === 'demo_active' ? '#B45309' : '#FDE68A',
+                                fontWeight: '700',
+                                fontSize: '11.5px',
+                                padding: '3px 10px'
+                            }}
+                        >
+                            🟡 Active Demo ({demoActiveCount})
+                        </button>
+
+                        <button
+                            type="button"
+                            onClick={() => setAccountTypeFilter('demo_expired')}
+                            className="win-btn"
+                            style={{
+                                backgroundColor: accountTypeFilter === 'demo_expired' ? '#DC2626' : '#FFFFFF',
+                                color: accountTypeFilter === 'demo_expired' ? '#FFFFFF' : '#991B1B',
+                                borderColor: accountTypeFilter === 'demo_expired' ? '#B91C1C' : '#FECACA',
+                                fontWeight: '700',
+                                fontSize: '11.5px',
+                                padding: '3px 10px'
+                            }}
+                        >
+                            ⚠️ Expired Demo ({demoExpiredCount})
+                        </button>
                     </div>
                 </div>
 
@@ -635,10 +1417,10 @@ const Schools = () => {
                                     <th style={{ padding: '10px 14px', fontWeight: '700', width: '22%' }}>School Name & ID</th>
                                     <th style={{ padding: '10px 12px', fontWeight: '700', width: '15%' }}>Location</th>
                                     <th style={{ padding: '10px 12px', fontWeight: '700', width: '10%' }}>Students</th>
-                                    <th style={{ padding: '10px 12px', fontWeight: '700', width: '14%' }}>Subscription Fee</th>
-                                    <th style={{ padding: '10px 12px', fontWeight: '700', width: '11%' }}>Payment</th>
-                                    <th style={{ padding: '10px 12px', fontWeight: '700', width: '11%' }}>System Status</th>
-                                    <th style={{ padding: '10px 12px', fontWeight: '700', width: '10%' }}>7-Day Trial</th>
+                                    <th style={{ padding: '10px 12px', fontWeight: '700', width: '13%' }}>Subscription Fee</th>
+                                    <th style={{ padding: '10px 12px', fontWeight: '700', width: '10%' }}>Payment</th>
+                                    <th style={{ padding: '10px 12px', fontWeight: '700', width: '10%' }}>System Status</th>
+                                    <th style={{ padding: '10px 12px', fontWeight: '700', width: '12%' }}>Mode & Trial</th>
                                     <th style={{ padding: '10px 14px', fontWeight: '700', width: '7%', textAlign: 'right' }}>Actions</th>
                                 </tr>
                             </thead>
@@ -652,23 +1434,19 @@ const Schools = () => {
                                     const cycleLabel = school.billingCycle === 'yearly' ? 'yr' : 'mo';
                                     const isPaid = school.paymentStatus === 'paid';
                                     const isActive = school.status === 'active';
-                                    const isDemo = school.id === 'SCHOOL_6257' || school.schoolId === 'SCHOOL_6257' || school.isDemo === true;
 
                                     return (
                                         <tr
                                             key={school.id}
                                             onClick={() => navigate(`/schools/${school.id}`)}
                                             style={{
-                                                backgroundColor: isDemo
-                                                    ? (index % 2 === 0 ? '#FAF5FF' : '#F5EEFD')
-                                                    : (index % 2 === 0 ? '#FFFFFF' : '#F8FAFC'),
+                                                backgroundColor: index % 2 === 0 ? '#FFFFFF' : '#F8FAFC',
                                                 borderBottom: '1px solid #E2E8F0',
-                                                borderLeft: isDemo ? '4px solid #8B5CF6' : '4px solid transparent',
                                                 cursor: 'pointer',
                                                 transition: 'background-color 0.1s ease'
                                             }}
-                                            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = isDemo ? '#F3E8FF' : '#EFF6FF'}
-                                            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = isDemo ? (index % 2 === 0 ? '#FAF5FF' : '#F5EEFD') : (index % 2 === 0 ? '#FFFFFF' : '#F8FAFC')}
+                                            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#EFF6FF'}
+                                            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = index % 2 === 0 ? '#FFFFFF' : '#F8FAFC'}
                                         >
                                             {/* School Name & ID */}
                                             <td style={{ padding: '10px 14px' }}>
@@ -677,7 +1455,7 @@ const Schools = () => {
                                                         width: '32px',
                                                         height: '32px',
                                                         borderRadius: '6px',
-                                                        background: isDemo ? 'linear-gradient(135deg, #8B5CF6, #6D28D9)' : 'linear-gradient(135deg, #3B82F6, #1D4ED8)',
+                                                        background: 'linear-gradient(135deg, #3B82F6, #1D4ED8)',
                                                         display: 'flex',
                                                         alignItems: 'center',
                                                         justifyContent: 'center',
@@ -688,28 +1466,11 @@ const Schools = () => {
                                                     </div>
                                                     <div>
                                                         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                                            <span style={{ fontWeight: '700', color: isDemo ? '#5B21B6' : '#1E3A8A', fontSize: '13px' }}>
+                                                            <span style={{ fontWeight: '700', color: '#1E3A8A', fontSize: '13px' }}>
                                                                 {school.name || school.schoolName || 'Unnamed School'}
                                                             </span>
-                                                            {isDemo && (
-                                                                <span style={{
-                                                                    padding: '1px 6px',
-                                                                    borderRadius: '999px',
-                                                                    fontSize: '10px',
-                                                                    fontWeight: '800',
-                                                                    backgroundColor: '#EDE9FE',
-                                                                    color: '#6D28D9',
-                                                                    border: '1px solid #DDD6FE',
-                                                                    display: 'inline-flex',
-                                                                    alignItems: 'center',
-                                                                    gap: '3px'
-                                                                }}>
-                                                                    <span style={{ width: '5px', height: '5px', borderRadius: '50%', backgroundColor: '#8B5CF6' }} />
-                                                                    Demo Acc
-                                                                </span>
-                                                            )}
                                                         </div>
-                                                        <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '6px', fontSize: '11px', color: isDemo ? '#7C3AED' : '#64748B', fontFamily: 'monospace', marginTop: '2px' }}>
+                                                        <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '6px', fontSize: '11px', color: '#64748B', fontFamily: 'monospace', marginTop: '2px' }}>
                                                             <span>{displayId}</span>
                                                             {(school.temporaryPassword || school.initialPassword) && (
                                                                 <span
@@ -848,35 +1609,203 @@ const Schools = () => {
                                                 </span>
                                             </td>
 
-                                            {/* 7-Day Trial */}
+                                            {/* Mode & Trial */}
                                             <td style={{ padding: '10px 12px' }} onClick={(e) => e.stopPropagation()}>
-                                                {school.trialInfo?.notStarted ? (
-                                                    <button
-                                                        onClick={() => handleStartTrial(school.id)}
-                                                        style={{
-                                                            padding: '2px 7px',
+                                                {school.trialInfo?.isPermanent || school.isPermanentDemo || school.permanentDemo ? (
+                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', alignItems: 'flex-start' }}>
+                                                        <span style={{
+                                                            padding: '2px 8px',
                                                             borderRadius: '3px',
-                                                            border: '1px solid #93C5FD',
-                                                            backgroundColor: '#EFF6FF',
-                                                            color: '#1D4ED8',
                                                             fontSize: '11px',
-                                                            fontWeight: '600',
-                                                            cursor: 'pointer'
-                                                        }}
-                                                    >
-                                                        Start Trial
-                                                    </button>
+                                                            fontWeight: '700',
+                                                            backgroundColor: '#F5F3FF',
+                                                            color: '#5B21B6',
+                                                            border: '1px solid #DDD6FE',
+                                                            display: 'inline-flex',
+                                                            alignItems: 'center',
+                                                            gap: '3px'
+                                                        }}>
+                                                            ♾️ Permanent Demo
+                                                        </span>
+                                                        <button
+                                                            type="button"
+                                                            title="Wipe test data for fresh demo showcase"
+                                                            onClick={() => setResetModalData({ schoolId: school.id, schoolName: school.name, principalEmail: school.email || school.principalEmail })}
+                                                            style={{
+                                                                fontSize: '10px',
+                                                                fontWeight: '600',
+                                                                padding: '1px 5px',
+                                                                backgroundColor: '#F8FAFC',
+                                                                color: '#64748B',
+                                                                border: '1px solid #CBD5E1',
+                                                                borderRadius: '3px',
+                                                                cursor: 'pointer'
+                                                            }}
+                                                        >
+                                                            Fresh Reset
+                                                        </button>
+                                                    </div>
+                                                ) : school.accountType === 'onboarded' ? (
+                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', alignItems: 'flex-start' }}>
+                                                        <span style={{
+                                                            padding: '2px 8px',
+                                                            borderRadius: '3px',
+                                                            fontSize: '11px',
+                                                            fontWeight: '700',
+                                                            backgroundColor: '#DCFCE7',
+                                                            color: '#166534',
+                                                            border: '1px solid #86EFAC',
+                                                            display: 'inline-flex',
+                                                            alignItems: 'center',
+                                                            gap: '3px'
+                                                        }}>
+                                                            <CheckCircle size={11} /> Official
+                                                        </span>
+                                                        <button
+                                                            type="button"
+                                                            title="Wipe test data for fresh restart"
+                                                            onClick={() => setResetModalData({ schoolId: school.id, schoolName: school.name, principalEmail: school.email || school.principalEmail })}
+                                                            style={{
+                                                                fontSize: '10px',
+                                                                fontWeight: '600',
+                                                                padding: '1px 5px',
+                                                                backgroundColor: '#F8FAFC',
+                                                                color: '#64748B',
+                                                                border: '1px solid #CBD5E1',
+                                                                borderRadius: '3px',
+                                                                cursor: 'pointer'
+                                                            }}
+                                                        >
+                                                            Fresh Reset
+                                                        </button>
+                                                    </div>
+                                                ) : school.trialInfo?.notStarted ? (
+                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', alignItems: 'flex-start' }}>
+                                                        <span style={{
+                                                            padding: '2px 6px',
+                                                            borderRadius: '3px',
+                                                            fontSize: '10.5px',
+                                                            fontWeight: '700',
+                                                            backgroundColor: '#F1F5F9',
+                                                            color: '#475569',
+                                                            border: '1px solid #CBD5E1'
+                                                        }}>
+                                                            ⚪ Demo: Not Started
+                                                        </span>
+                                                        <div style={{ display: 'flex', gap: '4px', marginTop: '2px' }}>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => setStartDemoModalData({ schoolId: school.id, schoolName: school.name })}
+                                                                style={{
+                                                                    padding: '2px 7px',
+                                                                    borderRadius: '3px',
+                                                                    border: '1px solid #93C5FD',
+                                                                    backgroundColor: '#EFF6FF',
+                                                                    color: '#1D4ED8',
+                                                                    fontSize: '10.5px',
+                                                                    fontWeight: '700',
+                                                                    cursor: 'pointer'
+                                                                }}
+                                                            >
+                                                                ▶️ Start Demo
+                                                            </button>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => handleConvertToOfficialKeepData(school.id)}
+                                                                style={{
+                                                                    padding: '2px 6px',
+                                                                    borderRadius: '3px',
+                                                                    border: '1px solid #86EFAC',
+                                                                    backgroundColor: '#F0FDF4',
+                                                                    color: '#166534',
+                                                                    fontSize: '10.5px',
+                                                                    fontWeight: '700',
+                                                                    cursor: 'pointer'
+                                                                }}
+                                                            >
+                                                                Official
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                ) : school.accountType === 'demo' ? (
+                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', alignItems: 'flex-start' }}>
+                                                        <span style={{
+                                                            padding: '2px 6px',
+                                                            borderRadius: '3px',
+                                                            fontSize: '11px',
+                                                            fontWeight: '700',
+                                                            backgroundColor: school.trialInfo?.isExpired ? '#FEE2E2' : '#FEF3C7',
+                                                            color: school.trialInfo?.isExpired ? '#991B1B' : '#92400E',
+                                                            border: `1px solid ${school.trialInfo?.isExpired ? '#FCA5A5' : '#FDE68A'}`
+                                                        }}>
+                                                            {school.trialInfo?.isExpired ? '⚠️ Expired' : `🟡 Demo (${school.trialInfo?.daysLeft}d left)`}
+                                                        </span>
+                                                        <div style={{ display: 'flex', gap: '4px' }}>
+                                                            <button
+                                                                type="button"
+                                                                title="Wipe test data & convert to Official onboarded school"
+                                                                onClick={() => setResetModalData({ schoolId: school.id, schoolName: school.name, principalEmail: school.email || school.principalEmail })}
+                                                                style={{
+                                                                    fontSize: '10px',
+                                                                    fontWeight: '700',
+                                                                    padding: '1px 6px',
+                                                                    backgroundColor: '#EFF6FF',
+                                                                    color: '#1E40AF',
+                                                                    border: '1px solid #BFDBFE',
+                                                                    borderRadius: '3px',
+                                                                    cursor: 'pointer'
+                                                                }}
+                                                            >
+                                                                Reset & Onboard
+                                                            </button>
+                                                            <button
+                                                                type="button"
+                                                                title="Extend demo by 7 or 14 days"
+                                                                onClick={() => setExtendModalData({ schoolId: school.id, schoolName: school.name, currentDays: school.trialDurationDays || 7 })}
+                                                                style={{
+                                                                    fontSize: '10px',
+                                                                    fontWeight: '600',
+                                                                    padding: '1px 5px',
+                                                                    backgroundColor: '#F8FAFC',
+                                                                    color: '#475569',
+                                                                    border: '1px solid #CBD5E1',
+                                                                    borderRadius: '3px',
+                                                                    cursor: 'pointer'
+                                                                }}
+                                                            >
+                                                                +Extend
+                                                            </button>
+                                                        </div>
+                                                    </div>
                                                 ) : (
-                                                    <span style={{
-                                                        padding: '2px 6px',
-                                                        borderRadius: '3px',
-                                                        fontSize: '11px',
-                                                        fontWeight: '700',
-                                                        backgroundColor: school.trialInfo?.isExpired ? '#FEE2E2' : '#E0E7FF',
-                                                        color: school.trialInfo?.isExpired ? '#991B1B' : '#3730A3'
-                                                    }}>
-                                                        {school.trialInfo?.isExpired ? 'Expired' : `${school.trialInfo?.daysLeft}d Left`}
-                                                    </span>
+                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', alignItems: 'flex-start' }}>
+                                                        <span style={{
+                                                            padding: '2px 6px',
+                                                            borderRadius: '3px',
+                                                            fontSize: '11px',
+                                                            fontWeight: '700',
+                                                            backgroundColor: school.trialInfo?.isExpired ? '#FEE2E2' : '#E0E7FF',
+                                                            color: school.trialInfo?.isExpired ? '#991B1B' : '#3730A3'
+                                                        }}>
+                                                            {school.trialInfo?.isExpired ? 'Expired' : `${school.trialInfo?.daysLeft}d Left`}
+                                                        </span>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setResetModalData({ schoolId: school.id, schoolName: school.name, principalEmail: school.email || school.principalEmail })}
+                                                            style={{
+                                                                fontSize: '10px',
+                                                                fontWeight: '700',
+                                                                padding: '1px 5px',
+                                                                backgroundColor: '#EFF6FF',
+                                                                color: '#1E40AF',
+                                                                border: '1px solid #BFDBFE',
+                                                                borderRadius: '3px',
+                                                                cursor: 'pointer'
+                                                            }}
+                                                        >
+                                                            Reset & Onboard
+                                                        </button>
+                                                    </div>
                                                 )}
                                             </td>
 
@@ -1088,32 +2017,29 @@ const Schools = () => {
                                 );
                             }
 
-                            const isDemo = school.id === 'SCHOOL_6257' || school.schoolId === 'SCHOOL_6257' || school.isDemo === true;
-
                             return (
                                 <div
                                     key={school.id}
                                     onClick={() => navigate(`/schools/${school.id}`)}
                                     style={{
-                                        backgroundColor: isDemo ? '#FAF5FF' : '#FFFFFF',
-                                        border: isDemo ? '1.5px solid #C4B5FD' : '1px solid #CBD5E1',
-                                        borderLeft: isDemo ? '4px solid #8B5CF6' : '1px solid #CBD5E1',
+                                        backgroundColor: '#FFFFFF',
+                                        border: '1px solid #CBD5E1',
                                         borderRadius: '8px',
                                         padding: '12px 14px',
                                         cursor: 'pointer',
-                                        boxShadow: isDemo ? '0 3px 8px rgba(139, 92, 246, 0.08)' : '0 2px 4px rgba(0,0,0,0.03)',
+                                        boxShadow: '0 2px 4px rgba(0,0,0,0.03)',
                                         display: 'flex',
                                         flexDirection: 'column',
                                         gap: '10px',
                                         transition: 'all 0.15s ease'
                                     }}
                                     onMouseEnter={(e) => {
-                                        e.currentTarget.style.borderColor = isDemo ? '#8B5CF6' : '#3B82F6';
-                                        e.currentTarget.style.boxShadow = isDemo ? '0 6px 14px rgba(139, 92, 246, 0.18)' : '0 6px 12px rgba(59, 130, 246, 0.1)';
+                                        e.currentTarget.style.borderColor = '#3B82F6';
+                                        e.currentTarget.style.boxShadow = '0 6px 12px rgba(59, 130, 246, 0.1)';
                                     }}
                                     onMouseLeave={(e) => {
-                                        e.currentTarget.style.borderColor = isDemo ? '#C4B5FD' : '#CBD5E1';
-                                        e.currentTarget.style.boxShadow = isDemo ? '0 3px 8px rgba(139, 92, 246, 0.08)' : '0 2px 4px rgba(0,0,0,0.03)';
+                                        e.currentTarget.style.borderColor = '#CBD5E1';
+                                        e.currentTarget.style.boxShadow = '0 2px 4px rgba(0,0,0,0.03)';
                                     }}
                                 >
                                     {/* Top Row: School Icon + Name + City + Actions */}
@@ -1123,7 +2049,7 @@ const Schools = () => {
                                                 width: '36px',
                                                 height: '36px',
                                                 borderRadius: '6px',
-                                                background: isDemo ? 'linear-gradient(135deg, #8B5CF6, #6D28D9)' : 'linear-gradient(135deg, #3B82F6, #1D4ED8)',
+                                                background: 'linear-gradient(135deg, #3B82F6, #1D4ED8)',
                                                 display: 'flex',
                                                 alignItems: 'center',
                                                 justifyContent: 'center',
@@ -1134,29 +2060,12 @@ const Schools = () => {
                                             </div>
                                             <div>
                                                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                                    <h4 style={{ margin: 0, fontSize: '13.5px', fontWeight: '700', color: isDemo ? '#5B21B6' : '#1E3A8A', lineHeight: 1.3 }}>
+                                                    <h4 style={{ margin: 0, fontSize: '13.5px', fontWeight: '700', color: '#1E3A8A', lineHeight: 1.3 }}>
                                                         {school.name || school.schoolName || 'Unnamed School'}
                                                     </h4>
-                                                    {isDemo && (
-                                                        <span style={{
-                                                            padding: '1px 6px',
-                                                            borderRadius: '999px',
-                                                            fontSize: '10px',
-                                                            fontWeight: '800',
-                                                            backgroundColor: '#EDE9FE',
-                                                            color: '#6D28D9',
-                                                            border: '1px solid #DDD6FE',
-                                                            display: 'inline-flex',
-                                                            alignItems: 'center',
-                                                            gap: '3px'
-                                                        }}>
-                                                            <span style={{ width: '5px', height: '5px', borderRadius: '50%', backgroundColor: '#8B5CF6' }} />
-                                                            Demo Acc
-                                                        </span>
-                                                    )}
                                                 </div>
                                                 <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11px', color: '#64748B', marginTop: '2px' }}>
-                                                    <MapPin size={11} style={{ color: isDemo ? '#7C3AED' : '#2563EB' }} />
+                                                    <MapPin size={11} style={{ color: '#2563EB' }} />
                                                     <span>{school.city || school.district || 'N/A'}</span>
                                                     {school.state && <span>• {school.state}</span>}
                                                 </div>
@@ -1206,13 +2115,10 @@ const Schools = () => {
                                             <span style={{ fontSize: '10px', color: '#64748B' }}>/{school.billingCycle === 'yearly' ? 'yr' : 'mo'}</span>
                                         </div>
                                         <div>
-                                            {school.trialInfo?.notStarted ? (
-                                                <span style={{ color: '#64748B' }}>Trial: Off</span>
-                                            ) : (
-                                                <span style={{ color: school.trialInfo?.isExpired ? '#DC2626' : '#2563EB', fontWeight: '700' }}>
-                                                    {school.trialInfo?.isExpired ? 'Trial End' : `${school.trialInfo?.daysLeft}d left`}
-                                                </span>
-                                            )}
+                                            <span style={{ color: '#64748B' }}>Tier: </span>
+                                            <strong style={{ color: school.package === 'premium' ? '#B45309' : '#0F172A', textTransform: 'capitalize' }}>
+                                                {school.package || 'standard'}
+                                            </strong>
                                         </div>
                                     </div>
 
@@ -1288,63 +2194,151 @@ const Schools = () => {
                                         </div>
                                     </div>
 
-                                    {/* Bottom Row: Status Badges & Quick Action Controls */}
+                                    {/* Bottom Bar: 3 Badges Inline (Payment | Status | Account Mode) */}
                                     <div
                                         style={{
                                             display: 'flex',
                                             alignItems: 'center',
                                             justifyContent: 'space-between',
-                                            paddingTop: '4px',
-                                            borderTop: '1px solid #F1F5F9'
+                                            padding: '6px 8px',
+                                            backgroundColor: '#F8FAFC',
+                                            borderRadius: '6px',
+                                            border: '1px solid #E2E8F0',
+                                            marginTop: '2px',
+                                            gap: '6px',
+                                            flexWrap: 'nowrap'
                                         }}
                                         onClick={(e) => e.stopPropagation()}
                                     >
-                                        {/* Payment */}
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                                        {/* 1. Payment Status */}
+                                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', flexShrink: 0 }}>
                                             <span style={{
                                                 padding: '2px 6px',
-                                                borderRadius: '3px',
+                                                borderRadius: '4px',
                                                 fontSize: '10px',
                                                 fontWeight: '700',
                                                 textTransform: 'uppercase',
-                                                backgroundColor: isPaid ? '#DEF7EC' : '#FEF08A',
-                                                color: isPaid ? '#03543F' : '#854D0E',
-                                                border: isPaid ? '1px solid #84E1BC' : '1px solid #FDE047'
+                                                backgroundColor: isPaid ? '#DEF7EC' : '#FEF2F2',
+                                                color: isPaid ? '#03543F' : '#991B1B',
+                                                border: isPaid ? '1px solid #84E1BC' : '1px solid #FCA5A5',
+                                                display: 'inline-flex',
+                                                alignItems: 'center',
+                                                gap: '3px'
                                             }}>
+                                                <span style={{ width: '5px', height: '5px', borderRadius: '50%', backgroundColor: isPaid ? '#10B981' : '#EF4444' }}></span>
                                                 {isPaid ? 'Paid' : 'Unpaid'}
                                             </span>
                                             {!isPaid && (
                                                 <button
+                                                    type="button"
                                                     onClick={() => navigate('/schools/' + school.id)}
                                                     style={{
-                                                        padding: '2px 6px',
+                                                        padding: '2px 5px',
                                                         borderRadius: '3px',
                                                         border: '1px solid #1D4ED8',
                                                         background: '#2563EB',
                                                         color: '#FFFFFF',
-                                                        fontSize: '10px',
+                                                        fontSize: '9.5px',
                                                         fontWeight: '700',
-                                                        cursor: 'pointer'
+                                                        cursor: 'pointer',
+                                                        lineHeight: 1
                                                     }}
+                                                    title="Record Payment"
                                                 >
                                                     Pay
                                                 </button>
                                             )}
                                         </div>
 
-                                        {/* System Status */}
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-                                            <span style={{
-                                                padding: '2px 6px',
-                                                borderRadius: '3px',
-                                                fontSize: '10px',
-                                                fontWeight: '700',
-                                                textTransform: 'uppercase',
-                                                backgroundColor: isActive ? '#DEF7EC' : '#FDE8E8',
-                                                color: isActive ? '#03543F' : '#9B1C1C'
-                                            }}>
-                                                {school.status || 'inactive'}
-                                            </span>
+                                        {/* 2. System Status */}
+                                        <span style={{
+                                            padding: '2px 6px',
+                                            borderRadius: '4px',
+                                            fontSize: '10px',
+                                            fontWeight: '700',
+                                            textTransform: 'uppercase',
+                                            backgroundColor: isActive ? '#DEF7EC' : '#FEF2F2',
+                                            color: isActive ? '#03543F' : '#991B1B',
+                                            border: isActive ? '1px solid #84E1BC' : '1px solid #FCA5A5',
+                                            display: 'inline-flex',
+                                            alignItems: 'center',
+                                            gap: '3px',
+                                            flexShrink: 0
+                                        }}>
+                                            <span style={{ width: '5px', height: '5px', borderRadius: '50%', backgroundColor: isActive ? '#10B981' : '#EF4444' }}></span>
+                                            {school.status || 'inactive'}
+                                        </span>
+
+                                        {/* 3. Account Mode / Type */}
+                                        <div style={{ flexShrink: 0, display: 'inline-flex', alignItems: 'center' }}>
+                                            {school.trialInfo?.isPermanent || school.isPermanentDemo || school.permanentDemo ? (
+                                                <span style={{
+                                                    padding: '2px 6px',
+                                                    borderRadius: '4px',
+                                                    fontSize: '10px',
+                                                    fontWeight: '700',
+                                                    backgroundColor: '#F5F3FF',
+                                                    color: '#5B21B6',
+                                                    border: '1px solid #DDD6FE',
+                                                    display: 'inline-flex',
+                                                    alignItems: 'center',
+                                                    gap: '3px'
+                                                }}>
+                                                    ♾️ Demo: Perm
+                                                </span>
+                                            ) : school.accountType === 'onboarded' ? (
+                                                <span style={{
+                                                    padding: '2px 6px',
+                                                    borderRadius: '4px',
+                                                    fontSize: '10px',
+                                                    fontWeight: '700',
+                                                    backgroundColor: '#DCFCE7',
+                                                    color: '#166534',
+                                                    border: '1px solid #86EFAC',
+                                                    display: 'inline-flex',
+                                                    alignItems: 'center',
+                                                    gap: '3px'
+                                                }}>
+                                                    🟢 Official
+                                                </span>
+                                            ) : school.trialInfo?.notStarted ? (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setStartDemoModalData({ schoolId: school.id, schoolName: school.name })}
+                                                    style={{
+                                                        padding: '2px 6px',
+                                                        borderRadius: '4px',
+                                                        fontSize: '10px',
+                                                        fontWeight: '700',
+                                                        backgroundColor: '#EFF6FF',
+                                                        color: '#1D4ED8',
+                                                        border: '1px solid #93C5FD',
+                                                        cursor: 'pointer',
+                                                        display: 'inline-flex',
+                                                        alignItems: 'center',
+                                                        gap: '3px',
+                                                        lineHeight: 1.2
+                                                    }}
+                                                    title="Click to Start Demo"
+                                                >
+                                                    ▶️ Start Demo
+                                                </button>
+                                            ) : (
+                                                <span style={{
+                                                    padding: '2px 6px',
+                                                    borderRadius: '4px',
+                                                    fontSize: '10px',
+                                                    fontWeight: '700',
+                                                    backgroundColor: school.trialInfo?.isExpired ? '#FEF2F2' : '#FEF3C7',
+                                                    color: school.trialInfo?.isExpired ? '#991B1B' : '#92400E',
+                                                    border: `1px solid ${school.trialInfo?.isExpired ? '#FCA5A5' : '#FDE68A'}`,
+                                                    display: 'inline-flex',
+                                                    alignItems: 'center',
+                                                    gap: '3px'
+                                                }}>
+                                                    {school.trialInfo?.isExpired ? '⚠️ Demo: Expired' : `🟡 Demo: ${school.trialInfo?.daysLeft || 0}d left`}
+                                                </span>
+                                            )}
                                         </div>
                                     </div>
                                 </div>

@@ -11,8 +11,10 @@ import {
     Receipt, Printer, Download, Clock, CheckCircle2, RotateCcw,
     FileText, Sparkle, ExternalLink
 } from 'lucide-react';
-import { db } from '../firebase';
-import { doc, onSnapshot, updateDoc, getDoc, collection, getCountFromServer, setDoc } from 'firebase/firestore';
+import { db, functions } from '../firebase';
+import { httpsCallable } from 'firebase/functions';
+import { doc, onSnapshot, updateDoc, getDoc, collection, getCountFromServer, setDoc, deleteField, serverTimestamp, Timestamp } from 'firebase/firestore';
+import { calculateTrialDays } from '../utils/dateUtils';
 import { useAdminAuth } from '../contexts/AdminAuthContext';
 import InlineEditSchool from '../components/InlineEditSchool';
 import maiLogo from '../assets/mai-official-logo.jpg';
@@ -37,6 +39,13 @@ const SchoolDetail = () => {
     const [showPass, setShowPass] = useState(false);
     const [copiedPass, setCopiedPass] = useState(false);
     const [showEditModal, setShowEditModal] = useState(false);
+    const [showResetModal, setShowResetModal] = useState(false);
+    const [resetTargetType, setResetTargetType] = useState('onboarded');
+    const [resetConfirmationText, setResetConfirmationText] = useState('');
+    const [isResetting, setIsResetting] = useState(false);
+    const [showExtendModal, setShowExtendModal] = useState(false);
+    const [extendDays, setExtendDays] = useState(7);
+    const [isExtending, setIsExtending] = useState(false);
 
     // 12 Months Definition
     const MONTHS_LIST = [
@@ -326,6 +335,98 @@ const SchoolDetail = () => {
         }
     };
 
+    const handleExecuteReset = async () => {
+        if (resetConfirmationText.trim().toUpperCase() !== 'RESET') {
+            alert("Please type 'RESET' to confirm.");
+            return;
+        }
+
+        setIsResetting(true);
+        try {
+            const resetSchool = httpsCallable(functions, 'resetSchoolData');
+            const res = await resetSchool({
+                schoolId: id,
+                targetAccountType: resetTargetType,
+                trialDurationDays: 7
+            });
+            alert(res.data?.message || 'School reset successfully!');
+            setShowResetModal(false);
+            setResetConfirmationText('');
+        } catch (err) {
+            alert("Failed to reset school: " + err.message);
+        } finally {
+            setIsResetting(false);
+        }
+    };
+
+    const handleSetPermanentDemo = async () => {
+        try {
+            await updateDoc(doc(db, "schools", id), {
+                accountType: 'demo',
+                isPermanentDemo: true,
+                demoStatus: 'active',
+                status: 'active',
+                trialStartDate: serverTimestamp(),
+                trialEndDate: deleteField(),
+                trialDurationDays: deleteField(),
+                updatedAt: new Date()
+            });
+            alert("School configured as Permanent Showcase Demo (Never Expires)!");
+            setShowExtendModal(false);
+        } catch (err) {
+            alert("Failed to set permanent demo: " + err.message);
+        }
+    };
+
+    const handleExtendTrialSubmit = async () => {
+        setIsExtending(true);
+        try {
+            const schoolRef = doc(db, "schools", id);
+            let baseDate = new Date();
+            if (school?.trialEndDate) {
+                const existingEnd = school.trialEndDate.toDate ? school.trialEndDate.toDate() : new Date(school.trialEndDate);
+                if (existingEnd > baseDate) {
+                    baseDate = existingEnd;
+                }
+            }
+            baseDate.setDate(baseDate.getDate() + Number(extendDays));
+
+            await updateDoc(schoolRef, {
+                accountType: 'demo',
+                demoStatus: 'active',
+                status: 'active',
+                trialEndDate: Timestamp.fromDate(baseDate),
+                trialDurationDays: (school?.trialDurationDays || 7) + Number(extendDays),
+                updatedAt: new Date()
+            });
+            alert(`Demo extended by +${extendDays} days! New end date: ${baseDate.toLocaleDateString()}`);
+            setShowExtendModal(false);
+        } catch (err) {
+            alert("Failed to extend demo: " + err.message);
+        } finally {
+            setIsExtending(false);
+        }
+    };
+
+    const handleConvertToOfficialKeepData = async () => {
+        if (!window.confirm("Convert this school to Official (Keep all current data)?")) return;
+        try {
+            await updateDoc(doc(db, "schools", id), {
+                accountType: 'onboarded',
+                status: 'active',
+                demoStatus: deleteField(),
+                trialStartDate: deleteField(),
+                trialEndDate: deleteField(),
+                trialDurationDays: deleteField(),
+                onboardedAt: serverTimestamp(),
+                updatedAt: new Date()
+            });
+            alert("School successfully converted to Official!");
+        } catch (err) {
+            alert("Failed to convert: " + err.message);
+        }
+    };
+
     if (loading) {
         return (
             <div style={{ height: '70vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '12px' }}>
@@ -377,6 +478,7 @@ const SchoolDetail = () => {
 
     const isSuspended = school?.status === 'suspended';
     const isPaid = school?.paymentStatus === 'paid';
+    const trialInfo = calculateTrialDays(school?.trialStartDate, school?.trialDurationDays || 7, school?.trialEndDate, school?.accountType, Boolean(school?.isPermanentDemo || school?.permanentDemo));
 
     return (
         <div className="animate-in fade-in duration-300" style={{ maxWidth: '1100px', margin: '0 auto', fontFamily: "'Segoe UI', Tahoma, Verdana, sans-serif" }}>
@@ -591,6 +693,101 @@ const SchoolDetail = () => {
                         {isPaid ? 'Paid' : 'Unpaid / Due'}
                     </span>
 
+                    {/* Account Mode Pill */}
+                    {trialInfo.isPermanent || school.isPermanentDemo || school.permanentDemo ? (
+                        <span style={{
+                            padding: '4px 9px',
+                            borderRadius: '4px',
+                            fontSize: '11.5px',
+                            fontWeight: '700',
+                            textTransform: 'uppercase',
+                            backgroundColor: '#F5F3FF',
+                            color: '#5B21B6',
+                            border: '1px solid #DDD6FE',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '4px'
+                        }}>
+                            ♾️ Permanent Demo
+                        </span>
+                    ) : school.accountType === 'onboarded' ? (
+                        <span style={{
+                            padding: '4px 9px',
+                            borderRadius: '4px',
+                            fontSize: '11.5px',
+                            fontWeight: '700',
+                            textTransform: 'uppercase',
+                            backgroundColor: '#DCFCE7',
+                            color: '#166534',
+                            border: '1px solid #86EFAC',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '4px'
+                        }}>
+                            <CheckCircle size={13} /> Official
+                        </span>
+                    ) : trialInfo.notStarted ? (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <span style={{
+                                padding: '4px 9px',
+                                borderRadius: '4px',
+                                fontSize: '11.5px',
+                                fontWeight: '700',
+                                textTransform: 'uppercase',
+                                backgroundColor: '#F1F5F9',
+                                color: '#475569',
+                                border: '1px solid #CBD5E1',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '4px'
+                            }}>
+                                ⚪ Demo: Not Started
+                            </span>
+                            <button
+                                onClick={() => setShowExtendModal(true)}
+                                className="win-btn"
+                                style={{
+                                    backgroundColor: '#2563EB',
+                                    color: '#FFFFFF',
+                                    borderColor: '#1D4ED8',
+                                    fontWeight: '700'
+                                }}
+                            >
+                                ▶️ Start Demo
+                            </button>
+                        </div>
+                    ) : (
+                        <span style={{
+                            padding: '4px 9px',
+                            borderRadius: '4px',
+                            fontSize: '11.5px',
+                            fontWeight: '700',
+                            textTransform: 'uppercase',
+                            backgroundColor: trialInfo.isExpired ? '#FEE2E2' : '#FEF3C7',
+                            color: trialInfo.isExpired ? '#991B1B' : '#92400E',
+                            border: `1px solid ${trialInfo.isExpired ? '#FCA5A5' : '#FDE68A'}`,
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '4px'
+                        }}>
+                            <Clock size={13} /> {trialInfo.isExpired ? 'Demo Expired' : `Demo (${trialInfo.daysLeft}d left)`}
+                        </span>
+                    )}
+
+                    {/* Fresh Reset / Onboard Button */}
+                    <button
+                        onClick={() => setShowResetModal(true)}
+                        className="win-btn"
+                        style={{
+                            color: '#1E40AF',
+                            borderColor: '#BFDBFE',
+                            backgroundColor: '#EFF6FF',
+                            fontWeight: '700'
+                        }}
+                    >
+                        <RotateCcw size={14} /> Fresh Reset / Onboard
+                    </button>
+
                     {/* Pay / Record Subscription Button */}
                     {!isPaid ? (
                         <button
@@ -622,6 +819,63 @@ const SchoolDetail = () => {
                     )}
                 </div>
             </div>
+
+            {/* DEMO NOTICE BANNER (Only for Demo Accounts) */}
+            {school.accountType === 'demo' && (
+                <div style={{
+                    margin: '0 0 1.25rem 0',
+                    padding: '12px 16px',
+                    borderRadius: '8px',
+                    backgroundColor: trialInfo.isExpired ? '#FEF2F2' : '#FFFBEB',
+                    border: `1px solid ${trialInfo.isExpired ? '#F87171' : '#FCD34D'}`,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    flexWrap: 'wrap',
+                    gap: '12px',
+                    boxShadow: '0 2px 4px rgba(0,0,0,0.03)'
+                }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        <Clock size={22} color={trialInfo.isExpired ? '#DC2626' : '#D97706'} />
+                        <div>
+                            <div style={{ fontSize: '13.5px', fontWeight: '800', color: trialInfo.isExpired ? '#991B1B' : '#92400E' }}>
+                                {trialInfo.isExpired ? '⚠️ Trial Demo Period Expired' : `🟡 Trial Demo Active: ${trialInfo.daysLeft} Days Remaining`}
+                            </div>
+                            <div style={{ fontSize: '11.5px', color: '#4B5563', marginTop: '2px' }}>
+                                {trialInfo.isExpired
+                                    ? 'The school trial period has ended. You can wipe all dummy test data to start fresh as an Official Onboarded school, or extend the demo.'
+                                    : `Started: ${trialInfo.startDateFormatted} • Ends: ${trialInfo.endDateFormatted}. One-click wipe available whenever ready to onboard.`}
+                            </div>
+                        </div>
+                    </div>
+                    <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                        <button
+                            type="button"
+                            onClick={() => setShowExtendModal(true)}
+                            className="win-btn"
+                            style={{ fontSize: '12px', padding: '5px 12px', backgroundColor: '#FFFFFF', borderColor: '#CBD5E1', color: '#334155', fontWeight: '600' }}
+                        >
+                            + Extend Trial
+                        </button>
+                        <button
+                            type="button"
+                            onClick={handleConvertToOfficialKeepData}
+                            className="win-btn"
+                            style={{ fontSize: '12px', padding: '5px 12px', backgroundColor: '#F0FDF4', borderColor: '#86EFAC', color: '#166534', fontWeight: '600' }}
+                        >
+                            Convert (Keep Data)
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setShowResetModal(true)}
+                            className="win-btn"
+                            style={{ fontSize: '12px', padding: '5px 14px', backgroundColor: '#2563EB', borderColor: '#1D4ED8', color: '#FFFFFF', fontWeight: '700' }}
+                        >
+                            <RotateCcw size={13} /> Reset & Onboard Fresh
+                        </button>
+                    </div>
+                </div>
+            )}
 
             {/* 2. WINDOWS MANAGEMENT CONSOLE CARD */}
             <div
@@ -1795,6 +2049,311 @@ const SchoolDetail = () => {
                                 <span>
                                     <strong>Step 2 Ready:</strong> Automated email dispatch of this voucher to Principal ({viewVoucherData.principal?.email || viewVoucherData.school.email || 'No email on file'}) will be hooked in next.
                                 </span>
+                            </div>
+                        </div>
+                    </div>
+                </div>,
+                document.body
+            )}
+
+            {/* Fresh Account Reset & Onboard Modal */}
+            {showResetModal && createPortal(
+                <div style={{
+                    position: 'fixed',
+                    top: 0, left: 0, right: 0, bottom: 0,
+                    width: '100vw', height: '100vh',
+                    backgroundColor: 'rgba(15, 23, 42, 0.7)',
+                    backdropFilter: 'blur(4px)',
+                    zIndex: 9999999,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    padding: '16px', boxSizing: 'border-box'
+                }}>
+                    <div style={{
+                        width: '100%', maxWidth: '520px',
+                        backgroundColor: '#FFFFFF', borderRadius: '8px',
+                        overflow: 'hidden', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.4)',
+                        border: '1px solid #CBD5E1'
+                    }}>
+                        {/* Title Bar */}
+                        <div style={{
+                            padding: '12px 16px',
+                            backgroundColor: '#1E3A8A', color: '#FFFFFF',
+                            display: 'flex', alignItems: 'center', justifyContent: 'space-between'
+                        }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <RotateCcw size={18} color="#93C5FD" />
+                                <span style={{ fontWeight: '800', fontSize: '14px' }}>
+                                    Fresh Account Reset & Onboarding
+                                </span>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => { setShowResetModal(false); setResetConfirmationText(''); }}
+                                style={{ background: 'transparent', border: 'none', color: '#FFFFFF', cursor: 'pointer', padding: '2px' }}
+                            >
+                                <XCircle size={18} />
+                            </button>
+                        </div>
+
+                        {/* Content */}
+                        <div style={{ padding: '20px' }}>
+                            <div style={{ marginBottom: '14px', backgroundColor: '#F8FAFC', padding: '10px 12px', borderRadius: '6px', border: '1px solid #E2E8F0' }}>
+                                <div style={{ fontSize: '13px', fontWeight: '800', color: '#0F172A' }}>
+                                    {school.name || school.schoolName}
+                                </div>
+                                <div style={{ fontSize: '11px', color: '#64748B', marginTop: '2px' }}>
+                                    School ID: <code style={{ fontWeight: '700', color: '#1E40AF' }}>{id}</code> • Principal: {principal?.email || school.email || 'Configured'}
+                                </div>
+                            </div>
+
+                            {/* What stays vs what is wiped */}
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '16px' }}>
+                                <div style={{ backgroundColor: '#F0FDF4', border: '1px solid #86EFAC', borderRadius: '6px', padding: '10px' }}>
+                                    <div style={{ fontSize: '11.5px', fontWeight: '800', color: '#166534', marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                        <CheckCircle size={14} /> Preserved (Safe):
+                                    </div>
+                                    <ul style={{ margin: 0, paddingLeft: '16px', fontSize: '11px', color: '#14532D', lineHeight: 1.5 }}>
+                                        <li>Same School Code ({id})</li>
+                                        <li>Principal Login & Password</li>
+                                        <li>School Details & City</li>
+                                    </ul>
+                                </div>
+
+                                <div style={{ backgroundColor: '#FEF2F2', border: '1px solid #FCA5A5', borderRadius: '6px', padding: '10px' }}>
+                                    <div style={{ fontSize: '11.5px', fontWeight: '800', color: '#991B1B', marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                        <Trash2 size={14} /> Wiped Clean:
+                                    </div>
+                                    <ul style={{ margin: 0, paddingLeft: '16px', fontSize: '11px', color: '#7F1D1D', lineHeight: 1.5 }}>
+                                        <li>All Students & Teachers</li>
+                                        <li>Parents & Drivers</li>
+                                        <li>Store items, fees, attendance</li>
+                                    </ul>
+                                </div>
+                            </div>
+
+                            {/* Target Mode Selection */}
+                            <div style={{ marginBottom: '14px' }}>
+                                <label style={{ display: 'block', fontSize: '11.5px', fontWeight: '700', color: '#334155', marginBottom: '6px' }}>
+                                    Target Account Mode After Reset:
+                                </label>
+                                <div style={{ display: 'flex', gap: '10px' }}>
+                                    <button
+                                        type="button"
+                                        onClick={() => setResetTargetType('onboarded')}
+                                        className="win-btn"
+                                        style={{
+                                            flex: 1,
+                                            padding: '8px 10px',
+                                            backgroundColor: resetTargetType === 'onboarded' ? '#ECFDF5' : '#FFFFFF',
+                                            borderColor: resetTargetType === 'onboarded' ? '#059669' : '#CBD5E1',
+                                            color: resetTargetType === 'onboarded' ? '#065F46' : '#334155',
+                                            fontWeight: '800',
+                                            fontSize: '12px'
+                                        }}
+                                    >
+                                        🟢 Onboarded (Official)
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setResetTargetType('demo')}
+                                        className="win-btn"
+                                        style={{
+                                            flex: 1,
+                                            padding: '8px 10px',
+                                            backgroundColor: resetTargetType === 'demo' ? '#FFFBEB' : '#FFFFFF',
+                                            borderColor: resetTargetType === 'demo' ? '#D97706' : '#CBD5E1',
+                                            color: resetTargetType === 'demo' ? '#92400E' : '#334155',
+                                            fontWeight: '800',
+                                            fontSize: '12px'
+                                        }}
+                                    >
+                                        🟡 Fresh Demo (7 Days)
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* Confirmation Input */}
+                            <div style={{ marginBottom: '16px' }}>
+                                <label style={{ display: 'block', fontSize: '11.5px', fontWeight: '700', color: '#334155', marginBottom: '4px' }}>
+                                    Type <strong>RESET</strong> to confirm wipe & onboarding:
+                                </label>
+                                <input
+                                    type="text"
+                                    value={resetConfirmationText}
+                                    onChange={(e) => setResetConfirmationText(e.target.value)}
+                                    placeholder="Type RESET"
+                                    className="win-input"
+                                    style={{
+                                        width: '100%',
+                                        padding: '7px 10px',
+                                        fontSize: '12px',
+                                        fontWeight: '700',
+                                        letterSpacing: '1px',
+                                        border: '1.5px solid #CBD5E1',
+                                        borderRadius: '4px',
+                                        boxSizing: 'border-box'
+                                    }}
+                                />
+                            </div>
+
+                            {/* Actions */}
+                            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
+                                <button
+                                    type="button"
+                                    onClick={() => { setShowResetModal(false); setResetConfirmationText(''); }}
+                                    disabled={isResetting}
+                                    className="win-btn"
+                                    style={{ padding: '6px 14px', fontSize: '12px' }}
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={handleExecuteReset}
+                                    disabled={isResetting || resetConfirmationText.trim().toUpperCase() !== 'RESET'}
+                                    className="win-btn"
+                                    style={{
+                                        padding: '6px 16px',
+                                        fontSize: '12px',
+                                        fontWeight: '800',
+                                        backgroundColor: resetConfirmationText.trim().toUpperCase() === 'RESET' ? '#2563EB' : '#94A3B8',
+                                        color: '#FFFFFF',
+                                        borderColor: resetConfirmationText.trim().toUpperCase() === 'RESET' ? '#1D4ED8' : '#94A3B8',
+                                        cursor: resetConfirmationText.trim().toUpperCase() === 'RESET' && !isResetting ? 'pointer' : 'not-allowed',
+                                        display: 'flex', alignItems: 'center', gap: '6px'
+                                    }}
+                                >
+                                    {isResetting ? <Loader2 size={14} className="animate-spin" /> : <RotateCcw size={14} />}
+                                    {isResetting ? 'Wiping & Resetting...' : 'Confirm Reset & Onboard'}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>,
+                document.body
+            )}
+
+            {/* Extend Demo Modal */}
+            {showExtendModal && createPortal(
+                <div style={{
+                    position: 'fixed',
+                    top: 0, left: 0, right: 0, bottom: 0,
+                    width: '100vw', height: '100vh',
+                    backgroundColor: 'rgba(15, 23, 42, 0.7)',
+                    backdropFilter: 'blur(4px)',
+                    zIndex: 9999999,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    padding: '16px', boxSizing: 'border-box'
+                }}>
+                    <div style={{
+                        width: '100%', maxWidth: '440px',
+                        backgroundColor: '#FFFFFF', borderRadius: '8px',
+                        overflow: 'hidden', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.4)',
+                        border: '1px solid #CBD5E1'
+                    }}>
+                        <div style={{
+                            padding: '12px 16px',
+                            backgroundColor: '#D97706', color: '#FFFFFF',
+                            display: 'flex', alignItems: 'center', justifyContent: 'space-between'
+                        }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <Clock size={18} color="#FFFFFF" />
+                                <span style={{ fontWeight: '800', fontSize: '14px' }}>
+                                    Extend Demo Trial
+                                </span>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setShowExtendModal(false)}
+                                style={{ background: 'transparent', border: 'none', color: '#FFFFFF', cursor: 'pointer', padding: '2px' }}
+                            >
+                                <XCircle size={18} />
+                            </button>
+                        </div>
+                        <div style={{ padding: '20px' }}>
+                            <div style={{ fontSize: '13px', fontWeight: '800', color: '#0F172A', marginBottom: '4px' }}>
+                                {school.name || school.schoolName}
+                            </div>
+                            <div style={{ fontSize: '11.5px', color: '#64748B', marginBottom: '16px' }}>
+                                Select additional days to add to this school's trial demo:
+                            </div>
+
+                            <div style={{ display: 'flex', gap: '10px', marginBottom: '20px' }}>
+                                {[
+                                    { label: '+1 Week (7 Days)', value: 7 },
+                                    { label: '+2 Weeks (14 Days)', value: 14 },
+                                    { label: '+1 Month (30 Days)', value: 30 }
+                                ].map((item) => (
+                                    <button
+                                        key={item.value}
+                                        type="button"
+                                        onClick={() => setExtendDays(item.value)}
+                                        className="win-btn"
+                                        style={{
+                                            flex: 1,
+                                            padding: '8px',
+                                            fontSize: '11.5px',
+                                            fontWeight: extendDays === item.value ? '800' : '600',
+                                            backgroundColor: extendDays === item.value ? '#FEF3C7' : '#FFFFFF',
+                                            color: extendDays === item.value ? '#92400E' : '#334155',
+                                            borderColor: extendDays === item.value ? '#D97706' : '#CBD5E1'
+                                        }}
+                                    >
+                                        {item.label}
+                                    </button>
+                                ))}
+                            </div>
+
+                            <button
+                                type="button"
+                                onClick={handleSetPermanentDemo}
+                                className="win-btn"
+                                style={{
+                                    width: '100%',
+                                    marginBottom: '16px',
+                                    padding: '8px 12px',
+                                    fontSize: '12px',
+                                    fontWeight: '700',
+                                    backgroundColor: '#F5F3FF',
+                                    color: '#5B21B6',
+                                    borderColor: '#DDD6FE',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    gap: '6px'
+                                }}
+                            >
+                                ♾️ Set as Permanent Showcase Demo (Never Expires)
+                            </button>
+
+                            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
+                                <button
+                                    type="button"
+                                    onClick={() => setShowExtendModal(false)}
+                                    disabled={isExtending}
+                                    className="win-btn"
+                                    style={{ padding: '6px 14px', fontSize: '12px' }}
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={handleExtendTrialSubmit}
+                                    disabled={isExtending}
+                                    className="win-btn"
+                                    style={{
+                                        padding: '6px 16px',
+                                        fontSize: '12px',
+                                        fontWeight: '800',
+                                        backgroundColor: '#D97706',
+                                        color: '#FFFFFF',
+                                        borderColor: '#B45309',
+                                        display: 'flex', alignItems: 'center', gap: '6px'
+                                    }}
+                                >
+                                    {isExtending ? <Loader2 size={14} className="animate-spin" /> : <Clock size={14} />}
+                                    {isExtending ? 'Extending...' : `Extend +${extendDays} Days`}
+                                </button>
                             </div>
                         </div>
                     </div>

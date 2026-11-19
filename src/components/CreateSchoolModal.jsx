@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
-import { X, Save, Shield, School, Mail, Lock, Sparkles, Crown, Bus, Tv, Check, ChevronRight, ChevronLeft, AlertCircle, MapPin } from 'lucide-react';
+import { X, Save, Shield, School, Mail, Lock, Sparkles, Crown, Bus, Tv, Check, ChevronRight, ChevronLeft, AlertCircle, MapPin, Clock, CheckCircle } from 'lucide-react';
 import { db, auth, functions } from '../firebase';
 import { httpsCallable } from 'firebase/functions';
 import { useAdminAuth } from '../contexts/AdminAuthContext';
@@ -22,6 +22,8 @@ const CreateSchoolModal = ({ onClose, onSuccess }) => {
         city: isRestrictedCity ? adminProfile.territoryCity : '',
         address: '',
         schoolContact: '',
+        accountType: 'demo',
+        trialDurationDays: 7,
         package: 'standard',
         modules: {
             transport: false,
@@ -137,6 +139,8 @@ const CreateSchoolModal = ({ onClose, onSuccess }) => {
                 city: formData.city,
                 address: formData.address,
                 contact: formData.schoolContact,
+                accountType: formData.accountType,
+                trialDurationDays: formData.accountType === 'demo' ? Number(formData.trialDurationDays) : 0,
                 package: formData.package,
                 modules: formData.modules,
                 principalName: formData.principalName,
@@ -615,6 +619,87 @@ const CreateSchoolModal = ({ onClose, onSuccess }) => {
                         {/* TAB 2: Packages & Modules */}
                         {step === 2 && (
                             <div>
+                                <fieldset className="xp-fieldset" style={{ marginBottom: '14px' }}>
+                                    <legend className="xp-legend">Account Mode & Lifecycle</legend>
+                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: formData.accountType === 'demo' ? '10px' : '0px' }}>
+                                        {/* Demo Account Option */}
+                                        <div
+                                            onClick={() => setFormData({ ...formData, accountType: 'demo' })}
+                                            style={{
+                                                border: formData.accountType === 'demo' ? '2px solid #D97706' : '1px solid #B0ABA0',
+                                                backgroundColor: formData.accountType === 'demo' ? '#FEF3C7' : '#E8E5D5',
+                                                borderRadius: '4px',
+                                                padding: '12px 14px',
+                                                cursor: 'pointer'
+                                            }}
+                                        >
+                                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
+                                                <span style={{ fontSize: '13px', fontWeight: '800', color: '#92400E' }}>🟡 Demo / Trial Account</span>
+                                                <Clock size={16} color="#D97706" />
+                                            </div>
+                                            <p style={{ margin: 0, fontSize: '11.5px', color: '#4B5563', lineHeight: 1.4 }}>
+                                                For prospective schools. Full trial testing, and can be 1-click reset to fresh when onboarded.
+                                            </p>
+                                        </div>
+
+                                        {/* Onboarded / Official Option */}
+                                        <div
+                                            onClick={() => setFormData({ ...formData, accountType: 'onboarded' })}
+                                            style={{
+                                                border: formData.accountType === 'onboarded' ? '2px solid #059669' : '1px solid #B0ABA0',
+                                                backgroundColor: formData.accountType === 'onboarded' ? '#D1FAE5' : '#E8E5D5',
+                                                borderRadius: '4px',
+                                                padding: '12px 14px',
+                                                cursor: 'pointer'
+                                            }}
+                                        >
+                                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
+                                                <span style={{ fontSize: '13px', fontWeight: '800', color: '#065F46' }}>🟢 Onboarded (Official)</span>
+                                                <CheckCircle size={16} color="#059669" />
+                                            </div>
+                                            <p style={{ margin: 0, fontSize: '11.5px', color: '#4B5563', lineHeight: 1.4 }}>
+                                                Permanent operational school. Real production data immediately with regular billing.
+                                            </p>
+                                        </div>
+                                    </div>
+
+                                    {/* Trial Duration Selector (Only if Demo) */}
+                                    {formData.accountType === 'demo' && (
+                                        <div style={{ backgroundColor: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: '4px', padding: '10px 12px' }}>
+                                            <label style={{ display: 'block', fontSize: '11.5px', fontWeight: '700', color: '#92400E', marginBottom: '6px' }}>
+                                                Trial Demo Duration:
+                                            </label>
+                                            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                                                {[
+                                                    { label: '1 Week (7 Days)', value: 7 },
+                                                    { label: '2 Weeks (14 Days)', value: 14 },
+                                                    { label: '1 Month (30 Days)', value: 30 }
+                                                ].map((tier) => (
+                                                    <button
+                                                        key={tier.value}
+                                                        type="button"
+                                                        onClick={() => setFormData({ ...formData, trialDurationDays: tier.value })}
+                                                        className="win-btn"
+                                                        style={{
+                                                            fontSize: '11.5px',
+                                                            fontWeight: formData.trialDurationDays === tier.value ? '800' : '600',
+                                                            backgroundColor: formData.trialDurationDays === tier.value ? '#D97706' : '#FFFFFF',
+                                                            color: formData.trialDurationDays === tier.value ? '#FFFFFF' : '#334155',
+                                                            borderColor: formData.trialDurationDays === tier.value ? '#B45309' : '#CBD5E1',
+                                                            padding: '4px 10px'
+                                                        }}
+                                                    >
+                                                        {tier.label}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                            <div style={{ fontSize: '11px', color: '#B45309', marginTop: '6px' }}>
+                                                ℹ️ Once trial expires, you can either extend it or 1-click wipe dummy data to onboard as an official school.
+                                            </div>
+                                        </div>
+                                    )}
+                                </fieldset>
+
                                 <fieldset className="xp-fieldset">
                                     <legend className="xp-legend">Deployment Tier</legend>
                                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
@@ -812,7 +897,7 @@ const CreateSchoolModal = ({ onClose, onSuccess }) => {
                                         lineHeight: 1.5
                                     }}
                                 >
-                                    <strong>Ready to Register:</strong> <strong>{formData.schoolName || 'School'}</strong> ({formData.city || 'City'}, {formData.state}) will be created under <strong>{formData.package === 'premium' ? 'Premium Pro Tier' : 'Standard Tier'}</strong> with instant admin portal access.
+                                    <strong>Ready to Register:</strong> <strong>{formData.schoolName || 'School'}</strong> ({formData.city || 'City'}, {formData.state}) will be created as <strong>{formData.accountType === 'demo' ? `🟡 Demo Account (${formData.trialDurationDays} Days)` : '🟢 Onboarded (Official)'}</strong> under <strong>{formData.package === 'premium' ? 'Premium Pro Tier' : 'Standard Tier'}</strong> with instant admin portal access.
                                 </div>
                             </div>
                         )}
