@@ -411,7 +411,7 @@ const SchoolDetail = () => {
     const handleConvertToOfficialKeepData = async () => {
         if (!window.confirm("Convert this school to Official (Keep all current data)?")) return;
         try {
-            await updateDoc(doc(db, "schools", id), {
+            const payload = {
                 accountType: 'onboarded',
                 status: 'active',
                 demoStatus: deleteField(),
@@ -419,8 +419,13 @@ const SchoolDetail = () => {
                 trialEndDate: deleteField(),
                 trialDurationDays: deleteField(),
                 onboardedAt: serverTimestamp(),
+                onboardedByUid: adminProfile?.id || '',
                 updatedAt: new Date()
-            });
+            };
+            if (school && !school.firstTrialStartedAt && (school.trialStartDate || school.createdAt)) {
+                payload.firstTrialStartedAt = school.trialStartDate || school.createdAt;
+            }
+            await updateDoc(doc(db, "schools", id), payload);
             alert("School successfully converted to Official!");
         } catch (err) {
             alert("Failed to convert: " + err.message);

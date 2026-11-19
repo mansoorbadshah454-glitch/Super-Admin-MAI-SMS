@@ -98,15 +98,28 @@ export const AdminAuthProvider = ({ children }) => {
         };
     }, []);
 
-    // Master Super Admin check: true for owner/full admin (manageAdmins: true or default super-admin), false for restricted staff
+    // Helper to check if a profile is a BDO (Business Development Officer)
+    const isBdoProfile = (profile) => {
+        if (!profile) return false;
+        const roleType = (profile.roleType || '').toLowerCase();
+        const role = (profile.role || '').toLowerCase();
+        const roleTitle = (profile.roleTitle || '').toLowerCase();
+        return roleType === 'bdo' || role === 'bdo' || roleTitle.includes('bdo') || roleTitle.includes('business development');
+    };
+
+    // Master Super Admin check: true for owner/full admin (manageAdmins: true or default super-admin), false for restricted staff or BDOs
     const isMaster = Boolean(
-        adminProfile?.isMasterAdmin ||
-        adminProfile?.role === 'master_admin' ||
-        adminProfile?.permissions?.manageAdmins === true ||
-        (adminProfile?.role === 'super-admin' && adminProfile?.permissions?.manageAdmins !== false && !adminProfile?.roleTitle?.includes('Manager') && !adminProfile?.roleTitle?.includes('Accountant')) ||
-        user?.uid === 'K1T1CwRoTdYtQJDCRNEc0NK9vjt2' ||
-        user?.email === 'admin@system.local'
+        !isBdoProfile(adminProfile) && (
+            adminProfile?.isMasterAdmin ||
+            adminProfile?.role === 'master_admin' ||
+            adminProfile?.permissions?.manageAdmins === true ||
+            (adminProfile?.role === 'super-admin' && adminProfile?.permissions?.manageAdmins !== false && !adminProfile?.roleTitle?.includes('Manager') && !adminProfile?.roleTitle?.includes('Accountant')) ||
+            user?.uid === 'K1T1CwRoTdYtQJDCRNEc0NK9vjt2' ||
+            user?.email === 'admin@system.local'
+        )
     );
+
+    const isBdo = Boolean(!isMaster && isBdoProfile(adminProfile));
 
     // Check if admin has a specific permission
     const hasPermission = (permKey) => {
@@ -128,10 +141,17 @@ export const AdminAuthProvider = ({ children }) => {
         return false;
     };
 
-    // Check if a school is within the admin's assigned territory
+    // Check if a school is within the admin's assigned territory (or owned/assigned for BDOs)
     const isSchoolInTerritory = (school, profile = adminProfile) => {
         if (!school) return false;
         if (!profile) return false;
+
+        // BDOs can ONLY view and manage schools created by them or assigned to them
+        if (isBdoProfile(profile)) {
+            const bdoUid = profile.id || user?.uid;
+            if (!bdoUid) return false;
+            return school.assignedBdoId === bdoUid || school.createdByUid === bdoUid;
+        }
 
         // Master admins or profiles with 'all' scope have unrestricted access
         if (isMaster || profile.role === 'master_admin' || !profile.territoryScope || profile.territoryScope === 'all') {
@@ -176,6 +196,7 @@ export const AdminAuthProvider = ({ children }) => {
             loading,
             hasPermission,
             isMasterAdmin: isMaster,
+            isBdo,
             isSchoolInTerritory,
             filterSchoolsByTerritory
         }}>

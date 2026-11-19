@@ -2,11 +2,12 @@ import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
 import { X, Save, Shield, School, Mail, Lock, Sparkles, Crown, Bus, Tv, Check, ChevronRight, ChevronLeft, AlertCircle, MapPin, Clock, CheckCircle } from 'lucide-react';
 import { db, auth, functions } from '../firebase';
+import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 import { useAdminAuth } from '../contexts/AdminAuthContext';
 
 const CreateSchoolModal = ({ onClose, onSuccess }) => {
-    const { adminProfile, isMasterAdmin } = useAdminAuth();
+    const { adminProfile, isMasterAdmin, isBdo, user } = useAdminAuth();
     const isRestrictedState = !isMasterAdmin && adminProfile?.territoryScope && adminProfile.territoryScope !== 'all' && Boolean(adminProfile.territoryState);
     const isRestrictedDistrict = !isMasterAdmin && (adminProfile?.territoryScope === 'district' || adminProfile?.territoryScope === 'city') && Boolean(adminProfile.territoryDistrict);
     const isRestrictedCity = !isMasterAdmin && adminProfile?.territoryScope === 'city' && Boolean(adminProfile.territoryCity);
@@ -131,6 +132,9 @@ const CreateSchoolModal = ({ onClose, onSuccess }) => {
         try {
             console.log("Starting account creation via Cloud Function...", formData.principalEmail);
 
+            const creatorUid = adminProfile?.id || user?.uid || auth.currentUser?.uid || '';
+            const creatorName = adminProfile?.name || user?.displayName || auth.currentUser?.email || '';
+
             const createSchool = httpsCallable(functions, 'createSchool');
             const result = await createSchool({
                 schoolName: formData.schoolName,
@@ -146,11 +150,37 @@ const CreateSchoolModal = ({ onClose, onSuccess }) => {
                 principalName: formData.principalName,
                 principalEmail: formData.principalEmail,
                 principalPassword: formData.principalPassword,
-                principalContact: formData.principalContact
+                principalContact: formData.principalContact,
+                createdByName: creatorName,
+                assignedBdoId: isBdo ? creatorUid : '',
+                assignedBdoName: isBdo ? creatorName : ''
             });
 
             console.log("School Created:", result.data);
             const schoolCode = result.data?.schoolId || result.data?.id || "Unknown";
+
+            // Ensure BDO attribution & firstTrialStartedAt are persisted even if Cloud Functions are not redeployed yet
+            if (schoolCode && schoolCode !== "Unknown" && creatorUid) {
+                try {
+                    const metaUpdate = {
+                        createdByUid: creatorUid,
+                        createdByName: creatorName
+                    };
+                    if (isBdo) {
+                        metaUpdate.assignedBdoId = creatorUid;
+                        metaUpdate.assignedBdoName = creatorName;
+                    }
+                    if (formData.accountType === 'demo') {
+                        metaUpdate.firstTrialStartedAt = serverTimestamp();
+                    } else {
+                        metaUpdate.onboardedByUid = creatorUid;
+                    }
+                    await updateDoc(doc(db, 'schools', schoolCode), metaUpdate);
+                } catch (metaErr) {
+                    console.warn("Post-create BDO attribution update skipped:", metaErr?.message);
+                }
+            }
+
             console.log(`Success! ${formData.schoolName} created with ID: ${schoolCode}`);
             onSuccess();
             onClose();

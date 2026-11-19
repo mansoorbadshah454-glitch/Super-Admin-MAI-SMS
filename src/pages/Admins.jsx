@@ -127,7 +127,11 @@ const AddAdminModal = ({ onClose, onSuccess }) => {
         name: '',
         email: '',
         password: '',
+        phone: '',
+        roleType: 'operations_manager',
         roleTitle: 'Operations Manager',
+        monthlyTrialTarget: 10,
+        monthlyOnboardTarget: 5,
         territoryScope: 'city',
         territoryState: 'Punjab',
         territoryDistrict: '',
@@ -147,9 +151,28 @@ const AddAdminModal = ({ onClose, onSuccess }) => {
 
     const handleApplyPreset = (presetKey) => {
         setRolePreset(presetKey);
-        if (presetKey === 'operations_manager') {
+        if (presetKey === 'bdo') {
             setFormData(prev => ({
                 ...prev,
+                roleType: 'bdo',
+                roleTitle: 'BDO (Business Development Officer)',
+                territoryScope: prev.territoryScope === 'all' ? 'city' : prev.territoryScope,
+                permissions: {
+                    manageSchools: true,
+                    deleteSchool: false,
+                    manageBilling: false,
+                    viewRevenue: false,
+                    systemControl: true,
+                    manageSettings: false,
+                    broadcastAnnouncements: false,
+                    resetCredentials: false,
+                    manageAdmins: false
+                }
+            }));
+        } else if (presetKey === 'operations_manager') {
+            setFormData(prev => ({
+                ...prev,
+                roleType: 'operations_manager',
                 roleTitle: 'Operations Manager',
                 territoryScope: prev.territoryScope === 'all' ? 'city' : prev.territoryScope,
                 permissions: {
@@ -167,6 +190,7 @@ const AddAdminModal = ({ onClose, onSuccess }) => {
         } else if (presetKey === 'accountant') {
             setFormData(prev => ({
                 ...prev,
+                roleType: 'accountant',
                 roleTitle: 'Accountant / Finance',
                 territoryScope: 'all',
                 permissions: {
@@ -184,6 +208,7 @@ const AddAdminModal = ({ onClose, onSuccess }) => {
         } else if (presetKey === 'master_admin') {
             setFormData(prev => ({
                 ...prev,
+                roleType: 'master_admin',
                 roleTitle: 'Master Administrator',
                 territoryScope: 'all',
                 permissions: {
@@ -227,14 +252,21 @@ const AddAdminModal = ({ onClose, onSuccess }) => {
 
             const newUid = res?.data?.uid;
             if (newUid) {
-                await updateDoc(doc(db, "global_users", newUid), {
+                const profileUpdates = {
+                    roleType: formData.roleType || rolePreset,
                     roleTitle: formData.roleTitle,
+                    phone: formData.phone || '',
                     territoryScope: formData.territoryScope,
                     territoryState: formData.territoryScope !== 'all' ? formData.territoryState : '',
                     territoryDistrict: (formData.territoryScope === 'district' || formData.territoryScope === 'city') ? formData.territoryDistrict : '',
                     territoryCity: formData.territoryScope === 'city' ? formData.territoryCity : '',
                     updatedAt: serverTimestamp()
-                });
+                };
+                if (rolePreset === 'bdo' || formData.roleType === 'bdo') {
+                    profileUpdates.monthlyTrialTarget = Number(formData.monthlyTrialTarget) || 0;
+                    profileUpdates.monthlyOnboardTarget = Number(formData.monthlyOnboardTarget) || 0;
+                }
+                await updateDoc(doc(db, "global_users", newUid), profileUpdates);
             }
 
             onSuccess();
@@ -372,8 +404,9 @@ const AddAdminModal = ({ onClose, onSuccess }) => {
                         {/* Role Template / Preset Selector */}
                         <fieldset style={{ border: '1px solid #C5C0B8', borderRadius: '4px', padding: '10px 14px', marginBottom: '12px', backgroundColor: '#F4F2E8' }}>
                             <legend style={{ fontSize: '11px', fontWeight: '700', color: '#003399', padding: '0 6px', textTransform: 'uppercase' }}>Role Preset / Template</legend>
-                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px' }}>
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '8px' }}>
                                 {[
+                                    { id: 'bdo', label: '📈 BDO (Sales / Growth)', desc: 'Own dashboard + create & manage own schools' },
                                     { id: 'operations_manager', label: '🏢 Operations Manager', desc: 'Territory-scoped school manager' },
                                     { id: 'accountant', label: '💼 Accountant / Finance', desc: 'Billing, slips & revenue' },
                                     { id: 'master_admin', label: '🛡️ Master Admin', desc: 'Unrestricted national access' }
@@ -386,17 +419,56 @@ const AddAdminModal = ({ onClose, onSuccess }) => {
                                             padding: '8px 10px',
                                             borderRadius: '4px',
                                             border: rolePreset === r.id ? '2px solid #0055EA' : '1px solid #CBD5E1',
-                                            backgroundColor: rolePreset === r.id ? '#EFF6FF' : '#FFFFFF',
+                                            backgroundColor: rolePreset === r.id ? (r.id === 'bdo' ? '#F5F3FF' : '#EFF6FF') : '#FFFFFF',
                                             textAlign: 'left',
                                             cursor: 'pointer'
                                         }}
                                     >
-                                        <div style={{ fontSize: '12px', fontWeight: '700', color: rolePreset === r.id ? '#1D4ED8' : '#1E293B' }}>{r.label}</div>
+                                        <div style={{ fontSize: '12px', fontWeight: '700', color: rolePreset === r.id ? (r.id === 'bdo' ? '#6D28D9' : '#1D4ED8') : '#1E293B' }}>{r.label}</div>
                                         <div style={{ fontSize: '10.5px', color: '#64748B', marginTop: '2px' }}>{r.desc}</div>
                                     </button>
                                 ))}
                             </div>
                         </fieldset>
+
+                        {/* BDO Monthly Targets & Contact (Only when BDO preset selected) */}
+                        {rolePreset === 'bdo' && (
+                            <fieldset style={{ border: '1px solid #C4B5FD', borderRadius: '4px', padding: '10px 14px', marginBottom: '12px', backgroundColor: '#F5F3FF' }}>
+                                <legend style={{ fontSize: '11px', fontWeight: '700', color: '#6D28D9', padding: '0 6px', textTransform: 'uppercase' }}>BDO Monthly Targets & Contact</legend>
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px' }}>
+                                    <div>
+                                        <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: '#4C1D95', marginBottom: '3px' }}>Monthly Trial Target</label>
+                                        <input
+                                            type="number"
+                                            min="0"
+                                            value={formData.monthlyTrialTarget}
+                                            onChange={(e) => setFormData({ ...formData, monthlyTrialTarget: e.target.value })}
+                                            style={{ width: '100%', boxSizing: 'border-box', padding: '5px 8px', borderRadius: '2px', border: '1px solid #A78BFA', fontSize: '12px', background: '#FFFFFF' }}
+                                        />
+                                    </div>
+                                    <div>
+                                        <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: '#4C1D95', marginBottom: '3px' }}>Monthly Onboard Target</label>
+                                        <input
+                                            type="number"
+                                            min="0"
+                                            value={formData.monthlyOnboardTarget}
+                                            onChange={(e) => setFormData({ ...formData, monthlyOnboardTarget: e.target.value })}
+                                            style={{ width: '100%', boxSizing: 'border-box', padding: '5px 8px', borderRadius: '2px', border: '1px solid #A78BFA', fontSize: '12px', background: '#FFFFFF' }}
+                                        />
+                                    </div>
+                                    <div>
+                                        <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: '#4C1D95', marginBottom: '3px' }}>Phone / WhatsApp</label>
+                                        <input
+                                            type="text"
+                                            placeholder="0300-1234567"
+                                            value={formData.phone}
+                                            onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                                            style={{ width: '100%', boxSizing: 'border-box', padding: '5px 8px', borderRadius: '2px', border: '1px solid #A78BFA', fontSize: '12px', background: '#FFFFFF' }}
+                                        />
+                                    </div>
+                                </div>
+                            </fieldset>
+                        )}
 
                         {/* Territory / Regional Jurisdiction Scope */}
                         <fieldset style={{ border: '1px solid #C5C0B8', borderRadius: '4px', padding: '10px 14px', marginBottom: '12px', backgroundColor: '#F4F2E8' }}>
@@ -528,14 +600,37 @@ const EditPermissionsModal = ({ adminUser, onClose, onSuccess }) => {
         ...(adminUser.permissions || {})
     });
     const [status, setStatus] = useState(adminUser.status || 'active');
+    const [roleType, setRoleType] = useState(
+        adminUser.roleType ||
+        ((adminUser.roleTitle || '').toLowerCase().includes('bdo') ? 'bdo' : '')
+    );
     const [roleTitle, setRoleTitle] = useState(adminUser.roleTitle || '');
+    const [phone, setPhone] = useState(adminUser.phone || '');
+    const [monthlyTrialTarget, setMonthlyTrialTarget] = useState(adminUser.monthlyTrialTarget ?? 10);
+    const [monthlyOnboardTarget, setMonthlyOnboardTarget] = useState(adminUser.monthlyOnboardTarget ?? 5);
     const [territoryScope, setTerritoryScope] = useState(adminUser.territoryScope || 'all');
     const [territoryState, setTerritoryState] = useState(adminUser.territoryState || 'Punjab');
     const [territoryDistrict, setTerritoryDistrict] = useState(adminUser.territoryDistrict || '');
     const [territoryCity, setTerritoryCity] = useState(adminUser.territoryCity || '');
 
     const applyPreset = (presetType) => {
-        if (presetType === 'ops_manager') {
+        if (presetType === 'bdo') {
+            setRoleType('bdo');
+            setRoleTitle('BDO (Business Development Officer)');
+            if (territoryScope === 'all') setTerritoryScope('city');
+            setPermissions({
+                manageSchools: true,
+                deleteSchool: false,
+                manageBilling: false,
+                viewRevenue: false,
+                systemControl: true,
+                manageSettings: false,
+                broadcastAnnouncements: false,
+                resetCredentials: false,
+                manageAdmins: false
+            });
+        } else if (presetType === 'ops_manager') {
+            setRoleType('operations_manager');
             setRoleTitle('Operations Manager');
             if (territoryScope === 'all') setTerritoryScope('city');
             setPermissions({
@@ -550,6 +645,7 @@ const EditPermissionsModal = ({ adminUser, onClose, onSuccess }) => {
                 manageAdmins: false
             });
         } else if (presetType === 'accountant') {
+            setRoleType('accountant');
             setRoleTitle('Accountant / Finance');
             setTerritoryScope('all');
             setPermissions({
@@ -564,6 +660,7 @@ const EditPermissionsModal = ({ adminUser, onClose, onSuccess }) => {
                 manageAdmins: false
             });
         } else if (presetType === 'master') {
+            setRoleType('master_admin');
             setRoleTitle('Master Administrator');
             setTerritoryScope('all');
             setPermissions({
@@ -587,22 +684,31 @@ const EditPermissionsModal = ({ adminUser, onClose, onSuccess }) => {
         }));
     };
 
+    const isBdoEdit = roleType === 'bdo' || (roleTitle || '').toLowerCase().includes('bdo');
+
     const handleSave = async (e) => {
         e.preventDefault();
         setLoading(true);
         setError(null);
 
         try {
-            await updateDoc(doc(db, "global_users", adminUser.id), {
+            const updates = {
                 permissions,
                 status,
+                roleType: isBdoEdit ? 'bdo' : (roleType || 'custom'),
                 roleTitle,
+                phone: phone || '',
                 territoryScope,
                 territoryState: territoryScope !== 'all' ? territoryState : '',
                 territoryDistrict: (territoryScope === 'district' || territoryScope === 'city') ? territoryDistrict : '',
                 territoryCity: territoryScope === 'city' ? territoryCity : '',
                 updatedAt: serverTimestamp()
-            });
+            };
+            if (isBdoEdit) {
+                updates.monthlyTrialTarget = Number(monthlyTrialTarget) || 0;
+                updates.monthlyOnboardTarget = Number(monthlyOnboardTarget) || 0;
+            }
+            await updateDoc(doc(db, "global_users", adminUser.id), updates);
 
             onSuccess();
             onClose();
@@ -731,7 +837,15 @@ const EditPermissionsModal = ({ adminUser, onClose, onSuccess }) => {
                         {/* Quick Role Presets */}
                         <div style={{ marginBottom: '12px' }}>
                             <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: '#64748B', marginBottom: '4px', textTransform: 'uppercase' }}>Quick Role Presets</label>
-                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '6px' }}>
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '6px' }}>
+                                <button
+                                    type="button"
+                                    onClick={() => applyPreset('bdo')}
+                                    className="win-btn"
+                                    style={{ fontSize: '11px', padding: '5px 4px', justifyContent: 'center', backgroundColor: isBdoEdit ? '#F5F3FF' : '#FFFFFF', borderColor: isBdoEdit ? '#7C3AED' : '#CBD5E1', color: isBdoEdit ? '#6D28D9' : '#334155' }}
+                                >
+                                    📈 BDO (Sales)
+                                </button>
                                 <button
                                     type="button"
                                     onClick={() => applyPreset('ops_manager')}
@@ -758,6 +872,44 @@ const EditPermissionsModal = ({ adminUser, onClose, onSuccess }) => {
                                 </button>
                             </div>
                         </div>
+
+                        {isBdoEdit && (
+                            <fieldset style={{ border: '1px solid #C4B5FD', borderRadius: '4px', padding: '10px 14px', marginBottom: '12px', backgroundColor: '#F5F3FF' }}>
+                                <legend style={{ fontSize: '11px', fontWeight: '700', color: '#6D28D9', padding: '0 6px', textTransform: 'uppercase' }}>BDO Monthly Targets & Contact</legend>
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px' }}>
+                                    <div>
+                                        <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: '#4C1D95', marginBottom: '3px' }}>Monthly Trial Target</label>
+                                        <input
+                                            type="number"
+                                            min="0"
+                                            value={monthlyTrialTarget}
+                                            onChange={(e) => setMonthlyTrialTarget(e.target.value)}
+                                            style={{ width: '100%', boxSizing: 'border-box', padding: '5px 8px', borderRadius: '2px', border: '1px solid #A78BFA', fontSize: '12px', background: '#FFFFFF' }}
+                                        />
+                                    </div>
+                                    <div>
+                                        <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: '#4C1D95', marginBottom: '3px' }}>Monthly Onboard Target</label>
+                                        <input
+                                            type="number"
+                                            min="0"
+                                            value={monthlyOnboardTarget}
+                                            onChange={(e) => setMonthlyOnboardTarget(e.target.value)}
+                                            style={{ width: '100%', boxSizing: 'border-box', padding: '5px 8px', borderRadius: '2px', border: '1px solid #A78BFA', fontSize: '12px', background: '#FFFFFF' }}
+                                        />
+                                    </div>
+                                    <div>
+                                        <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: '#4C1D95', marginBottom: '3px' }}>Phone / WhatsApp</label>
+                                        <input
+                                            type="text"
+                                            placeholder="0300-1234567"
+                                            value={phone}
+                                            onChange={(e) => setPhone(e.target.value)}
+                                            style={{ width: '100%', boxSizing: 'border-box', padding: '5px 8px', borderRadius: '2px', border: '1px solid #A78BFA', fontSize: '12px', background: '#FFFFFF' }}
+                                        />
+                                    </div>
+                                </div>
+                            </fieldset>
+                        )}
 
                         {/* Role Title / Designation */}
                         <div style={{ marginBottom: '12px' }}>
@@ -1201,17 +1353,37 @@ const Admins = () => {
 
                                     {/* Role & Territory Badges */}
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', marginBottom: '10px' }}>
-                                        <span style={{
-                                            padding: '2px 8px',
-                                            borderRadius: '3px',
-                                            fontSize: '11px',
-                                            fontWeight: '700',
-                                            backgroundColor: isMaster ? '#EFF6FF' : (adminUser.roleTitle?.includes('Accountant') ? '#FEF3C7' : '#F0FDF4'),
-                                            color: isMaster ? '#1D4ED8' : (adminUser.roleTitle?.includes('Accountant') ? '#92400E' : '#166534'),
-                                            border: isMaster ? '1px solid #BFDBFE' : (adminUser.roleTitle?.includes('Accountant') ? '1px solid #FDE68A' : '1px solid #BBF7D0')
-                                        }}>
-                                            {adminUser.roleTitle || (isMaster ? '⭐ Master Administrator' : 'Office Staff Operator')}
-                                        </span>
+                                        {(() => {
+                                            const isBdoCard = adminUser.roleType === 'bdo' || (adminUser.roleTitle || '').toLowerCase().includes('bdo');
+                                            return (
+                                                <>
+                                                    <span style={{
+                                                        padding: '2px 8px',
+                                                        borderRadius: '3px',
+                                                        fontSize: '11px',
+                                                        fontWeight: '700',
+                                                        backgroundColor: isMaster ? '#EFF6FF' : (isBdoCard ? '#F5F3FF' : (adminUser.roleTitle?.includes('Accountant') ? '#FEF3C7' : '#F0FDF4')),
+                                                        color: isMaster ? '#1D4ED8' : (isBdoCard ? '#6D28D9' : (adminUser.roleTitle?.includes('Accountant') ? '#92400E' : '#166534')),
+                                                        border: isMaster ? '1px solid #BFDBFE' : (isBdoCard ? '1px solid #DDD6FE' : (adminUser.roleTitle?.includes('Accountant') ? '1px solid #FDE68A' : '1px solid #BBF7D0'))
+                                                    }}>
+                                                        {isBdoCard ? `📈 ${adminUser.roleTitle || 'BDO'}` : (adminUser.roleTitle || (isMaster ? '⭐ Master Administrator' : 'Office Staff Operator'))}
+                                                    </span>
+                                                    {isBdoCard && (
+                                                        <span style={{
+                                                            padding: '2px 8px',
+                                                            borderRadius: '3px',
+                                                            fontSize: '10.5px',
+                                                            fontWeight: '700',
+                                                            backgroundColor: '#FFFBEB',
+                                                            color: '#92400E',
+                                                            border: '1px solid #FDE68A'
+                                                        }}>
+                                                            🎯 Target: {adminUser.monthlyTrialTarget ?? 10} Trials / {adminUser.monthlyOnboardTarget ?? 5} Onboard
+                                                        </span>
+                                                    )}
+                                                </>
+                                            );
+                                        })()}
 
                                         <span style={{
                                             padding: '2px 8px',

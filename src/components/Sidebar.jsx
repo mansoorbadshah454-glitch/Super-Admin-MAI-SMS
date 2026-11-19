@@ -1,5 +1,5 @@
 import React from 'react';
-import { LayoutDashboard, School, Settings, LogOut, Shield, ShieldCheck, CreditCard, Laptop } from 'lucide-react';
+import { LayoutDashboard, School, Settings, LogOut, Shield, ShieldCheck, CreditCard, Laptop, Briefcase } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import { signOut } from 'firebase/auth';
 import { auth } from '../firebase';
@@ -8,19 +8,26 @@ import maiLogo from '../assets/mai-official-logo.jpg';
 
 const Sidebar = () => {
     const location = useLocation();
-    const { adminProfile, hasPermission, isMasterAdmin } = useAdminAuth();
+    const { adminProfile, hasPermission, isMasterAdmin, isBdo } = useAdminAuth();
 
     const displayRole = adminProfile?.roleTitle || 
         (isMasterAdmin ? 'Master Administrator' : 
-            (adminProfile?.role === 'super-admin' ? 'Super Admin' : (adminProfile?.role || 'Administrator')));
+            (isBdo ? 'BDO (Business Development)' :
+                (adminProfile?.role === 'super-admin' ? 'Super Admin' : (adminProfile?.role || 'Administrator'))));
 
-    const menuItems = [
-        { icon: LayoutDashboard, label: 'Dashboard', path: '/' },
-        { icon: School, label: 'Schools', path: '/schools' },
-        { icon: CreditCard, label: 'Billing & Subscriptions', path: '/billing-subscriptions', permission: 'manageBilling' },
-        { icon: ShieldCheck, label: 'Admins', path: '/admins', permission: 'manageAdmins' },
-        { icon: Settings, label: 'Settings', path: '/settings', permission: 'manageSettings' },
-    ];
+    const menuItems = isBdo
+        ? [
+            { icon: LayoutDashboard, label: 'My Dashboard', path: '/' },
+            { icon: School, label: 'My Schools', path: '/schools' },
+        ]
+        : [
+            { icon: LayoutDashboard, label: 'Dashboard', path: '/' },
+            { icon: School, label: 'Schools', path: '/schools' },
+            { icon: Briefcase, label: 'BDO', path: '/bdo', permission: 'manageAdmins' },
+            { icon: CreditCard, label: 'Billing & Subscriptions', path: '/billing-subscriptions', permission: 'manageBilling' },
+            { icon: ShieldCheck, label: 'Admins', path: '/admins', permission: 'manageAdmins' },
+            { icon: Settings, label: 'Settings', path: '/settings', permission: 'manageSettings' },
+        ];
 
     const handleLogout = async () => {
         try {

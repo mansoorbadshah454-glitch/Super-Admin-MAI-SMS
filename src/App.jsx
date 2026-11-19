@@ -2,6 +2,8 @@ import React from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import DashboardLayout from './layouts/DashboardLayout';
 import Dashboard from './pages/Dashboard';
+import BdoDashboard from './pages/BdoDashboard';
+import BdoManagement from './pages/BdoManagement';
 import Schools from './pages/Schools';
 import SchoolDetail from './pages/SchoolDetail';
 import Admins from './pages/Admins';
@@ -9,7 +11,18 @@ import Settings from './pages/Settings';
 import BillingSubscriptions from './pages/BillingSubscriptions';
 import Login from './pages/Login';
 import AuthGuard from './components/AuthGuard';
-import { AdminAuthProvider } from './contexts/AdminAuthContext';
+import { AdminAuthProvider, useAdminAuth } from './contexts/AdminAuthContext';
+
+const RoleAwareDashboard = () => {
+  const { isBdo } = useAdminAuth();
+  return isBdo ? <BdoDashboard /> : <Dashboard />;
+};
+
+const NonBdoRoute = ({ children }) => {
+  const { isBdo } = useAdminAuth();
+  if (isBdo) return <Navigate to="/" replace />;
+  return children;
+};
 
 function App() {
   return (
@@ -19,13 +32,14 @@ function App() {
 
         <Route element={<AuthGuard />}>
           <Route path="/" element={<DashboardLayout />}>
-            <Route index element={<Dashboard />} />
+            <Route index element={<RoleAwareDashboard />} />
             <Route path="schools" element={<Schools />} />
             <Route path="schools/:id" element={<SchoolDetail />} />
-            <Route path="billing-subscriptions" element={<BillingSubscriptions />} />
-            <Route path="admins" element={<Admins />} />
+            <Route path="bdo" element={<NonBdoRoute><BdoManagement /></NonBdoRoute>} />
+            <Route path="billing-subscriptions" element={<NonBdoRoute><BillingSubscriptions /></NonBdoRoute>} />
+            <Route path="admins" element={<NonBdoRoute><Admins /></NonBdoRoute>} />
             <Route path="users" element={<Navigate to="/admins" replace />} />
-            <Route path="settings" element={<Settings />} />
+            <Route path="settings" element={<NonBdoRoute><Settings /></NonBdoRoute>} />
           </Route>
         </Route>
       </Routes>
