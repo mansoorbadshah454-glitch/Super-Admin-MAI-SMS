@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
     ChevronLeft, School, User, Mail, Shield,
@@ -14,6 +15,7 @@ import { db } from '../firebase';
 import { doc, onSnapshot, updateDoc, getDoc, collection, getCountFromServer, setDoc } from 'firebase/firestore';
 import { useAdminAuth } from '../contexts/AdminAuthContext';
 import InlineEditSchool from '../components/InlineEditSchool';
+import maiLogo from '../assets/mai-official-logo.jpg';
 
 const SchoolDetail = () => {
     const { id } = useParams();
@@ -1353,20 +1355,23 @@ const SchoolDetail = () => {
             </div>
 
             {/* Quick Edit & Reset Password Modal */}
-            {showEditModal && (
+            {showEditModal && createPortal(
                 <div style={{
                     position: 'fixed',
                     top: 0,
                     left: 0,
                     right: 0,
                     bottom: 0,
-                    backgroundColor: 'rgba(15, 23, 42, 0.6)',
+                    width: '100vw',
+                    height: '100vh',
+                    backgroundColor: 'rgba(15, 23, 42, 0.65)',
                     backdropFilter: 'blur(4px)',
-                    zIndex: 9999,
+                    zIndex: 9999999,
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    padding: '16px'
+                    padding: '16px',
+                    boxSizing: 'border-box'
                 }}>
                     <div style={{ width: '100%', maxWidth: '640px', background: '#FFFFFF', borderRadius: '12px', overflow: 'hidden', boxShadow: '0 20px 40px rgba(0,0,0,0.4)' }}>
                         <InlineEditSchool
@@ -1378,24 +1383,28 @@ const SchoolDetail = () => {
                             }}
                         />
                     </div>
-                </div>
+                </div>,
+                document.body
             )}
 
             {/* Record Payment Modal */}
-            {paymentModalMonth && (
+            {paymentModalMonth && createPortal(
                 <div style={{
                     position: 'fixed',
                     top: 0,
                     left: 0,
                     right: 0,
                     bottom: 0,
-                    backgroundColor: 'rgba(15, 23, 42, 0.65)',
-                    backdropFilter: 'blur(4px)',
-                    zIndex: 99999,
+                    width: '100vw',
+                    height: '100vh',
+                    backgroundColor: 'rgba(15, 23, 42, 0.7)',
+                    backdropFilter: 'blur(5px)',
+                    zIndex: 9999999,
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    padding: '16px'
+                    padding: '16px',
+                    boxSizing: 'border-box'
                 }}>
                     <div style={{
                         width: '100%',
@@ -1544,25 +1553,29 @@ const SchoolDetail = () => {
                             </div>
                         </form>
                     </div>
-                </div>
+                </div>,
+                document.body
             )}
 
             {/* View & Print Payment Voucher Modal */}
-            {viewVoucherData && (
+            {viewVoucherData && createPortal(
                 <div style={{
                     position: 'fixed',
                     top: 0,
                     left: 0,
                     right: 0,
                     bottom: 0,
+                    width: '100vw',
+                    height: '100vh',
                     backgroundColor: 'rgba(15, 23, 42, 0.75)',
                     backdropFilter: 'blur(5px)',
-                    zIndex: 999999,
+                    zIndex: 9999999,
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
                     padding: '16px',
-                    overflowY: 'auto'
+                    overflowY: 'auto',
+                    boxSizing: 'border-box'
                 }}>
                     <div style={{
                         width: '100%',
@@ -1616,23 +1629,22 @@ const SchoolDetail = () => {
                             {/* Voucher Header with MAI Tech Branding */}
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '2.5px solid #1E3A8A', paddingBottom: '18px', marginBottom: '22px' }}>
                                 <div style={{ display: 'flex', gap: '14px', alignItems: 'center' }}>
-                                    {/* MAI Tech Logo Box */}
-                                    <div style={{
-                                        width: '56px',
-                                        height: '56px',
-                                        borderRadius: '10px',
-                                        background: 'linear-gradient(135deg, #1E3A8A 0%, #0F172A 100%)',
-                                        display: 'flex',
-                                        flexDirection: 'column',
-                                        alignItems: 'center',
-                                        justifyContent: 'center',
-                                        color: '#F8FAFC',
-                                        boxShadow: '0 4px 10px rgba(30, 58, 138, 0.35)',
-                                        border: '1.5px solid #3B82F6'
-                                    }}>
-                                        <span style={{ fontSize: '15px', fontWeight: '900', letterSpacing: '1px', color: '#FCD34D' }}>MAI</span>
-                                        <span style={{ fontSize: '8.5px', fontWeight: '800', letterSpacing: '0.5px', textTransform: 'uppercase' }}>TECH</span>
-                                    </div>
+                                    {/* MAI Tech Official Logo (Image 3) */}
+                                    <img
+                                        src={maiLogo}
+                                        alt="MAI Tech Solutions Logo"
+                                        style={{
+                                            width: '68px',
+                                            height: '68px',
+                                            objectFit: 'contain',
+                                            borderRadius: '10px',
+                                            border: '1.5px solid #CBD5E1',
+                                            backgroundColor: '#FFFFFF',
+                                            padding: '4px',
+                                            boxShadow: '0 3px 10px rgba(30, 58, 138, 0.12)',
+                                            flexShrink: 0
+                                        }}
+                                    />
                                     <div>
                                         <div style={{ fontSize: '20px', fontWeight: '900', color: '#0F172A', letterSpacing: '-0.3px' }}>
                                             MAI TECH SOLUTIONS
@@ -1786,7 +1798,8 @@ const SchoolDetail = () => {
                             </div>
                         </div>
                     </div>
-                </div>
+                </div>,
+                document.body
             )}
         </div>
     );

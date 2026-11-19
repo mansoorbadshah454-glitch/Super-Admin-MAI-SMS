@@ -4,10 +4,15 @@ import { Link, useLocation } from 'react-router-dom';
 import { signOut } from 'firebase/auth';
 import { auth } from '../firebase';
 import { useAdminAuth } from '../contexts/AdminAuthContext';
+import maiLogo from '../assets/mai-official-logo.jpg';
 
 const Sidebar = () => {
     const location = useLocation();
     const { adminProfile, hasPermission, isMasterAdmin } = useAdminAuth();
+
+    const displayRole = adminProfile?.roleTitle || 
+        (isMasterAdmin ? 'Master Administrator' : 
+            (adminProfile?.role === 'super-admin' ? 'Super Admin' : (adminProfile?.role || 'Administrator')));
 
     const menuItems = [
         { icon: LayoutDashboard, label: 'Dashboard', path: '/' },
@@ -59,27 +64,38 @@ const Sidebar = () => {
                     gap: '12px'
                 }}
             >
-                <div
+                <img
+                    src={maiLogo}
+                    alt="MAI Tech Logo"
                     style={{
                         width: '38px',
                         height: '38px',
-                        borderRadius: '6px',
-                        background: 'linear-gradient(135deg, #2563EB, #1D4ED8)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        boxShadow: '0 2px 4px rgba(37, 99, 235, 0.3)',
+                        borderRadius: '8px',
+                        objectFit: 'contain',
+                        border: '1.5px solid #CBD5E1',
+                        backgroundColor: '#FFFFFF',
+                        padding: '2px',
+                        boxShadow: '0 2px 6px rgba(37, 99, 235, 0.15)',
                         flexShrink: 0
                     }}
-                >
-                    <Shield size={20} color="#FFFFFF" />
-                </div>
-                <div>
+                />
+                <div style={{ minWidth: 0, overflow: 'hidden' }}>
                     <h1 style={{ margin: 0, fontSize: '15px', fontWeight: '800', color: '#0F172A', lineHeight: 1.2 }}>
-                        Admin<span style={{ color: '#2563EB' }}>Console</span>
+                        MAI <span style={{ color: '#2563EB' }}>Tech</span>
                     </h1>
-                    <span style={{ fontSize: '11px', color: '#64748B', fontWeight: '600' }}>
-                        Super Admin Suite
+                    <span
+                        style={{
+                            fontSize: '11px',
+                            color: '#64748B',
+                            fontWeight: '600',
+                            display: 'block',
+                            whiteSpace: 'nowrap',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis'
+                        }}
+                        title={displayRole}
+                    >
+                        {displayRole}
                     </span>
                 </div>
             </div>
