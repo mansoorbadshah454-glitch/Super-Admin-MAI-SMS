@@ -24,6 +24,14 @@ const NonBdoRoute = ({ children }) => {
   return children;
 };
 
+const BdoManageRoute = ({ children }) => {
+  const { isBdo, isMasterAdmin, hasPermission } = useAdminAuth();
+  if (isBdo || (!isMasterAdmin && !hasPermission('manageBdos'))) {
+    return <Navigate to="/" replace />;
+  }
+  return children;
+};
+
 function App() {
   return (
     <AdminAuthProvider>
@@ -35,7 +43,7 @@ function App() {
             <Route index element={<RoleAwareDashboard />} />
             <Route path="schools" element={<Schools />} />
             <Route path="schools/:id" element={<SchoolDetail />} />
-            <Route path="bdo" element={<NonBdoRoute><BdoManagement /></NonBdoRoute>} />
+            <Route path="bdo" element={<BdoManageRoute><BdoManagement /></BdoManageRoute>} />
             <Route path="billing-subscriptions" element={<NonBdoRoute><BillingSubscriptions /></NonBdoRoute>} />
             <Route path="admins" element={<NonBdoRoute><Admins /></NonBdoRoute>} />
             <Route path="users" element={<Navigate to="/admins" replace />} />

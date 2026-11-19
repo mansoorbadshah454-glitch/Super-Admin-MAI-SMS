@@ -111,6 +111,13 @@ const PERMISSION_CONFIG = [
         color: '#0284C7'
     },
     {
+        key: 'manageBdos',
+        label: 'Manage BDO Team & Performance',
+        desc: 'View BDO dashboard, create/suspend BDOs & track monthly targets in territory',
+        icon: Briefcase,
+        color: '#6D28D9'
+    },
+    {
         key: 'manageAdmins',
         label: 'Manage Office Admins',
         desc: 'Create and configure other office admin accounts',
@@ -145,6 +152,7 @@ const AddAdminModal = ({ onClose, onSuccess }) => {
             manageSettings: false,
             broadcastAnnouncements: true,
             resetCredentials: false,
+            manageBdos: true,
             manageAdmins: false
         }
     });
@@ -166,6 +174,7 @@ const AddAdminModal = ({ onClose, onSuccess }) => {
                     manageSettings: false,
                     broadcastAnnouncements: false,
                     resetCredentials: false,
+                    manageBdos: false,
                     manageAdmins: false
                 }
             }));
@@ -184,6 +193,7 @@ const AddAdminModal = ({ onClose, onSuccess }) => {
                     manageSettings: false,
                     broadcastAnnouncements: true,
                     resetCredentials: false,
+                    manageBdos: true,
                     manageAdmins: false
                 }
             }));
@@ -202,6 +212,7 @@ const AddAdminModal = ({ onClose, onSuccess }) => {
                     manageSettings: false,
                     broadcastAnnouncements: false,
                     resetCredentials: false,
+                    manageBdos: false,
                     manageAdmins: false
                 }
             }));
@@ -220,6 +231,7 @@ const AddAdminModal = ({ onClose, onSuccess }) => {
                     manageSettings: true,
                     broadcastAnnouncements: true,
                     resetCredentials: true,
+                    manageBdos: true,
                     manageAdmins: true
                 }
             }));
@@ -596,6 +608,7 @@ const EditPermissionsModal = ({ adminUser, onClose, onSuccess }) => {
         manageSettings: false,
         broadcastAnnouncements: false,
         resetCredentials: false,
+        manageBdos: false,
         manageAdmins: false,
         ...(adminUser.permissions || {})
     });
@@ -627,6 +640,7 @@ const EditPermissionsModal = ({ adminUser, onClose, onSuccess }) => {
                 manageSettings: false,
                 broadcastAnnouncements: false,
                 resetCredentials: false,
+                manageBdos: false,
                 manageAdmins: false
             });
         } else if (presetType === 'ops_manager') {
@@ -642,6 +656,7 @@ const EditPermissionsModal = ({ adminUser, onClose, onSuccess }) => {
                 manageSettings: false,
                 broadcastAnnouncements: false,
                 resetCredentials: false,
+                manageBdos: true,
                 manageAdmins: false
             });
         } else if (presetType === 'accountant') {
@@ -657,6 +672,7 @@ const EditPermissionsModal = ({ adminUser, onClose, onSuccess }) => {
                 manageSettings: false,
                 broadcastAnnouncements: false,
                 resetCredentials: false,
+                manageBdos: false,
                 manageAdmins: false
             });
         } else if (presetType === 'master') {
@@ -672,6 +688,7 @@ const EditPermissionsModal = ({ adminUser, onClose, onSuccess }) => {
                 manageSettings: true,
                 broadcastAnnouncements: true,
                 resetCredentials: true,
+                manageBdos: true,
                 manageAdmins: true
             });
         }

@@ -4,12 +4,24 @@ import { useNavigate } from 'react-router-dom';
 import {
     Briefcase, Users, TrendingUp, Award, Clock, CheckCircle, Search,
     Download, Calendar, Target, Eye, Edit2, X, Save, Loader2, MapPin,
-    ExternalLink, AlertTriangle, UserPlus, Link2, Phone, Mail, School
+    ExternalLink, AlertTriangle, UserPlus, Link2, Phone, Mail, School, Power
 } from 'lucide-react';
-import { db } from '../firebase';
+import { db, functions } from '../firebase';
 import { collection, onSnapshot, doc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { httpsCallable } from 'firebase/functions';
 import { calculateTrialDays } from '../utils/dateUtils';
 import { useAlert } from '../contexts/AlertContext';
+import { useAdminAuth } from '../contexts/AdminAuthContext';
+
+const PROVINCES_LIST = [
+    "Punjab",
+    "Sindh",
+    "Khyber Pakhtunkhwa",
+    "Balochistan",
+    "Islamabad (ICT)",
+    "Azad Jammu & Kashmir",
+    "Gilgit-Baltistan"
+];
 
 const toDateSafe = (val) => {
     if (!val) return null;
@@ -49,10 +61,15 @@ const isBdoDoc = (u) => {
 
 const BdoManagement = () => {
     const navigate = useNavigate();
-    const { showAlert } = useAlert();
+    const { showAlert, showConfirm } = useAlert();
+    const { adminProfile, isMasterAdmin, isBdoInTerritory, isSchoolInTerritory, user } = useAdminAuth();
 
-    const [bdos, setBdos] = useState([]);
-    const [schools, setSchools] = useState([]);
+    const isRestrictedState = !isMasterAdmin && adminProfile?.territoryScope && adminProfile.territoryScope !== 'all' && Boolean(adminProfile.territoryState);
+    const isRestrictedDistrict = !isMasterAdmin && (adminProfile?.territoryScope === 'district' || adminProfile?.territoryScope === 'city') && Boolean(adminProfile.territoryDistrict);
+    const isRestrictedCity = !isMasterAdmin && adminProfile?.territoryScope === 'city' && Boolean(adminProfile.territoryCity);
+
+    const [allBdos, setAllBdos] = useState([]);
+    const [allSchools, setAllSchools] = useState([]);
     const [loading, setLoading] = useState(true);
 
     const [selectedMonth, setSelectedMonth] = useState(getCurrentMonthKey());
@@ -70,6 +87,126 @@ const BdoManagement = () => {
     const [assignBdoId, setAssignBdoId] = useState('');
     const [assigning, setAssigning] = useState(false);
 
+    // Create BDO Modal (available to Master Admin & Operations Manager directly inside BDO tab)
+    const [showCreateBdoModal, setShowCreateBdoModal] = useState(false);
+    const [creatingBdo, setCreatingBdo] = useState(false);
+    const [createBdoError, setCreateBdoError] = useState(null);
+    const [newBdoForm, setNewBdoForm] = useState({
+        name: '',
+        email: '',
+        password: '',
+        phone: '',
+        monthlyTrialTarget: 10,
+        monthlyOnboardTarget: 5,
+        territoryScope: 'city',
+        territoryState: 'Punjab',
+        territoryDistrict: '',
+        territoryCity: ''
+    });
+
+    const handleOpenCreateBdo = () => {
+        setCreateBdoError(null);
+        setNewBdoForm({
+            name: '',
+            email: '',
+            password: '',
+            phone: '',
+            monthlyTrialTarget: 10,
+            monthlyOnboardTarget: 5,
+            territoryScope: (!isMasterAdmin && adminProfile?.territoryScope && adminProfile.territoryScope !== 'all')
+                ? adminProfile.territoryScope
+                : 'city',
+            territoryState: isRestrictedState ? adminProfile.territoryState : 'Punjab',
+            territoryDistrict: isRestrictedDistrict ? adminProfile.territoryDistrict : '',
+            territoryCity: isRestrictedCity ? adminProfile.territoryCity : ''
+        });
+        setShowCreateBdoModal(true);
+    };
+
+    const handleCreateBdoSubmit = async (e) => {
+        e.preventDefault();
+        setCreatingBdo(true);
+        setCreateBdoError(null);
+
+        try {
+            const bdoPermissions = {
+                manageSchools: true,
+                deleteSchool: false,
+                manageBilling: false,
+                viewRevenue: false,
+                systemControl: true,
+                manageSettings: false,
+                broadcastAnnouncements: false,
+                resetCredentials: false,
+                manageBdos: false,
+                manageAdmins: false
+            };
+
+            const createSuperAdmin = httpsCallable(functions, 'createSuperAdmin');
+            const res = await createSuperAdmin({
+                name: newBdoForm.name.trim(),
+                email: newBdoForm.email.trim(),
+                password: newBdoForm.password,
+                permissions: bdoPermissions
+            });
+
+            const newUid = res?.data?.uid;
+            if (newUid) {
+                const effScope = newBdoForm.territoryScope || 'city';
+                await updateDoc(doc(db, 'global_users', newUid), {
+                    roleType: 'bdo',
+                    roleTitle: 'BDO (Business Development Officer)',
+                    phone: newBdoForm.phone.trim(),
+                    monthlyTrialTarget: Number(newBdoForm.monthlyTrialTarget) || 0,
+                    monthlyOnboardTarget: Number(newBdoForm.monthlyOnboardTarget) || 0,
+                    territoryScope: effScope,
+                    territoryState: effScope !== 'all' ? newBdoForm.territoryState : '',
+                    territoryDistrict: (effScope === 'district' || effScope === 'city') ? newBdoForm.territoryDistrict.trim() : '',
+                    territoryCity: effScope === 'city' ? newBdoForm.territoryCity.trim() : '',
+                    createdByUid: adminProfile?.id || user?.uid || '',
+                    createdByName: adminProfile?.name || user?.displayName || '',
+                    updatedAt: serverTimestamp()
+                });
+            }
+
+            showAlert({ title: 'BDO Created', message: `BDO account for ${newBdoForm.name} created successfully.`, type: 'success' });
+            setShowCreateBdoModal(false);
+        } catch (err) {
+            console.error('Create BDO error:', err);
+            setCreateBdoError(err.message || 'Failed to create BDO account.');
+        } finally {
+            setCreatingBdo(false);
+        }
+    };
+
+    const handleToggleBdoStatus = (bdo) => {
+        const isDisabled = bdo.status === 'disabled';
+        const nextStatus = isDisabled ? 'active' : 'disabled';
+        showConfirm({
+            title: isDisabled ? 'Activate BDO Account?' : 'Suspend BDO Account?',
+            message: isDisabled
+                ? `Re-enable access for ${bdo.name} (${bdo.email})? They will be able to log in and manage their schools again.`
+                : `Suspend ${bdo.name} (${bdo.email})? They will be blocked from logging into their BDO account until reactivated.`,
+            confirmText: isDisabled ? 'Activate BDO' : 'Suspend BDO',
+            isDestructive: !isDisabled,
+            onConfirm: async () => {
+                try {
+                    await updateDoc(doc(db, 'global_users', bdo.id), {
+                        status: nextStatus,
+                        updatedAt: serverTimestamp()
+                    });
+                    showAlert({
+                        title: isDisabled ? 'BDO Activated' : 'BDO Suspended',
+                        message: `${bdo.name} is now ${nextStatus}.`,
+                        type: 'success'
+                    });
+                } catch (err) {
+                    showAlert({ title: 'Error', message: 'Failed to update status: ' + err.message, type: 'error' });
+                }
+            }
+        });
+    };
+
     useEffect(() => {
         let usersLoaded = false;
         let schoolsLoaded = false;
@@ -83,7 +220,7 @@ const BdoManagement = () => {
                 }
             });
             list.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
-            setBdos(list);
+            setAllBdos(list);
             usersLoaded = true;
             if (usersLoaded && schoolsLoaded) setLoading(false);
         }, (err) => {
@@ -104,7 +241,7 @@ const BdoManagement = () => {
                 );
                 list.push({ id: d.id, ...data, trialInfo });
             });
-            setSchools(list);
+            setAllSchools(list);
             schoolsLoaded = true;
             if (usersLoaded && schoolsLoaded) setLoading(false);
         }, (err) => {
@@ -117,6 +254,16 @@ const BdoManagement = () => {
             unsubSchools();
         };
     }, []);
+
+    // Scope BDOs and Schools to the logged-in Operations Manager's territory (Master Admin sees all)
+    const bdos = useMemo(
+        () => allBdos.filter((b) => isBdoInTerritory(b, adminProfile)),
+        [allBdos, adminProfile, isBdoInTerritory]
+    );
+    const schools = useMemo(
+        () => allSchools.filter((s) => isSchoolInTerritory(s, adminProfile)),
+        [allSchools, adminProfile, isSchoolInTerritory]
+    );
 
     // Compute per-BDO performance metrics
     const bdoMetrics = useMemo(() => {
@@ -362,9 +509,18 @@ const BdoManagement = () => {
             {/* Header */}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.25rem', flexWrap: 'wrap', gap: '12px' }}>
                 <div>
-                    <h2 style={{ fontSize: '1.6rem', fontWeight: '800', color: '#0F172A', margin: 0, display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <h2 style={{ fontSize: '1.6rem', fontWeight: '800', color: '#0F172A', margin: 0, display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
                         <Briefcase size={24} color="#7C3AED" />
                         BDO Performance & Sales Dashboard
+                        {!isMasterAdmin && adminProfile?.territoryScope && adminProfile.territoryScope !== 'all' && (
+                            <span style={{
+                                padding: '2px 9px', borderRadius: '4px', fontSize: '11.5px', fontWeight: '700',
+                                backgroundColor: '#EFF6FF', color: '#1D4ED8', border: '1px solid #BFDBFE',
+                                display: 'inline-flex', alignItems: 'center', gap: '4px'
+                            }}>
+                                <MapPin size={12} /> {[adminProfile.territoryCity, adminProfile.territoryDistrict, adminProfile.territoryState].filter(Boolean).join(', ')}
+                            </span>
+                        )}
                     </h2>
                     <p style={{ color: '#64748B', fontSize: '0.85rem', margin: '3px 0 0 0' }}>
                         Track Business Development Officers, monthly school trials, onboardings, targets, and conversion rates.
@@ -378,7 +534,7 @@ const BdoManagement = () => {
                     <button onClick={handleExportCSV} className="bdo-btn" disabled={filteredMetrics.length === 0}>
                         <Download size={14} color="#059669" /> Export CSV
                     </button>
-                    <button onClick={() => navigate('/admins')} className="bdo-btn bdo-btn-primary">
+                    <button onClick={handleOpenCreateBdo} className="bdo-btn bdo-btn-primary">
                         <UserPlus size={14} /> Add New BDO
                     </button>
                 </div>
@@ -532,12 +688,12 @@ const BdoManagement = () => {
                         </h3>
                         <p style={{ margin: '0 0 14px 0', fontSize: '12.5px', color: '#64748B' }}>
                             {bdos.length === 0
-                                ? 'Go to Admins → Add New Admin and select the "BDO (Sales / Growth)" role preset to create your first BDO.'
+                                ? 'Click below to create your first BDO account and start tracking monthly trials and onboardings.'
                                 : 'Try clearing your search or changing the status filter.'}
                         </p>
                         {bdos.length === 0 && (
-                            <button onClick={() => navigate('/admins')} className="bdo-btn bdo-btn-primary">
-                                <UserPlus size={14} /> Create First BDO in Admins
+                            <button onClick={handleOpenCreateBdo} className="bdo-btn bdo-btn-primary">
+                                <UserPlus size={14} /> Create First BDO
                             </button>
                         )}
                     </div>
@@ -584,6 +740,11 @@ const BdoManagement = () => {
                                                         {m.bdo.phone && (
                                                             <div style={{ fontSize: '10.5px', color: '#475569', display: 'flex', alignItems: 'center', gap: '3px' }}>
                                                                 <Phone size={10} /> {m.bdo.phone}
+                                                            </div>
+                                                        )}
+                                                        {m.bdo.createdByName && (
+                                                            <div style={{ fontSize: '10px', color: '#7C3AED', fontWeight: '600' }}>
+                                                                Added by: {m.bdo.createdByName}
                                                             </div>
                                                         )}
                                                     </div>
@@ -678,6 +839,20 @@ const BdoManagement = () => {
                                                         title="Edit Monthly Targets"
                                                     >
                                                         <Target size={12} color="#7C3AED" /> Targets
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => handleToggleBdoStatus(m.bdo)}
+                                                        className="bdo-btn"
+                                                        style={{
+                                                            padding: '4px 8px', fontSize: '11.5px',
+                                                            color: isDisabled ? '#15803D' : '#DC2626',
+                                                            borderColor: isDisabled ? '#BBF7D0' : '#FECACA',
+                                                            backgroundColor: isDisabled ? '#F0FDF4' : '#FEF2F2'
+                                                        }}
+                                                        title={isDisabled ? 'Activate BDO' : 'Suspend BDO'}
+                                                    >
+                                                        <Power size={12} /> {isDisabled ? 'Activate' : 'Suspend'}
                                                     </button>
                                                     <button
                                                         type="button"
@@ -914,6 +1089,199 @@ const BdoManagement = () => {
                                 <button type="button" onClick={() => setShowAssignModal(false)} className="bdo-btn" disabled={assigning}>Cancel</button>
                                 <button type="submit" className="bdo-btn bdo-btn-primary" disabled={assigning}>
                                     {assigning ? <Loader2 size={14} className="animate-spin" /> : <Link2 size={14} />} Assign School
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>,
+                document.body
+            )}
+            {/* Create New BDO Modal (Direct from BDO tab for Master Admin & Operations Manager) */}
+            {showCreateBdoModal && createPortal(
+                <div
+                    onClick={() => !creatingBdo && setShowCreateBdoModal(false)}
+                    style={{
+                        position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(4px)',
+                        zIndex: 999999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px', fontFamily
+                    }}
+                >
+                    <div
+                        onClick={(e) => e.stopPropagation()}
+                        style={{
+                            width: '100%', maxWidth: '520px', maxHeight: '90vh', backgroundColor: '#FFFFFF',
+                            border: '2px solid #7C3AED', borderRadius: '8px', display: 'flex', flexDirection: 'column', overflow: 'hidden',
+                            boxShadow: '0 25px 50px rgba(0,0,0,0.45)'
+                        }}
+                    >
+                        <div style={{ padding: '12px 16px', background: 'linear-gradient(180deg, #7C3AED 0%, #6D28D9 100%)', color: '#FFFFFF', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <span style={{ fontWeight: '800', fontSize: '13.5px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <UserPlus size={16} /> Create New BDO Account
+                            </span>
+                            <button onClick={() => !creatingBdo && setShowCreateBdoModal(false)} style={{ background: 'transparent', border: 'none', color: '#FFFFFF', cursor: 'pointer' }}>
+                                <X size={16} />
+                            </button>
+                        </div>
+
+                        <form onSubmit={handleCreateBdoSubmit} style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+                            <div style={{ padding: '16px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                                {createBdoError && (
+                                    <div style={{ padding: '8px 12px', borderRadius: '4px', backgroundColor: '#FEF2F2', border: '1px solid #FCA5A5', color: '#991B1B', fontSize: '12px' }}>
+                                        {createBdoError}
+                                    </div>
+                                )}
+
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                                    <div>
+                                        <label style={{ display: 'block', fontSize: '11.5px', fontWeight: '700', color: '#334155', marginBottom: '4px' }}>Full Name *</label>
+                                        <input
+                                            type="text"
+                                            required
+                                            placeholder="e.g. Bilal Ahmed"
+                                            value={newBdoForm.name}
+                                            onChange={(e) => setNewBdoForm({ ...newBdoForm, name: e.target.value })}
+                                            style={{ width: '100%', boxSizing: 'border-box', padding: '7px 10px', borderRadius: '4px', border: '1px solid #CBD5E1', fontSize: '12.5px' }}
+                                        />
+                                    </div>
+                                    <div>
+                                        <label style={{ display: 'block', fontSize: '11.5px', fontWeight: '700', color: '#334155', marginBottom: '4px' }}>Phone / WhatsApp</label>
+                                        <input
+                                            type="text"
+                                            placeholder="0300-1234567"
+                                            value={newBdoForm.phone}
+                                            onChange={(e) => setNewBdoForm({ ...newBdoForm, phone: e.target.value })}
+                                            style={{ width: '100%', boxSizing: 'border-box', padding: '7px 10px', borderRadius: '4px', border: '1px solid #CBD5E1', fontSize: '12.5px' }}
+                                        />
+                                    </div>
+                                </div>
+
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                                    <div>
+                                        <label style={{ display: 'block', fontSize: '11.5px', fontWeight: '700', color: '#334155', marginBottom: '4px' }}>Email Address *</label>
+                                        <input
+                                            type="email"
+                                            required
+                                            placeholder="bdo@school.com"
+                                            value={newBdoForm.email}
+                                            onChange={(e) => setNewBdoForm({ ...newBdoForm, email: e.target.value })}
+                                            style={{ width: '100%', boxSizing: 'border-box', padding: '7px 10px', borderRadius: '4px', border: '1px solid #CBD5E1', fontSize: '12.5px' }}
+                                        />
+                                    </div>
+                                    <div>
+                                        <label style={{ display: 'block', fontSize: '11.5px', fontWeight: '700', color: '#334155', marginBottom: '4px' }}>Login Password *</label>
+                                        <input
+                                            type="password"
+                                            required
+                                            minLength={6}
+                                            placeholder="Min. 6 characters"
+                                            value={newBdoForm.password}
+                                            onChange={(e) => setNewBdoForm({ ...newBdoForm, password: e.target.value })}
+                                            style={{ width: '100%', boxSizing: 'border-box', padding: '7px 10px', borderRadius: '4px', border: '1px solid #CBD5E1', fontSize: '12.5px' }}
+                                        />
+                                    </div>
+                                </div>
+
+                                {/* Monthly Targets */}
+                                <div style={{ backgroundColor: '#F5F3FF', border: '1px solid #DDD6FE', borderRadius: '6px', padding: '10px 12px' }}>
+                                    <div style={{ fontSize: '11px', fontWeight: '700', color: '#6D28D9', textTransform: 'uppercase', marginBottom: '8px' }}>Monthly Performance Targets</div>
+                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                                        <div>
+                                            <label style={{ display: 'block', fontSize: '11.5px', fontWeight: '700', color: '#4C1D95', marginBottom: '3px' }}>Monthly Trial Target</label>
+                                            <input
+                                                type="number"
+                                                min="0"
+                                                value={newBdoForm.monthlyTrialTarget}
+                                                onChange={(e) => setNewBdoForm({ ...newBdoForm, monthlyTrialTarget: e.target.value })}
+                                                style={{ width: '100%', boxSizing: 'border-box', padding: '6px 9px', borderRadius: '4px', border: '1px solid #C4B5FD', fontSize: '12.5px', backgroundColor: '#FFFFFF' }}
+                                            />
+                                        </div>
+                                        <div>
+                                            <label style={{ display: 'block', fontSize: '11.5px', fontWeight: '700', color: '#4C1D95', marginBottom: '3px' }}>Monthly Onboard Target</label>
+                                            <input
+                                                type="number"
+                                                min="0"
+                                                value={newBdoForm.monthlyOnboardTarget}
+                                                onChange={(e) => setNewBdoForm({ ...newBdoForm, monthlyOnboardTarget: e.target.value })}
+                                                style={{ width: '100%', boxSizing: 'border-box', padding: '6px 9px', borderRadius: '4px', border: '1px solid #C4B5FD', fontSize: '12.5px', backgroundColor: '#FFFFFF' }}
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Territory Assignment (auto-locked for Operations Managers) */}
+                                <div style={{ backgroundColor: '#F8FAFC', border: '1px solid #CBD5E1', borderRadius: '6px', padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                    <div style={{ fontSize: '11px', fontWeight: '700', color: '#334155', textTransform: 'uppercase' }}>
+                                        Assigned Territory {(isRestrictedState || isRestrictedDistrict || isRestrictedCity) ? '(Locked to Your Jurisdiction)' : ''}
+                                    </div>
+
+                                    {isMasterAdmin || !adminProfile?.territoryScope || adminProfile.territoryScope === 'all' ? (
+                                        <select
+                                            value={newBdoForm.territoryScope}
+                                            onChange={(e) => setNewBdoForm({ ...newBdoForm, territoryScope: e.target.value })}
+                                            style={{ width: '100%', padding: '6px 9px', borderRadius: '4px', border: '1px solid #CBD5E1', fontSize: '12.5px', backgroundColor: '#FFFFFF' }}
+                                        >
+                                            <option value="all">🌐 All Pakistan (National)</option>
+                                            <option value="state">🏛️ Province / State Level</option>
+                                            <option value="district">🏙️ District Level</option>
+                                            <option value="city">📍 City / Tehsil Level</option>
+                                        </select>
+                                    ) : null}
+
+                                    {newBdoForm.territoryScope !== 'all' && (
+                                        <div style={{ display: 'grid', gridTemplateColumns: newBdoForm.territoryScope === 'city' ? '1fr 1fr 1fr' : (newBdoForm.territoryScope === 'district' ? '1fr 1fr' : '1fr'), gap: '8px' }}>
+                                            <div>
+                                                <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: '#475569', marginBottom: '3px' }}>Province *</label>
+                                                <select
+                                                    value={newBdoForm.territoryState}
+                                                    disabled={isRestrictedState}
+                                                    onChange={(e) => setNewBdoForm({ ...newBdoForm, territoryState: e.target.value })}
+                                                    style={{ width: '100%', padding: '6px 8px', borderRadius: '4px', border: '1px solid #CBD5E1', fontSize: '12px', backgroundColor: isRestrictedState ? '#E2E8F0' : '#FFFFFF' }}
+                                                >
+                                                    {PROVINCES_LIST.map((p) => <option key={p} value={p}>{p}</option>)}
+                                                </select>
+                                            </div>
+
+                                            {(newBdoForm.territoryScope === 'district' || newBdoForm.territoryScope === 'city') && (
+                                                <div>
+                                                    <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: '#475569', marginBottom: '3px' }}>District *</label>
+                                                    <input
+                                                        type="text"
+                                                        required
+                                                        readOnly={isRestrictedDistrict}
+                                                        placeholder="e.g. Rawalpindi"
+                                                        value={newBdoForm.territoryDistrict}
+                                                        onChange={(e) => setNewBdoForm({ ...newBdoForm, territoryDistrict: e.target.value })}
+                                                        style={{ width: '100%', boxSizing: 'border-box', padding: '6px 8px', borderRadius: '4px', border: '1px solid #CBD5E1', fontSize: '12px', backgroundColor: isRestrictedDistrict ? '#E2E8F0' : '#FFFFFF' }}
+                                                    />
+                                                </div>
+                                            )}
+
+                                            {newBdoForm.territoryScope === 'city' && (
+                                                <div>
+                                                    <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: '#475569', marginBottom: '3px' }}>City *</label>
+                                                    <input
+                                                        type="text"
+                                                        required
+                                                        readOnly={isRestrictedCity}
+                                                        placeholder="e.g. Taxila"
+                                                        value={newBdoForm.territoryCity}
+                                                        onChange={(e) => setNewBdoForm({ ...newBdoForm, territoryCity: e.target.value })}
+                                                        style={{ width: '100%', boxSizing: 'border-box', padding: '6px 8px', borderRadius: '4px', border: '1px solid #CBD5E1', fontSize: '12px', backgroundColor: isRestrictedCity ? '#E2E8F0' : '#FFFFFF' }}
+                                                    />
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+                                </div>
+
+                                <div style={{ fontSize: '11px', color: '#64748B', backgroundColor: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: '4px', padding: '7px 10px' }}>
+                                    ℹ️ This account will be created with the <strong>BDO role</strong> (access only to their personal Dashboard and their own Schools — no Billing, Settings, or Admin privileges).
+                                </div>
+                            </div>
+
+                            <div style={{ padding: '10px 16px', backgroundColor: '#F8FAFC', borderTop: '1px solid #E2E8F0', display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
+                                <button type="button" onClick={() => setShowCreateBdoModal(false)} className="bdo-btn" disabled={creatingBdo}>Cancel</button>
+                                <button type="submit" className="bdo-btn bdo-btn-primary" disabled={creatingBdo}>
+                                    {creatingBdo ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />} Create BDO
                                 </button>
                             </div>
                         </form>

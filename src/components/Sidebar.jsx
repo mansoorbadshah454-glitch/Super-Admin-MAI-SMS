@@ -23,7 +23,7 @@ const Sidebar = () => {
         : [
             { icon: LayoutDashboard, label: 'Dashboard', path: '/' },
             { icon: School, label: 'Schools', path: '/schools' },
-            { icon: Briefcase, label: 'BDO', path: '/bdo', permission: 'manageAdmins' },
+            { icon: Briefcase, label: 'BDO', path: '/bdo', permission: 'manageBdos' },
             { icon: CreditCard, label: 'Billing & Subscriptions', path: '/billing-subscriptions', permission: 'manageBilling' },
             { icon: ShieldCheck, label: 'Admins', path: '/admins', permission: 'manageAdmins' },
             { icon: Settings, label: 'Settings', path: '/settings', permission: 'manageSettings' },

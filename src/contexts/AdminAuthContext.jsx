@@ -32,7 +32,8 @@ export const AdminAuthProvider = ({ children }) => {
                         manageSettings: true,
                         broadcastAnnouncements: true,
                         resetCredentials: true,
-                        manageAdmins: true
+                        manageAdmins: true,
+                        manageBdos: true
                     },
                     territoryScope: 'all',
                     territoryState: '',
@@ -72,7 +73,8 @@ export const AdminAuthProvider = ({ children }) => {
                                 manageSettings: true,
                                 broadcastAnnouncements: true,
                                 resetCredentials: true,
-                                manageAdmins: true
+                                manageAdmins: true,
+                                manageBdos: true
                             },
                             territoryScope: 'all',
                             territoryState: '',
@@ -189,6 +191,41 @@ export const AdminAuthProvider = ({ children }) => {
         return schools.filter(s => isSchoolInTerritory(s, profile));
     };
 
+    // Check if a BDO falls within the logged-in Operations Manager's territory (or was created by them)
+    const isBdoInTerritory = (bdo, profile = adminProfile) => {
+        if (!bdo || !profile) return false;
+        if (isMaster || profile.role === 'master_admin' || !profile.territoryScope || profile.territoryScope === 'all') {
+            return true;
+        }
+        // Always allow if this manager created the BDO
+        const managerUid = profile.id || user?.uid;
+        if (managerUid && (bdo.createdByUid === managerUid || bdo.managedByUid === managerUid)) {
+            return true;
+        }
+
+        const bdoState = (bdo.territoryState || '').trim().toLowerCase();
+        const bdoDistrict = (bdo.territoryDistrict || '').trim().toLowerCase();
+        const bdoCity = (bdo.territoryCity || '').trim().toLowerCase();
+
+        const targetState = (profile.territoryState || '').trim().toLowerCase();
+        const targetDistrict = (profile.territoryDistrict || '').trim().toLowerCase();
+        const targetCity = (profile.territoryCity || '').trim().toLowerCase();
+
+        if (profile.territoryScope === 'state') {
+            return targetState ? bdoState === targetState : true;
+        }
+        if (profile.territoryScope === 'district') {
+            const stateMatches = !targetState || bdoState === targetState;
+            return stateMatches && bdoDistrict === targetDistrict;
+        }
+        if (profile.territoryScope === 'city') {
+            const stateMatches = !targetState || bdoState === targetState;
+            const districtMatches = !targetDistrict || bdoDistrict === targetDistrict;
+            return stateMatches && districtMatches && bdoCity === targetCity;
+        }
+        return true;
+    };
+
     return (
         <AdminAuthContext.Provider value={{
             user,
@@ -198,7 +235,8 @@ export const AdminAuthProvider = ({ children }) => {
             isMasterAdmin: isMaster,
             isBdo,
             isSchoolInTerritory,
-            filterSchoolsByTerritory
+            filterSchoolsByTerritory,
+            isBdoInTerritory
         }}>
             {children}
         </AdminAuthContext.Provider>
