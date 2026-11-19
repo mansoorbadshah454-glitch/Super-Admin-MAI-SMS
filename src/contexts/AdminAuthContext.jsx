@@ -13,38 +13,9 @@ export const AdminAuthProvider = ({ children }) => {
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        const manual = localStorage.getItem('manual_admin_session');
-        if (manual) {
-            try {
-                const parsed = JSON.parse(manual);
-                setUser(parsed);
-                setAdminProfile({
-                    id: parsed.uid || 'admin_dev',
-                    email: parsed.email || 'admin@mai.local',
-                    name: parsed.displayName || 'Super Administrator',
-                    role: 'super-admin',
-                    permissions: {
-                        manageSchools: true,
-                        deleteSchool: true,
-                        manageBilling: true,
-                        viewRevenue: true,
-                        systemControl: true,
-                        manageSettings: true,
-                        broadcastAnnouncements: true,
-                        resetCredentials: true,
-                        manageAdmins: true,
-                        manageBdos: true
-                    },
-                    territoryScope: 'all',
-                    territoryState: '',
-                    territoryDistrict: '',
-                    territoryCity: ''
-                });
-                setLoading(false);
-                return;
-            } catch (e) {
-                localStorage.removeItem('manual_admin_session');
-            }
+        // Clear any legacy instant-session bypass key for security
+        if (localStorage.getItem('manual_admin_session')) {
+            localStorage.removeItem('manual_admin_session');
         }
 
         let unsubscribeDoc = null;

@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
-import { Shield, Mail, Lock, Loader2, ArrowRight, KeyRound, UserCheck } from 'lucide-react';
+import { Mail, Lock, Loader2, ArrowRight } from 'lucide-react';
 import { signInWithEmailAndPassword, sendPasswordResetEmail } from 'firebase/auth';
 import { auth } from '../firebase';
 import { useNavigate } from 'react-router-dom';
+import maiLogo from '../assets/mai-official-logo.jpg';
 
 const Login = () => {
     const [email, setEmail] = useState('');
@@ -48,15 +49,6 @@ const Login = () => {
         }
     };
 
-    const handleQuickLogin = () => {
-        localStorage.setItem('manual_admin_session', JSON.stringify({
-            uid: 'super-admin-root',
-            email: 'admin@system.local',
-            displayName: 'Super Administrator'
-        }));
-        window.location.href = '/';
-    };
-
     return (
         <div style={{
             minHeight: '100vh',
@@ -96,20 +88,31 @@ const Login = () => {
                 color: '#fff',
                 textAlign: 'center'
             }}>
-                {/* User Tile Frame */}
+                {/* MAI Tech Official Logo Frame */}
                 <div style={{
-                    width: '84px',
-                    height: '84px',
+                    width: '88px',
+                    height: '88px',
                     margin: '0 auto 16px auto',
-                    borderRadius: '8px',
-                    background: 'linear-gradient(180deg, #3B82F6 0%, #1D4ED8 100%)',
-                    border: '3px solid #FFFFFF',
-                    boxShadow: '0 6px 16px rgba(0,0,0,0.5)',
+                    borderRadius: '12px',
+                    background: '#FFFFFF',
+                    border: '3px solid rgba(255, 255, 255, 0.9)',
+                    boxShadow: '0 8px 20px rgba(0,0,0,0.45)',
                     display: 'flex',
                     alignItems: 'center',
-                    justifyContent: 'center'
+                    justifyContent: 'center',
+                    padding: '6px',
+                    boxSizing: 'border-box',
+                    overflow: 'hidden'
                 }}>
-                    <Shield size={44} color="#FFFFFF" strokeWidth={2.2} />
+                    <img
+                        src={maiLogo}
+                        alt="MAI Tech Logo"
+                        style={{
+                            width: '100%',
+                            height: '100%',
+                            objectFit: 'contain'
+                        }}
+                    />
                 </div>
 
                 {/* Account Headings */}
@@ -247,7 +250,7 @@ const Login = () => {
                     </div>
 
                     {/* Forgot Password Link */}
-                    <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '20px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '4px' }}>
                         <button
                             type="button"
                             onClick={handleForgotPassword}
@@ -265,30 +268,6 @@ const Login = () => {
                             Reset Password via Email
                         </button>
                     </div>
-
-                    {/* 1-Click Quick Admin Access (Windows XP/7 Smartcard / Emergency Bypass) */}
-                    <button
-                        type="button"
-                        onClick={handleQuickLogin}
-                        style={{
-                            width: '100%',
-                            padding: '8px 12px',
-                            background: 'rgba(255, 255, 255, 0.15)',
-                            border: '1px solid rgba(255, 255, 255, 0.35)',
-                            borderRadius: '4px',
-                            color: '#FFFFFF',
-                            fontSize: '12px',
-                            fontWeight: 'bold',
-                            cursor: 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            gap: '8px'
-                        }}
-                    >
-                        <UserCheck size={16} />
-                        1-Click Instant Super Admin Session
-                    </button>
                 </form>
             </div>
 
