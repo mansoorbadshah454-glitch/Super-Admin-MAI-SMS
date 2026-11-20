@@ -166,6 +166,18 @@ const DeleteSchoolModal = ({ school, onClose, onSuccess }) => {
                                         <li>All staff profiles, teacher accounts, and credentials</li>
                                         <li>Fee voucher ledgers and financial history</li>
                                     </ul>
+                                    <div style={{
+                                        marginTop: '10px',
+                                        padding: '7px 10px',
+                                        borderRadius: '4px',
+                                        background: '#FFFBEB',
+                                        border: '1px solid #F59E0B',
+                                        color: '#92400E',
+                                        fontSize: '11px',
+                                        lineHeight: '1.45'
+                                    }}>
+                                        <strong>Pre-Delete Safety Reminder:</strong> Before permanently purging this school, please open the <strong>School Detail &rarr; 5. Master Data Export</strong> tab and download a full <strong>.ZIP / Excel Backup</strong> for emergency recovery.
+                                    </div>
                                 </div>
                             </div>
                         </fieldset>

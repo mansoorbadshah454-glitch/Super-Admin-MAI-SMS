@@ -9,7 +9,7 @@ import {
     DollarSign, SlidersHorizontal, Check, AlertCircle, ArrowLeft,
     Key, Eye, EyeOff, Copy, Lock, Edit2, ShieldAlert,
     Receipt, Printer, Download, Clock, CheckCircle2, RotateCcw,
-    FileText, Sparkle, ExternalLink
+    FileText, Sparkle, ExternalLink, Database
 } from 'lucide-react';
 import { db, functions } from '../firebase';
 import { httpsCallable } from 'firebase/functions';
@@ -17,12 +17,14 @@ import { doc, onSnapshot, updateDoc, getDoc, collection, getCountFromServer, set
 import { calculateTrialDays } from '../utils/dateUtils';
 import { useAdminAuth } from '../contexts/AdminAuthContext';
 import InlineEditSchool from '../components/InlineEditSchool';
+import MasterDataExportStudio, { checkStrictMasterOwner } from '../components/MasterDataExportStudio';
 import maiLogo from '../assets/mai-official-logo.jpg';
 
 const SchoolDetail = () => {
     const { id } = useParams();
     const navigate = useNavigate();
-    const { hasPermission, isMasterAdmin, adminProfile, isSchoolInTerritory } = useAdminAuth();
+    const { user, hasPermission, isMasterAdmin, isBdo, adminProfile, isSchoolInTerritory } = useAdminAuth();
+    const isStrictMasterOwner = checkStrictMasterOwner(user, adminProfile, isBdo);
     const [school, setSchool] = useState(null);
     const [principal, setPrincipal] = useState(null);
     const [stats, setStats] = useState({ total: '...', teachers: '...', parents: '...' });
@@ -928,6 +930,15 @@ const SchoolDetail = () => {
                     >
                         <Receipt size={16} /> 4. Financial Record & 12M Ledger
                     </div>
+
+                    {isStrictMasterOwner && (
+                        <div
+                            onClick={() => setActiveTab('export')}
+                            className={`win-tab ${activeTab === 'export' ? 'win-tab-active' : ''}`}
+                        >
+                            <Database size={16} /> 5. Master Data Export
+                        </div>
+                    )}
                 </div>
 
                 {/* Tab Body Content Area */}
@@ -1610,6 +1621,11 @@ const SchoolDetail = () => {
                             </div>
                         );
                     })()}
+
+                    {/* TAB 5: Master Admin Owner-Only Data Export Studio */}
+                    {activeTab === 'export' && isStrictMasterOwner && (
+                        <MasterDataExportStudio schoolId={id} school={school} />
+                    )}
                 </div>
             </div>
 
