@@ -4,10 +4,11 @@ import { useNavigate } from 'react-router-dom';
 import {
     Briefcase, Users, TrendingUp, Award, Clock, CheckCircle, Search,
     Download, Calendar, Target, Eye, Edit2, X, Save, Loader2, MapPin,
-    ExternalLink, AlertTriangle, UserPlus, Link2, Phone, Mail, School, Power
+    ExternalLink, AlertTriangle, UserPlus, Link2, Phone, Mail, School, Power,
+    Trash2, Coins
 } from 'lucide-react';
 import { db, functions } from '../firebase';
-import { collection, onSnapshot, doc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, onSnapshot, doc, updateDoc, deleteDoc, writeBatch, serverTimestamp } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 import { calculateTrialDays } from '../utils/dateUtils';
 import { useAlert } from '../contexts/AlertContext';
@@ -51,6 +52,17 @@ const formatMonthLabel = (monthStr) => {
     return d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
 };
 
+const DEFAULT_COMMISSION_PKR = 2000;
+
+const getCommissionRate = (bdo) => {
+    if (!bdo) return DEFAULT_COMMISSION_PKR;
+    if (bdo.commissionPerSchool === undefined || bdo.commissionPerSchool === null || bdo.commissionPerSchool === '') {
+        return DEFAULT_COMMISSION_PKR;
+    }
+    const parsed = Number(bdo.commissionPerSchool);
+    return isNaN(parsed) ? DEFAULT_COMMISSION_PKR : parsed;
+};
+
 const isBdoDoc = (u) => {
     if (!u) return false;
     const rt = (u.roleType || '').toLowerCase();
@@ -79,8 +91,28 @@ const BdoManagement = () => {
     // Modals
     const [selectedBdoForSchools, setSelectedBdoForSchools] = useState(null);
     const [editingTargetBdo, setEditingTargetBdo] = useState(null);
-    const [targetForm, setTargetForm] = useState({ monthlyTrialTarget: 10, monthlyOnboardTarget: 5, phone: '' });
+    const [targetForm, setTargetForm] = useState({
+        name: '',
+        phone: '',
+        cnic: '',
+        joiningDate: '',
+        adminNotes: '',
+        monthlyTrialTarget: 10,
+        monthlyOnboardTarget: 5,
+        commissionPerSchool: DEFAULT_COMMISSION_PKR,
+        territoryScope: 'city',
+        territoryState: 'Punjab',
+        territoryDistrict: '',
+        territoryCity: '',
+        status: 'active'
+    });
     const [savingTarget, setSavingTarget] = useState(false);
+
+    // Safe Delete BDO Modal
+    const [deletingTargetMetric, setDeletingTargetMetric] = useState(null);
+    const [deleteSchoolAction, setDeleteSchoolAction] = useState('unassign');
+    const [deleteReassignBdoId, setDeleteReassignBdoId] = useState('');
+    const [deletingBdo, setDeletingBdo] = useState(false);
 
     const [showAssignModal, setShowAssignModal] = useState(false);
     const [assignSchoolId, setAssignSchoolId] = useState('');
@@ -98,6 +130,7 @@ const BdoManagement = () => {
         phone: '',
         monthlyTrialTarget: 10,
         monthlyOnboardTarget: 5,
+        commissionPerSchool: DEFAULT_COMMISSION_PKR,
         territoryScope: 'city',
         territoryState: 'Punjab',
         territoryDistrict: '',
@@ -113,6 +146,7 @@ const BdoManagement = () => {
             phone: '',
             monthlyTrialTarget: 10,
             monthlyOnboardTarget: 5,
+            commissionPerSchool: DEFAULT_COMMISSION_PKR,
             territoryScope: (!isMasterAdmin && adminProfile?.territoryScope && adminProfile.territoryScope !== 'all')
                 ? adminProfile.territoryScope
                 : 'city',
@@ -159,6 +193,7 @@ const BdoManagement = () => {
                     phone: newBdoForm.phone.trim(),
                     monthlyTrialTarget: Number(newBdoForm.monthlyTrialTarget) || 0,
                     monthlyOnboardTarget: Number(newBdoForm.monthlyOnboardTarget) || 0,
+                    commissionPerSchool: Number(newBdoForm.commissionPerSchool) >= 0 ? Number(newBdoForm.commissionPerSchool) : DEFAULT_COMMISSION_PKR,
                     territoryScope: effScope,
                     territoryState: effScope !== 'all' ? newBdoForm.territoryState : '',
                     territoryDistrict: (effScope === 'district' || effScope === 'city') ? newBdoForm.territoryDistrict.trim() : '',
@@ -302,6 +337,8 @@ const BdoManagement = () => {
 
             const trialTarget = Number(bdo.monthlyTrialTarget) || 0;
             const onboardTarget = Number(bdo.monthlyOnboardTarget) || 0;
+            const commissionRate = getCommissionRate(bdo);
+            const earnedCommission = onboardedInMonth.length * commissionRate;
 
             const territoryLabel = (!bdo.territoryScope || bdo.territoryScope === 'all')
                 ? 'All Pakistan'
@@ -324,7 +361,9 @@ const BdoManagement = () => {
                 totalSchools: bdoSchools.length,
                 conversionRate,
                 trialTarget,
-                onboardTarget
+                onboardTarget,
+                commissionRate,
+                earnedCommission
             };
         });
     }, [bdos, schools, selectedMonth]);
@@ -381,9 +420,19 @@ const BdoManagement = () => {
     const handleOpenEditTarget = (bdo) => {
         setEditingTargetBdo(bdo);
         setTargetForm({
+            name: bdo.name || '',
+            phone: bdo.phone || '',
+            cnic: bdo.cnic || '',
+            joiningDate: bdo.joiningDate || '',
+            adminNotes: bdo.adminNotes || '',
             monthlyTrialTarget: bdo.monthlyTrialTarget ?? 10,
             monthlyOnboardTarget: bdo.monthlyOnboardTarget ?? 5,
-            phone: bdo.phone || ''
+            commissionPerSchool: getCommissionRate(bdo),
+            territoryScope: bdo.territoryScope || 'city',
+            territoryState: bdo.territoryState || (isRestrictedState ? adminProfile.territoryState : 'Punjab'),
+            territoryDistrict: bdo.territoryDistrict || (isRestrictedDistrict ? adminProfile.territoryDistrict : ''),
+            territoryCity: bdo.territoryCity || (isRestrictedCity ? adminProfile.territoryCity : ''),
+            status: bdo.status || 'active'
         });
     };
 
@@ -392,18 +441,97 @@ const BdoManagement = () => {
         if (!editingTargetBdo) return;
         setSavingTarget(true);
         try {
+            const effScope = targetForm.territoryScope || 'city';
             await updateDoc(doc(db, 'global_users', editingTargetBdo.id), {
+                name: targetForm.name.trim(),
+                phone: targetForm.phone.trim(),
+                cnic: targetForm.cnic.trim(),
+                joiningDate: targetForm.joiningDate.trim(),
+                adminNotes: targetForm.adminNotes.trim(),
                 monthlyTrialTarget: Number(targetForm.monthlyTrialTarget) || 0,
                 monthlyOnboardTarget: Number(targetForm.monthlyOnboardTarget) || 0,
-                phone: targetForm.phone.trim(),
+                commissionPerSchool: Number(targetForm.commissionPerSchool) >= 0 ? Number(targetForm.commissionPerSchool) : DEFAULT_COMMISSION_PKR,
+                territoryScope: effScope,
+                territoryState: effScope !== 'all' ? targetForm.territoryState : '',
+                territoryDistrict: (effScope === 'district' || effScope === 'city') ? targetForm.territoryDistrict.trim() : '',
+                territoryCity: effScope === 'city' ? targetForm.territoryCity.trim() : '',
+                status: targetForm.status,
                 updatedAt: serverTimestamp()
             });
-            showAlert({ title: 'Targets Updated', message: `Monthly targets updated for ${editingTargetBdo.name}.`, type: 'success' });
+            showAlert({ title: 'BDO Updated', message: `Account & commission updated for ${targetForm.name.trim()}.`, type: 'success' });
             setEditingTargetBdo(null);
         } catch (err) {
-            showAlert({ title: 'Error', message: 'Failed to save targets: ' + err.message, type: 'error' });
+            showAlert({ title: 'Error', message: 'Failed to update BDO: ' + err.message, type: 'error' });
         } finally {
             setSavingTarget(false);
+        }
+    };
+
+    const handleOpenDeleteBdo = (metric) => {
+        const otherActiveBdos = bdos.filter((b) => b.id !== metric.bdo.id && b.status !== 'disabled');
+        setDeletingTargetMetric(metric);
+        setDeleteSchoolAction(metric.bdoSchools.length > 0 && otherActiveBdos.length > 0 ? 'reassign' : 'unassign');
+        setDeleteReassignBdoId(otherActiveBdos[0]?.id || '');
+    };
+
+    const handleConfirmDeleteBdo = async (e) => {
+        e.preventDefault();
+        if (!deletingTargetMetric) return;
+        const targetBdoObj = deletingTargetMetric.bdo;
+        const targetSchools = deletingTargetMetric.bdoSchools || [];
+
+        if (targetSchools.length > 0 && deleteSchoolAction === 'reassign' && !deleteReassignBdoId) {
+            showAlert({ title: 'Select Target BDO', message: 'Please choose a BDO to reassign schools to.', type: 'warning' });
+            return;
+        }
+
+        setDeletingBdo(true);
+        try {
+            if (targetSchools.length > 0) {
+                const newOwner = deleteSchoolAction === 'reassign'
+                    ? bdos.find((b) => b.id === deleteReassignBdoId)
+                    : null;
+
+                const batch = writeBatch(db);
+                targetSchools.forEach((s) => {
+                    const ref = doc(db, 'schools', s.id);
+                    if (deleteSchoolAction === 'reassign' && newOwner) {
+                        batch.update(ref, {
+                            assignedBdoId: newOwner.id,
+                            assignedBdoName: newOwner.name || '',
+                            ...(s.createdByUid === targetBdoObj.id ? { createdByUid: newOwner.id } : {}),
+                            updatedAt: new Date()
+                        });
+                    } else {
+                        batch.update(ref, {
+                            assignedBdoId: '',
+                            assignedBdoName: '',
+                            ...(s.createdByUid === targetBdoObj.id ? { createdByUid: '' } : {}),
+                            updatedAt: new Date()
+                        });
+                    }
+                });
+                await batch.commit();
+            }
+
+            try {
+                const deleteFn = httpsCallable(functions, 'deleteSuperAdmin');
+                await deleteFn({ adminUid: targetBdoObj.id });
+            } catch (fnErr) {
+                console.warn('deleteSuperAdmin error, falling back to Firestore delete:', fnErr);
+                await deleteDoc(doc(db, 'global_users', targetBdoObj.id));
+            }
+
+            showAlert({
+                title: 'BDO Deleted',
+                message: `${targetBdoObj.name} has been deleted permanently.`,
+                type: 'success'
+            });
+            setDeletingTargetMetric(null);
+        } catch (err) {
+            showAlert({ title: 'Delete Failed', message: err.message || 'Could not delete BDO.', type: 'error' });
+        } finally {
+            setDeletingBdo(false);
         }
     };
 
@@ -444,6 +572,8 @@ const BdoManagement = () => {
             'Active Trials',
             'Expired Trials',
             'Conversion Rate (%)',
+            'Commission Rate (PKR)',
+            'Commission Earned (PKR)',
             'All-Time Onboarded',
             'Total Schools'
         ];
@@ -461,6 +591,8 @@ const BdoManagement = () => {
             m.activeTrialsCount,
             m.expiredTrialsCount,
             `${m.conversionRate}%`,
+            m.commissionRate,
+            m.earnedCommission,
             m.totalAllTimeOnboarded,
             m.totalSchools
         ]);
@@ -709,6 +841,7 @@ const BdoManagement = () => {
                                     <th style={{ padding: '10px 12px' }}>Onboarded</th>
                                     <th style={{ padding: '10px 12px' }}>Active / Expired Trials</th>
                                     <th style={{ padding: '10px 12px' }}>Conversion</th>
+                                    <th style={{ padding: '10px 12px' }}>Commission</th>
                                     <th style={{ padding: '10px 12px' }}>All-Time</th>
                                     <th style={{ padding: '10px 12px', textAlign: 'right' }}>Actions</th>
                                 </tr>
@@ -722,7 +855,10 @@ const BdoManagement = () => {
                                     return (
                                         <tr
                                             key={m.bdo.id}
-                                            style={{ borderBottom: '1px solid #E2E8F0', backgroundColor: isDisabled ? '#FAFAFA' : '#FFFFFF' }}
+                                            onClick={() => navigate(`/bdo/${m.bdo.id}`)}
+                                            style={{ borderBottom: '1px solid #E2E8F0', backgroundColor: isDisabled ? '#FAFAFA' : '#FFFFFF', cursor: 'pointer', transition: 'background-color 0.12s ease' }}
+                                            onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#F5F3FF'; }}
+                                            onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = isDisabled ? '#FAFAFA' : '#FFFFFF'; }}
                                         >
                                             <td style={{ padding: '10px 12px' }}>
                                                 <div style={{ display: 'flex', alignItems: 'center', gap: '9px' }}>
@@ -735,7 +871,10 @@ const BdoManagement = () => {
                                                         {(m.bdo.name || 'B')[0].toUpperCase()}
                                                     </div>
                                                     <div>
-                                                        <div style={{ fontWeight: '700', color: '#0F172A' }}>{m.bdo.name || 'Unnamed BDO'}</div>
+                                                        <div style={{ fontWeight: '700', color: '#4C1D95', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                                            {m.bdo.name || 'Unnamed BDO'}
+                                                            <ExternalLink size={11} color="#7C3AED" />
+                                                        </div>
                                                         <div style={{ fontSize: '11px', color: '#64748B' }}>{m.bdo.email}</div>
                                                         {m.bdo.phone && (
                                                             <div style={{ fontSize: '10.5px', color: '#475569', display: 'flex', alignItems: 'center', gap: '3px' }}>
@@ -822,6 +961,16 @@ const BdoManagement = () => {
                                                 </span>
                                             </td>
 
+                                            {/* Commission */}
+                                            <td style={{ padding: '10px 12px', whiteSpace: 'nowrap' }}>
+                                                <div style={{ fontWeight: '800', color: '#047857', fontSize: '12.5px' }}>
+                                                    Rs. {m.earnedCommission.toLocaleString()}
+                                                </div>
+                                                <div style={{ fontSize: '10.5px', color: '#64748B' }}>
+                                                    Rs. {m.commissionRate.toLocaleString()}/school
+                                                </div>
+                                            </td>
+
                                             {/* All-Time */}
                                             <td style={{ padding: '10px 12px' }}>
                                                 <div style={{ fontWeight: '700', color: '#0F172A' }}>{m.totalAllTimeOnboarded} Onboarded</div>
@@ -829,16 +978,25 @@ const BdoManagement = () => {
                                             </td>
 
                                             {/* Actions */}
-                                            <td style={{ padding: '10px 12px', textAlign: 'right', whiteSpace: 'nowrap' }}>
-                                                <div style={{ display: 'inline-flex', gap: '6px' }}>
+                                            <td style={{ padding: '10px 12px', textAlign: 'right', whiteSpace: 'nowrap' }} onClick={(e) => e.stopPropagation()}>
+                                                <div style={{ display: 'inline-flex', gap: '5px' }}>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => navigate(`/bdo/${m.bdo.id}`)}
+                                                        className="bdo-btn"
+                                                        style={{ padding: '4px 8px', fontSize: '11.5px', color: '#1D4ED8', borderColor: '#BFDBFE', backgroundColor: '#EFF6FF' }}
+                                                        title="Open BDO Dashboard & Schools"
+                                                    >
+                                                        <Eye size={12} /> Dashboard ({m.totalSchools})
+                                                    </button>
                                                     <button
                                                         type="button"
                                                         onClick={() => handleOpenEditTarget(m.bdo)}
                                                         className="bdo-btn"
                                                         style={{ padding: '4px 8px', fontSize: '11.5px' }}
-                                                        title="Edit Monthly Targets"
+                                                        title="Edit BDO Profile, Targets & Commission"
                                                     >
-                                                        <Target size={12} color="#7C3AED" /> Targets
+                                                        <Edit2 size={12} color="#7C3AED" /> Edit
                                                     </button>
                                                     <button
                                                         type="button"
@@ -846,9 +1004,9 @@ const BdoManagement = () => {
                                                         className="bdo-btn"
                                                         style={{
                                                             padding: '4px 8px', fontSize: '11.5px',
-                                                            color: isDisabled ? '#15803D' : '#DC2626',
-                                                            borderColor: isDisabled ? '#BBF7D0' : '#FECACA',
-                                                            backgroundColor: isDisabled ? '#F0FDF4' : '#FEF2F2'
+                                                            color: isDisabled ? '#15803D' : '#B45309',
+                                                            borderColor: isDisabled ? '#BBF7D0' : '#FDE68A',
+                                                            backgroundColor: isDisabled ? '#F0FDF4' : '#FFFBEB'
                                                         }}
                                                         title={isDisabled ? 'Activate BDO' : 'Suspend BDO'}
                                                     >
@@ -856,11 +1014,17 @@ const BdoManagement = () => {
                                                     </button>
                                                     <button
                                                         type="button"
-                                                        onClick={() => setSelectedBdoForSchools(m)}
+                                                        onClick={() => handleOpenDeleteBdo(m)}
                                                         className="bdo-btn"
-                                                        style={{ padding: '4px 8px', fontSize: '11.5px', color: '#1D4ED8', borderColor: '#BFDBFE', backgroundColor: '#EFF6FF' }}
+                                                        style={{
+                                                            padding: '4px 7px', fontSize: '11.5px',
+                                                            color: '#DC2626',
+                                                            borderColor: '#FECACA',
+                                                            backgroundColor: '#FEF2F2'
+                                                        }}
+                                                        title="Delete BDO Account"
                                                     >
-                                                        <Eye size={12} /> Schools ({m.totalSchools})
+                                                        <Trash2 size={12} />
                                                     </button>
                                                 </div>
                                             </td>
@@ -973,10 +1137,10 @@ const BdoManagement = () => {
                 document.body
             )}
 
-            {/* Edit Monthly Targets Modal */}
+            {/* Full Edit BDO Modal (Profile, Territory, Targets & Commission) */}
             {editingTargetBdo && createPortal(
                 <div
-                    onClick={() => setEditingTargetBdo(null)}
+                    onClick={() => !savingTarget && setEditingTargetBdo(null)}
                     style={{
                         position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(4px)',
                         zIndex: 999999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px', fontFamily
@@ -984,49 +1148,282 @@ const BdoManagement = () => {
                 >
                     <div
                         onClick={(e) => e.stopPropagation()}
-                        style={{ width: '100%', maxWidth: '420px', backgroundColor: '#FFFFFF', border: '2px solid #7C3AED', borderRadius: '8px', overflow: 'hidden', boxShadow: '0 20px 50px rgba(0,0,0,0.4)' }}
+                        style={{ width: '100%', maxWidth: '540px', maxHeight: '90vh', backgroundColor: '#FFFFFF', border: '2px solid #7C3AED', borderRadius: '8px', display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 25px 50px rgba(0,0,0,0.45)' }}
                     >
-                        <div style={{ padding: '11px 15px', background: 'linear-gradient(180deg, #7C3AED 0%, #6D28D9 100%)', color: '#FFFFFF', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <span style={{ fontWeight: '700', fontSize: '13px' }}>Edit Monthly Targets — {editingTargetBdo.name}</span>
-                            <button onClick={() => setEditingTargetBdo(null)} style={{ background: 'transparent', border: 'none', color: '#FFFFFF', cursor: 'pointer' }}><X size={16} /></button>
+                        <div style={{ padding: '12px 16px', background: 'linear-gradient(180deg, #7C3AED 0%, #6D28D9 100%)', color: '#FFFFFF', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <span style={{ fontWeight: '800', fontSize: '13.5px', display: 'flex', alignItems: 'center', gap: '7px' }}>
+                                <Edit2 size={15} /> Edit BDO Account — {editingTargetBdo.name}
+                            </span>
+                            <button onClick={() => !savingTarget && setEditingTargetBdo(null)} style={{ background: 'transparent', border: 'none', color: '#FFFFFF', cursor: 'pointer' }}><X size={16} /></button>
                         </div>
-                        <form onSubmit={handleSaveTarget} style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                            <div>
-                                <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: '#334155', marginBottom: '4px' }}>Monthly Trial Target (Schools)</label>
-                                <input
-                                    type="number"
-                                    min="0"
-                                    required
-                                    value={targetForm.monthlyTrialTarget}
-                                    onChange={(e) => setTargetForm({ ...targetForm, monthlyTrialTarget: e.target.value })}
-                                    style={{ width: '100%', boxSizing: 'border-box', padding: '7px 10px', borderRadius: '4px', border: '1px solid #CBD5E1', fontSize: '13px' }}
-                                />
+                        <form onSubmit={handleSaveTarget} style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+                            <div style={{ padding: '16px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                                    <div>
+                                        <label style={{ display: 'block', fontSize: '11.5px', fontWeight: '700', color: '#334155', marginBottom: '4px' }}>Full Name *</label>
+                                        <input
+                                            type="text"
+                                            required
+                                            value={targetForm.name}
+                                            onChange={(e) => setTargetForm({ ...targetForm, name: e.target.value })}
+                                            style={{ width: '100%', boxSizing: 'border-box', padding: '7px 10px', borderRadius: '4px', border: '1px solid #CBD5E1', fontSize: '12.5px' }}
+                                        />
+                                    </div>
+                                    <div>
+                                        <label style={{ display: 'block', fontSize: '11.5px', fontWeight: '700', color: '#334155', marginBottom: '4px' }}>Phone / WhatsApp</label>
+                                        <input
+                                            type="text"
+                                            placeholder="0300-1234567"
+                                            value={targetForm.phone}
+                                            onChange={(e) => setTargetForm({ ...targetForm, phone: e.target.value })}
+                                            style={{ width: '100%', boxSizing: 'border-box', padding: '7px 10px', borderRadius: '4px', border: '1px solid #CBD5E1', fontSize: '12.5px' }}
+                                        />
+                                    </div>
+                                </div>
+
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                                    <div>
+                                        <label style={{ display: 'block', fontSize: '11.5px', fontWeight: '700', color: '#334155', marginBottom: '4px' }}>CNIC (Optional)</label>
+                                        <input
+                                            type="text"
+                                            placeholder="37405-1234567-1"
+                                            value={targetForm.cnic}
+                                            onChange={(e) => setTargetForm({ ...targetForm, cnic: e.target.value })}
+                                            style={{ width: '100%', boxSizing: 'border-box', padding: '7px 10px', borderRadius: '4px', border: '1px solid #CBD5E1', fontSize: '12.5px' }}
+                                        />
+                                    </div>
+                                    <div>
+                                        <label style={{ display: 'block', fontSize: '11.5px', fontWeight: '700', color: '#334155', marginBottom: '4px' }}>Joining Date (Optional)</label>
+                                        <input
+                                            type="date"
+                                            value={targetForm.joiningDate}
+                                            onChange={(e) => setTargetForm({ ...targetForm, joiningDate: e.target.value })}
+                                            style={{ width: '100%', boxSizing: 'border-box', padding: '7px 10px', borderRadius: '4px', border: '1px solid #CBD5E1', fontSize: '12.5px' }}
+                                        />
+                                    </div>
+                                </div>
+
+                                <div style={{ backgroundColor: '#ECFDF5', border: '1px solid #A7F3D0', borderRadius: '6px', padding: '10px 12px' }}>
+                                    <div style={{ fontSize: '11px', fontWeight: '700', color: '#065F46', textTransform: 'uppercase', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                                        <Coins size={13} /> Commission & Monthly Targets
+                                    </div>
+                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px' }}>
+                                        <div>
+                                            <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: '#065F46', marginBottom: '3px' }}>Commission / School (PKR)</label>
+                                            <input
+                                                type="number"
+                                                min="0"
+                                                required
+                                                value={targetForm.commissionPerSchool}
+                                                onChange={(e) => setTargetForm({ ...targetForm, commissionPerSchool: e.target.value })}
+                                                style={{ width: '100%', boxSizing: 'border-box', padding: '6px 8px', borderRadius: '4px', border: '1px solid #6EE7B7', fontSize: '12.5px', fontWeight: '700', backgroundColor: '#FFFFFF' }}
+                                            />
+                                        </div>
+                                        <div>
+                                            <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: '#334155', marginBottom: '3px' }}>Monthly Trial Target</label>
+                                            <input
+                                                type="number"
+                                                min="0"
+                                                required
+                                                value={targetForm.monthlyTrialTarget}
+                                                onChange={(e) => setTargetForm({ ...targetForm, monthlyTrialTarget: e.target.value })}
+                                                style={{ width: '100%', boxSizing: 'border-box', padding: '6px 8px', borderRadius: '4px', border: '1px solid #CBD5E1', fontSize: '12.5px', backgroundColor: '#FFFFFF' }}
+                                            />
+                                        </div>
+                                        <div>
+                                            <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: '#334155', marginBottom: '3px' }}>Monthly Onboard Target</label>
+                                            <input
+                                                type="number"
+                                                min="0"
+                                                required
+                                                value={targetForm.monthlyOnboardTarget}
+                                                onChange={(e) => setTargetForm({ ...targetForm, monthlyOnboardTarget: e.target.value })}
+                                                style={{ width: '100%', boxSizing: 'border-box', padding: '6px 8px', borderRadius: '4px', border: '1px solid #CBD5E1', fontSize: '12.5px', backgroundColor: '#FFFFFF' }}
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div style={{ backgroundColor: '#F8FAFC', border: '1px solid #CBD5E1', borderRadius: '6px', padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                    <div style={{ fontSize: '11px', fontWeight: '700', color: '#334155', textTransform: 'uppercase' }}>
+                                        Assigned Territory
+                                    </div>
+                                    {(isMasterAdmin || !adminProfile?.territoryScope || adminProfile.territoryScope === 'all') && (
+                                        <select
+                                            value={targetForm.territoryScope}
+                                            onChange={(e) => setTargetForm({ ...targetForm, territoryScope: e.target.value })}
+                                            style={{ width: '100%', padding: '6px 9px', borderRadius: '4px', border: '1px solid #CBD5E1', fontSize: '12.5px', backgroundColor: '#FFFFFF' }}
+                                        >
+                                            <option value="all">🌐 All Pakistan (National)</option>
+                                            <option value="state">🏛️ Province / State Level</option>
+                                            <option value="district">🏙️ District Level</option>
+                                            <option value="city">📍 City / Tehsil Level</option>
+                                        </select>
+                                    )}
+                                    {targetForm.territoryScope !== 'all' && (
+                                        <div style={{ display: 'grid', gridTemplateColumns: targetForm.territoryScope === 'city' ? '1fr 1fr 1fr' : (targetForm.territoryScope === 'district' ? '1fr 1fr' : '1fr'), gap: '8px' }}>
+                                            <div>
+                                                <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: '#475569', marginBottom: '3px' }}>Province *</label>
+                                                <select
+                                                    value={targetForm.territoryState}
+                                                    disabled={isRestrictedState}
+                                                    onChange={(e) => setTargetForm({ ...targetForm, territoryState: e.target.value })}
+                                                    style={{ width: '100%', padding: '6px 8px', borderRadius: '4px', border: '1px solid #CBD5E1', fontSize: '12px', backgroundColor: isRestrictedState ? '#E2E8F0' : '#FFFFFF' }}
+                                                >
+                                                    {PROVINCES_LIST.map((p) => <option key={p} value={p}>{p}</option>)}
+                                                </select>
+                                            </div>
+                                            {(targetForm.territoryScope === 'district' || targetForm.territoryScope === 'city') && (
+                                                <div>
+                                                    <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: '#475569', marginBottom: '3px' }}>District *</label>
+                                                    <input
+                                                        type="text"
+                                                        required
+                                                        readOnly={isRestrictedDistrict}
+                                                        value={targetForm.territoryDistrict}
+                                                        onChange={(e) => setTargetForm({ ...targetForm, territoryDistrict: e.target.value })}
+                                                        style={{ width: '100%', boxSizing: 'border-box', padding: '6px 8px', borderRadius: '4px', border: '1px solid #CBD5E1', fontSize: '12px', backgroundColor: isRestrictedDistrict ? '#E2E8F0' : '#FFFFFF' }}
+                                                    />
+                                                </div>
+                                            )}
+                                            {targetForm.territoryScope === 'city' && (
+                                                <div>
+                                                    <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: '#475569', marginBottom: '3px' }}>City *</label>
+                                                    <input
+                                                        type="text"
+                                                        required
+                                                        readOnly={isRestrictedCity}
+                                                        value={targetForm.territoryCity}
+                                                        onChange={(e) => setTargetForm({ ...targetForm, territoryCity: e.target.value })}
+                                                        style={{ width: '100%', boxSizing: 'border-box', padding: '6px 8px', borderRadius: '4px', border: '1px solid #CBD5E1', fontSize: '12px', backgroundColor: isRestrictedCity ? '#E2E8F0' : '#FFFFFF' }}
+                                                    />
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+                                </div>
+
+                                <div>
+                                    <label style={{ display: 'block', fontSize: '11.5px', fontWeight: '700', color: '#334155', marginBottom: '4px' }}>Account Status</label>
+                                    <select
+                                        value={targetForm.status}
+                                        onChange={(e) => setTargetForm({ ...targetForm, status: e.target.value })}
+                                        style={{ width: '100%', padding: '7px 10px', borderRadius: '4px', border: '1px solid #CBD5E1', fontSize: '12.5px', backgroundColor: '#FFFFFF' }}
+                                    >
+                                        <option value="active">Active</option>
+                                        <option value="disabled">Suspended / Disabled</option>
+                                    </select>
+                                </div>
+
+                                <div>
+                                    <label style={{ display: 'block', fontSize: '11.5px', fontWeight: '700', color: '#334155', marginBottom: '4px' }}>Internal Admin Notes (Hidden from BDO)</label>
+                                    <textarea
+                                        rows={2}
+                                        placeholder="Remarks, performance notes..."
+                                        value={targetForm.adminNotes}
+                                        onChange={(e) => setTargetForm({ ...targetForm, adminNotes: e.target.value })}
+                                        style={{ width: '100%', boxSizing: 'border-box', padding: '7px 10px', borderRadius: '4px', border: '1px solid #CBD5E1', fontSize: '12.5px', fontFamily: 'inherit', resize: 'vertical' }}
+                                    />
+                                </div>
                             </div>
-                            <div>
-                                <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: '#334155', marginBottom: '4px' }}>Monthly Onboarding Target (Schools)</label>
-                                <input
-                                    type="number"
-                                    min="0"
-                                    required
-                                    value={targetForm.monthlyOnboardTarget}
-                                    onChange={(e) => setTargetForm({ ...targetForm, monthlyOnboardTarget: e.target.value })}
-                                    style={{ width: '100%', boxSizing: 'border-box', padding: '7px 10px', borderRadius: '4px', border: '1px solid #CBD5E1', fontSize: '13px' }}
-                                />
-                            </div>
-                            <div>
-                                <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: '#334155', marginBottom: '4px' }}>Phone / WhatsApp</label>
-                                <input
-                                    type="text"
-                                    placeholder="0300-1234567"
-                                    value={targetForm.phone}
-                                    onChange={(e) => setTargetForm({ ...targetForm, phone: e.target.value })}
-                                    style={{ width: '100%', boxSizing: 'border-box', padding: '7px 10px', borderRadius: '4px', border: '1px solid #CBD5E1', fontSize: '13px' }}
-                                />
-                            </div>
-                            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '4px' }}>
+                            <div style={{ padding: '10px 16px', backgroundColor: '#F8FAFC', borderTop: '1px solid #E2E8F0', display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
                                 <button type="button" onClick={() => setEditingTargetBdo(null)} className="bdo-btn" disabled={savingTarget}>Cancel</button>
                                 <button type="submit" className="bdo-btn bdo-btn-primary" disabled={savingTarget}>
-                                    {savingTarget ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />} Save Targets
+                                    {savingTarget ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />} Save Changes
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>,
+                document.body
+            )}
+
+            {/* Safe Delete BDO Modal */}
+            {deletingTargetMetric && createPortal(
+                <div
+                    onClick={() => !deletingBdo && setDeletingTargetMetric(null)}
+                    style={{
+                        position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(4px)',
+                        zIndex: 999999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px', fontFamily
+                    }}
+                >
+                    <div
+                        onClick={(e) => e.stopPropagation()}
+                        style={{ width: '100%', maxWidth: '460px', backgroundColor: '#FFFFFF', border: '2px solid #DC2626', borderRadius: '8px', overflow: 'hidden', boxShadow: '0 25px 50px rgba(0,0,0,0.45)' }}
+                    >
+                        <div style={{ padding: '12px 16px', background: 'linear-gradient(180deg, #EF4444 0%, #DC2626 100%)', color: '#FFFFFF', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <span style={{ fontWeight: '800', fontSize: '13.5px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <Trash2 size={15} /> Permanently Delete BDO Account
+                            </span>
+                            <button onClick={() => !deletingBdo && setDeletingTargetMetric(null)} style={{ background: 'transparent', border: 'none', color: '#FFFFFF', cursor: 'pointer' }}><X size={16} /></button>
+                        </div>
+
+                        <form onSubmit={handleConfirmDeleteBdo} style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                            <div style={{ padding: '10px 12px', backgroundColor: '#FEF2F2', border: '1px solid #FECACA', borderRadius: '5px', fontSize: '12.5px', color: '#991B1B' }}>
+                                You are about to permanently delete <strong>{deletingTargetMetric.bdo.name}</strong> ({deletingTargetMetric.bdo.email}). Their login credentials and BDO profile will be removed.
+                            </div>
+
+                            {deletingTargetMetric.bdoSchools.length > 0 && (() => {
+                                const otherActiveBdos = bdos.filter((b) => b.id !== deletingTargetMetric.bdo.id && b.status !== 'disabled');
+                                return (
+                                    <div style={{ backgroundColor: '#FFFBEB', border: '1px solid #FCD34D', borderRadius: '6px', padding: '12px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                        <div style={{ fontSize: '12px', fontWeight: '800', color: '#92400E' }}>
+                                            ⚠️ This BDO currently manages {deletingTargetMetric.bdoSchools.length} school(s). What should happen to them?
+                                        </div>
+
+                                        {otherActiveBdos.length > 0 && (
+                                            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', color: '#1E293B', cursor: 'pointer' }}>
+                                                <input
+                                                    type="radio"
+                                                    name="bdoDeleteAction"
+                                                    value="reassign"
+                                                    checked={deleteSchoolAction === 'reassign'}
+                                                    onChange={() => setDeleteSchoolAction('reassign')}
+                                                />
+                                                <span><strong>Reassign all {deletingTargetMetric.bdoSchools.length} school(s)</strong> to another BDO</span>
+                                            </label>
+                                        )}
+
+                                        {deleteSchoolAction === 'reassign' && otherActiveBdos.length > 0 && (
+                                            <select
+                                                required
+                                                value={deleteReassignBdoId}
+                                                onChange={(e) => setDeleteReassignBdoId(e.target.value)}
+                                                style={{ width: '100%', padding: '7px 10px', borderRadius: '4px', border: '1px solid #CBD5E1', fontSize: '12px', backgroundColor: '#FFFFFF' }}
+                                            >
+                                                <option value="">-- Select Target BDO --</option>
+                                                {otherActiveBdos.map((ob) => (
+                                                    <option key={ob.id} value={ob.id}>{ob.name} ({ob.email})</option>
+                                                ))}
+                                            </select>
+                                        )}
+
+                                        <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', color: '#1E293B', cursor: 'pointer' }}>
+                                            <input
+                                                type="radio"
+                                                name="bdoDeleteAction"
+                                                value="unassign"
+                                                checked={deleteSchoolAction === 'unassign'}
+                                                onChange={() => setDeleteSchoolAction('unassign')}
+                                            />
+                                            <span><strong>Keep schools unassigned</strong> (schools remain safe, BDO link removed)</span>
+                                        </label>
+                                    </div>
+                                );
+                            })()}
+
+                            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '4px' }}>
+                                <button type="button" onClick={() => setDeletingTargetMetric(null)} className="bdo-btn" disabled={deletingBdo}>Cancel</button>
+                                <button
+                                    type="submit"
+                                    disabled={deletingBdo}
+                                    style={{
+                                        padding: '7px 14px', borderRadius: '4px', border: '1px solid #B91C1C',
+                                        background: '#DC2626', color: '#FFFFFF', fontSize: '12px', fontWeight: '700',
+                                        cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '6px'
+                                    }}
+                                >
+                                    {deletingBdo ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />} Confirm Delete BDO
                                 </button>
                             </div>
                         </form>
@@ -1180,28 +1577,38 @@ const BdoManagement = () => {
                                     </div>
                                 </div>
 
-                                {/* Monthly Targets */}
+                                {/* Monthly Targets & Commission */}
                                 <div style={{ backgroundColor: '#F5F3FF', border: '1px solid #DDD6FE', borderRadius: '6px', padding: '10px 12px' }}>
-                                    <div style={{ fontSize: '11px', fontWeight: '700', color: '#6D28D9', textTransform: 'uppercase', marginBottom: '8px' }}>Monthly Performance Targets</div>
-                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                                    <div style={{ fontSize: '11px', fontWeight: '700', color: '#6D28D9', textTransform: 'uppercase', marginBottom: '8px' }}>Monthly Targets & Per-School Commission</div>
+                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px' }}>
                                         <div>
-                                            <label style={{ display: 'block', fontSize: '11.5px', fontWeight: '700', color: '#4C1D95', marginBottom: '3px' }}>Monthly Trial Target</label>
+                                            <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: '#065F46', marginBottom: '3px' }}>Commission / School (PKR)</label>
+                                            <input
+                                                type="number"
+                                                min="0"
+                                                value={newBdoForm.commissionPerSchool}
+                                                onChange={(e) => setNewBdoForm({ ...newBdoForm, commissionPerSchool: e.target.value })}
+                                                style={{ width: '100%', boxSizing: 'border-box', padding: '6px 8px', borderRadius: '4px', border: '1px solid #6EE7B7', fontSize: '12.5px', fontWeight: '700', backgroundColor: '#FFFFFF' }}
+                                            />
+                                        </div>
+                                        <div>
+                                            <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: '#4C1D95', marginBottom: '3px' }}>Monthly Trial Target</label>
                                             <input
                                                 type="number"
                                                 min="0"
                                                 value={newBdoForm.monthlyTrialTarget}
                                                 onChange={(e) => setNewBdoForm({ ...newBdoForm, monthlyTrialTarget: e.target.value })}
-                                                style={{ width: '100%', boxSizing: 'border-box', padding: '6px 9px', borderRadius: '4px', border: '1px solid #C4B5FD', fontSize: '12.5px', backgroundColor: '#FFFFFF' }}
+                                                style={{ width: '100%', boxSizing: 'border-box', padding: '6px 8px', borderRadius: '4px', border: '1px solid #C4B5FD', fontSize: '12.5px', backgroundColor: '#FFFFFF' }}
                                             />
                                         </div>
                                         <div>
-                                            <label style={{ display: 'block', fontSize: '11.5px', fontWeight: '700', color: '#4C1D95', marginBottom: '3px' }}>Monthly Onboard Target</label>
+                                            <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: '#4C1D95', marginBottom: '3px' }}>Monthly Onboard Target</label>
                                             <input
                                                 type="number"
                                                 min="0"
                                                 value={newBdoForm.monthlyOnboardTarget}
                                                 onChange={(e) => setNewBdoForm({ ...newBdoForm, monthlyOnboardTarget: e.target.value })}
-                                                style={{ width: '100%', boxSizing: 'border-box', padding: '6px 9px', borderRadius: '4px', border: '1px solid #C4B5FD', fontSize: '12.5px', backgroundColor: '#FFFFFF' }}
+                                                style={{ width: '100%', boxSizing: 'border-box', padding: '6px 8px', borderRadius: '4px', border: '1px solid #C4B5FD', fontSize: '12.5px', backgroundColor: '#FFFFFF' }}
                                             />
                                         </div>
                                     </div>

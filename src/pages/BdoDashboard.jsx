@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
     Briefcase, Plus, Clock, CheckCircle, TrendingUp, Target, Calendar,
-    AlertTriangle, School, ExternalLink, MapPin, Phone, Loader2, ArrowRight
+    AlertTriangle, School, ExternalLink, MapPin, Phone, Loader2, ArrowRight, Coins
 } from 'lucide-react';
 import { db } from '../firebase';
 import { collection, onSnapshot } from 'firebase/firestore';
@@ -123,6 +123,11 @@ const BdoDashboard = () => {
     const onboardTarget = Number(adminProfile?.monthlyOnboardTarget) || 0;
     const trialPct = trialTarget > 0 ? Math.min(100, Math.round((metrics.trialsCount / trialTarget) * 100)) : 0;
     const onboardPct = onboardTarget > 0 ? Math.min(100, Math.round((metrics.onboardedCount / onboardTarget) * 100)) : 0;
+    const commissionRate = (adminProfile?.commissionPerSchool !== undefined && adminProfile?.commissionPerSchool !== null && adminProfile?.commissionPerSchool !== '')
+        ? Number(adminProfile.commissionPerSchool)
+        : 2000;
+    const earnedCommission = metrics.onboardedCount * commissionRate;
+    const allTimeCommission = metrics.totalAllTimeOnboarded * commissionRate;
 
     const territoryLabel = (!adminProfile?.territoryScope || adminProfile.territoryScope === 'all')
         ? 'All Pakistan'
@@ -278,6 +283,29 @@ const BdoDashboard = () => {
                                     ? `${metrics.expiredTrialsCount} expired trial(s) need follow-up`
                                     : `${metrics.totalSchools} total schools in your portfolio`}
                             </div>
+                        </div>
+
+                        {/* Commission / Incentive Tracker */}
+                        <div style={{ backgroundColor: '#FFFFFF', border: '1px solid #A7F3D0', borderRadius: '6px', padding: '15px 16px', background: 'linear-gradient(135deg, #ECFDF5 0%, #FFFFFF 100%)' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                                <span style={{ fontSize: '11px', fontWeight: '700', color: '#065F46', textTransform: 'uppercase' }}>
+                                    My Commission ({selectedMonth === 'all' ? 'All Time' : 'This Month'})
+                                </span>
+                                <div style={{ width: '32px', height: '32px', borderRadius: '5px', background: '#D1FAE5', color: '#059669', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                    <Coins size={17} />
+                                </div>
+                            </div>
+                            <div style={{ fontSize: '1.7rem', fontWeight: '800', color: '#047857', lineHeight: 1.2 }}>
+                                Rs. {earnedCommission.toLocaleString()}
+                            </div>
+                            <div style={{ fontSize: '11px', color: '#065F46', fontWeight: '600', marginTop: '4px' }}>
+                                Rs. {commissionRate.toLocaleString()} / school • {metrics.onboardedCount} onboarded
+                            </div>
+                            {selectedMonth !== 'all' && (
+                                <div style={{ fontSize: '10.5px', color: '#64748B', marginTop: '2px' }}>
+                                    All-Time Earned: Rs. {allTimeCommission.toLocaleString()}
+                                </div>
+                            )}
                         </div>
 
                         {/* Conversion Rate */}

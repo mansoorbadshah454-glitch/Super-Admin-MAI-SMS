@@ -4,6 +4,7 @@ import DashboardLayout from './layouts/DashboardLayout';
 import Dashboard from './pages/Dashboard';
 import BdoDashboard from './pages/BdoDashboard';
 import BdoManagement from './pages/BdoManagement';
+import BdoDetail from './pages/BdoDetail';
 import Schools from './pages/Schools';
 import SchoolDetail from './pages/SchoolDetail';
 import Admins from './pages/Admins';
@@ -44,6 +45,7 @@ function App() {
             <Route path="schools" element={<Schools />} />
             <Route path="schools/:id" element={<SchoolDetail />} />
             <Route path="bdo" element={<BdoManageRoute><BdoManagement /></BdoManageRoute>} />
+            <Route path="bdo/:bdoId" element={<BdoManageRoute><BdoDetail /></BdoManageRoute>} />
             <Route path="billing-subscriptions" element={<NonBdoRoute><BillingSubscriptions /></NonBdoRoute>} />
             <Route path="admins" element={<NonBdoRoute><Admins /></NonBdoRoute>} />
             <Route path="users" element={<Navigate to="/admins" replace />} />
